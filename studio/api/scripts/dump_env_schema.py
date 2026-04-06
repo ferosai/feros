@@ -84,7 +84,11 @@ def dump_env_schema() -> str:
         for name, field_info in top_fields:
             env_name = name.upper()
             default = field_info.default
-            if default is not None and str(default) == "PydanticUndefined" and field_info.default_factory:
+            if (
+                default is not None
+                and str(default) == "PydanticUndefined"
+                and field_info.default_factory
+            ):
                 default = field_info.default_factory()
             type_hint = _format_type_hint(field_info.annotation)
 
@@ -108,8 +112,7 @@ def dump_env_schema() -> str:
 
         # Section header from class docstring (first line)
         doc_lines = [
-            line.strip()
-            for line in (model_cls.__doc__ or "").strip().splitlines()
+            line.strip() for line in (model_cls.__doc__ or "").strip().splitlines()
         ]
         header = doc_lines[0] if doc_lines else parent_name.title()
         lines.append(f"# ── {header} ─────")
@@ -134,7 +137,12 @@ def dump_env_schema() -> str:
             if default is not None and default is not ...:
                 env_val = _python_value_to_env(default)
                 # Comment out empty strings and secrets
-                if env_val == "" or "secret" in child_name or "token" in child_name or "key" in child_name:
+                if (
+                    env_val == ""
+                    or "secret" in child_name
+                    or "token" in child_name
+                    or "key" in child_name
+                ):
                     lines.append(f"# {env_name}={env_val}")
                 else:
                     lines.append(f"{env_name}={env_val}")

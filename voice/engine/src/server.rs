@@ -804,6 +804,8 @@ async fn run_session_with_transport(
 
     let llm: Box<dyn LlmProvider> = build_llm_provider(providers);
 
+    // Config is finalized earlier, native_multimodal should be populated from agent_graph down in session.rs or python.rs before start.
+
     // Build typed STT provider config.
     // Language normalization (dialect → base ISO-639-1) is handled inside
     // build_stt_provider() per-provider, so pass the raw configured language here.

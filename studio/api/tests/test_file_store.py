@@ -156,9 +156,7 @@ class TestReadDoc:
     def test_read_nonexistent_agent(self, populated_store: FileStore) -> None:
         assert populated_store.read_text("no-agent", "doc-1") is None
 
-    def test_read_loads_from_disk_after_cache_eviction(
-        self, store: FileStore
-    ) -> None:
+    def test_read_loads_from_disk_after_cache_eviction(self, store: FileStore) -> None:
         """After cache is cleared, read_doc should reload from disk."""
         store.add_text_file("agent-1", "doc-1", "test.txt", SAMPLE_TEXT)
         store._cache.clear()  # simulate eviction
@@ -234,9 +232,7 @@ class TestSearchDoc:
         assert result.hits[0].line_number == 7
         assert "testing" in result.hits[0].line_content
 
-    def test_case_insensitive_by_default(
-        self, populated_store: FileStore
-    ) -> None:
+    def test_case_insensitive_by_default(self, populated_store: FileStore) -> None:
         result = populated_store.search_text("agent-1", "doc-1", "python")
         assert result is not None
         # Should match "PYTHON" on line 4 and "Python" on line 6
@@ -328,9 +324,7 @@ class TestRemoveDocument:
         # Disk should also be gone
         assert not populated_store._file_dir("agent-1", "doc-1").exists()
 
-    def test_remove_nonexistent_document(
-        self, populated_store: FileStore
-    ) -> None:
+    def test_remove_nonexistent_document(self, populated_store: FileStore) -> None:
         assert populated_store.remove_file("agent-1", "nope") is False
 
     def test_remove_all_agent_docs(self, store: FileStore) -> None:
@@ -350,9 +344,7 @@ class TestRemoveDocument:
         store.remove_agent_files("agent-1")
         assert len(store.list_files("agent-2")) == 1
 
-    def test_remove_clears_both_cache_and_disk(
-        self, store: FileStore
-    ) -> None:
+    def test_remove_clears_both_cache_and_disk(self, store: FileStore) -> None:
         store.add_text_file("agent-1", "doc-1", "test.txt", "hello")
         assert store.remove_file("agent-1", "doc-1") is True
         # Not in cache
@@ -530,9 +522,9 @@ class TestPathTraversalPrevention:
         "..",
         ".",
         "",
-        "hello world",   # spaces
-        "id;rm -rf /",   # shell injection
-        "id\x00null",    # null byte
+        "hello world",  # spaces
+        "id;rm -rf /",  # shell injection
+        "id\x00null",  # null byte
     ]
 
     def test_add_document_rejects_bad_agent_id(self, store: FileStore) -> None:
@@ -560,9 +552,7 @@ class TestPathTraversalPrevention:
             assert store.search_text(bad_id, "doc-1", "test") is None
             assert store.search_text("agent-1", bad_id, "test") is None
 
-    def test_list_documents_rejects_bad_agent_id(
-        self, store: FileStore
-    ) -> None:
+    def test_list_documents_rejects_bad_agent_id(self, store: FileStore) -> None:
         for bad_id in self.MALICIOUS_IDS:
             assert store.list_files(bad_id) == []
 

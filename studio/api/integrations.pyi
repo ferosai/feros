@@ -17,7 +17,6 @@ class EncryptionEngine:
         """Decrypt ciphertext/nonce strings back into a Python dictionary."""
         ...
 
-
 def resolve_token(
     db_url: str,
     secret_key: str,
@@ -46,7 +45,6 @@ def resolve_token(
     """
     ...
 
-
 def resolve_agent_secrets(
     db_url: str,
     secret_key: str,
@@ -59,11 +57,8 @@ def resolve_agent_secrets(
     """
     ...
 
-
 def start_vault_server(
-    db_url: str,
-    secret_key: str,
-    port: int = 0
+    db_url: str, secret_key: str, port: int = 0
 ) -> tuple[str, str, str]:
     """Start the vault server on a background thread.
 
@@ -72,16 +67,11 @@ def start_vault_server(
     """
     ...
 
-
 def stop_vault_server() -> None:
     """Stop the vault server (if running)."""
     ...
 
-
-def create_scoped_token(
-    agent_id: str,
-    ttl_seconds: int = 7200
-) -> str:
+def create_scoped_token(agent_id: str, ttl_seconds: int = 7200) -> str:
     """Create a scoped token that only allows reading secrets for a specific agent.
 
     Args:
@@ -92,7 +82,6 @@ def create_scoped_token(
         str: The scoped token string.
     """
     ...
-
 
 def embedded_integrations_yaml() -> str:
     """Return the integrations.yaml content baked into the binary at compile time.

@@ -154,8 +154,7 @@ async def text_test_socket(
 
     llm_cfg = await get_llm_config(db, "__voice__")
     system_prompt = (
-        "You are a helpful voice assistant. "
-        "Keep responses concise and conversational."
+        "You are a helpful voice assistant. Keep responses concise and conversational."
     )
     greeting = "Hello! How can I help you today?"
     graph_json: str | None = None

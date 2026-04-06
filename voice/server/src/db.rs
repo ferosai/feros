@@ -46,6 +46,10 @@ pub struct AgentConfig {
     pub tts_base_url: String,
     pub tts_api_key: String,
     pub tts_voice_id: String,
+    // Native Multimodal (from provider_configs)
+    pub native_multimodal_provider: String,
+    pub native_multimodal_model: String,
+    pub native_multimodal_api_key: String,
 }
 
 /// Encrypted blob shape stored in config_json fields like `api_key_encrypted`,
@@ -148,6 +152,7 @@ fn llm_role_prefix(role_name: &str) -> Option<&'static str> {
     match role_name {
         "__voice__" => Some("voice"),
         "__builder__" => Some("builder"),
+        "__native_multimodal__" => Some("native_multimodal"),
         _ => None,
     }
 }
@@ -463,6 +468,7 @@ async fn agent_config_for_id(
     // the most stable pattern for PgBouncer.
     let provider_map = fetch_providers_bulk(pool, &["stt", "tts"], "__voice__").await;
     let llm = fetch_role_scoped_llm_provider(pool, "__voice__").await;
+    let native_multimodal = fetch_role_scoped_llm_provider(pool, "__native_multimodal__").await;
     let stt = provider_map.get("stt").cloned().unwrap_or_default();
     let mut tts = provider_map.get("tts").cloned().unwrap_or_default();
 
@@ -508,6 +514,9 @@ async fn agent_config_for_id(
         tts_base_url: tts.base_url.clone(),
         tts_api_key: tts.resolved_api_key(engine),
         tts_voice_id: tts.voice_id.clone(),
+        native_multimodal_provider: native_multimodal.provider.clone(),
+        native_multimodal_model: native_multimodal.model.clone(),
+        native_multimodal_api_key: native_multimodal.resolved_api_key(engine),
     })
 }
 

@@ -6,7 +6,6 @@ Covers the pure helper functions that don't require DB or agent setup:
   - _format_read_result: formatting FileStore ReadResult objects
 """
 
-
 from app.agent_builder.tools.artifacts import (
     _format_read_result,
     _search_text,

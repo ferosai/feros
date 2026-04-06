@@ -4,6 +4,7 @@ Revision ID: 6f112f6d467c
 Revises: e8b1e2a0664f
 Create Date: 2026-03-08 16:15:20.726834
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -11,8 +12,8 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '6f112f6d467c'
-down_revision: str | None = 'e8b1e2a0664f'
+revision: str = "6f112f6d467c"
+down_revision: str | None = "e8b1e2a0664f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -20,15 +21,15 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     # Rename persisted context column
     op.alter_column(
-        'builder_conversations',
-        'model_messages_json',
-        new_column_name='persisted_context',
+        "builder_conversations",
+        "model_messages_json",
+        new_column_name="persisted_context",
     )
 
     # Add parts column
     op.add_column(
-        'builder_messages',
-        sa.Column('parts', postgresql.JSON(astext_type=sa.Text()), nullable=True),
+        "builder_messages",
+        sa.Column("parts", postgresql.JSON(astext_type=sa.Text()), nullable=True),
     )
 
     # Migrate existing content into parts
@@ -41,14 +42,14 @@ def upgrade() -> None:
     )
 
     # Drop content column
-    op.drop_column('builder_messages', 'content')
+    op.drop_column("builder_messages", "content")
 
 
 def downgrade() -> None:
     # Re-add content column
     op.add_column(
-        'builder_messages',
-        sa.Column('content', sa.Text(), nullable=False, server_default=''),
+        "builder_messages",
+        sa.Column("content", sa.Text(), nullable=False, server_default=""),
     )
 
     # Migrate parts back to content (extract text parts)
@@ -65,9 +66,9 @@ def downgrade() -> None:
         """
     )
 
-    op.drop_column('builder_messages', 'parts')
+    op.drop_column("builder_messages", "parts")
     op.alter_column(
-        'builder_conversations',
-        'persisted_context',
-        new_column_name='model_messages_json',
+        "builder_conversations",
+        "persisted_context",
+        new_column_name="model_messages_json",
     )

@@ -40,7 +40,9 @@ async def test_create_config_creates_initial_version() -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_version_increments_latest(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_create_version_increments_latest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     db = _FakeSession()
     service = EvaluationConfigService()
     cfg = EvaluationConfig(

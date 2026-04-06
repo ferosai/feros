@@ -43,9 +43,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(
-            ["agent_id"], ["agents.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("phone_number", name="uq_phone_numbers_e164"),
     )

@@ -223,10 +223,7 @@ def register_skill_tools(agent: Agent[Any, Any]) -> None:
         content = skill_index.load(name)
         if content is None:
             available = [e.name for e in skill_index._entries]
-            return (
-                f"Skill '{name}' not found. "
-                f"Available skills: {', '.join(available)}"
-            )
+            return f"Skill '{name}' not found. Available skills: {', '.join(available)}"
 
         logger.info("Builder loaded skill '{}' via tool call", name)
         return content

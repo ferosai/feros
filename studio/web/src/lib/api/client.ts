@@ -916,6 +916,13 @@ export const api = {
         method: "PUT",
         body: JSON.stringify(data),
       }),
+    getNativeMultimodal: () =>
+      apiFetch<LLMSettings>("/settings/native-multimodal"),
+    updateNativeMultimodal: (data: LLMSettingsUpdate) =>
+      apiFetch<LLMSettings>("/settings/native-multimodal", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
     getSTT: () =>
       apiFetch<VoiceProviderSettings>("/settings/stt"),
     updateSTT: (data: VoiceProviderUpdate) =>

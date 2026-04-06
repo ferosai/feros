@@ -407,7 +407,11 @@ def telephony_config_from_row(row: Any) -> TelephonyConfig:
     )
 
 
-_LLM_ROLE_PREFIX: dict[str, str] = {"__builder__": "builder", "__voice__": "voice"}
+_LLM_ROLE_PREFIX: dict[str, str] = {
+    "__builder__": "builder",
+    "__voice__": "voice",
+    "__native_multimodal__": "native_multimodal",
+}
 
 
 async def get_llm_config(

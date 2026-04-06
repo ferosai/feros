@@ -38,7 +38,6 @@ class SessionConfig:
         graph_json: str | None = None,
     ) -> None: ...
 
-
 class ServerConfig:
     """Server-level settings for starting the voice server."""
 
@@ -63,7 +62,6 @@ class ServerConfig:
         default_telnyx_api_key: str = "",
         auth_secret_key: str = "",
     ) -> None: ...
-
 
 class VoiceServer:
     """WebSocket voice server running in a background Rust thread."""
@@ -92,7 +90,6 @@ class VoiceServer:
     def pending_sessions(self) -> int: ...
     def stop(self) -> None: ...
 
-
 class AgentRunner:
     """Headless agent backend for testing."""
 
@@ -118,12 +115,10 @@ class AgentRunner:
     def recv_event(self) -> dict[str, Any] | None: ...
     def cancel_handle(self) -> CancelHandle: ...
 
-
 class CancelHandle:
     """Lightweight handle to cancel an in-flight AgentRunner turn from another thread."""
 
     def cancel(self) -> None: ...
-
 
 def validate_javascript(script: str) -> list[str]:
     """Validate a JavaScript tool script using QuickJS (syntax-only, no execution).
@@ -139,4 +134,3 @@ def check_tts_model_language(provider: str, model_id: str, language: str) -> boo
 def get_stt_model_catalog() -> list[dict[str, Any]]: ...
 def check_stt_model_language(provider: str, model_id: str, language: str) -> bool: ...
 def validate_rhai(script: str) -> list[str]: ...
-

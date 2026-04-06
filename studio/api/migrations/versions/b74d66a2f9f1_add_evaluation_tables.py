@@ -42,7 +42,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
-        "ix_evaluation_configs_agent_id", "evaluation_configs", ["agent_id"], unique=False
+        "ix_evaluation_configs_agent_id",
+        "evaluation_configs",
+        ["agent_id"],
+        unique=False,
     )
     op.create_index(
         "ix_evaluation_configs_status", "evaluation_configs", ["status"], unique=False
@@ -53,7 +56,9 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("config_id", sa.UUID(), nullable=False),
         sa.Column("version", sa.Integer(), nullable=False),
-        sa.Column("config_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "config_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -103,7 +108,9 @@ def upgrade() -> None:
             ["config_id"], ["evaluation_configs.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["config_version_id"], ["evaluation_config_versions.id"], ondelete="RESTRICT"
+            ["config_version_id"],
+            ["evaluation_config_versions.id"],
+            ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -123,7 +130,9 @@ def upgrade() -> None:
         sa.Column("seq_no", sa.Integer(), nullable=False),
         sa.Column("event_type", sa.String(length=64), nullable=False),
         sa.Column("event_timestamp", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("payload_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "payload_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -177,7 +186,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["run_id"], ["evaluation_runs.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_evaluation_judgments_run_id", "evaluation_judgments", ["run_id"])
+    op.create_index(
+        "ix_evaluation_judgments_run_id", "evaluation_judgments", ["run_id"]
+    )
 
 
 def downgrade() -> None:

@@ -64,6 +64,34 @@ impl TransportHandle {
         let (_, dummy_rx) = mpsc::unbounded_channel();
         std::mem::replace(&mut self.audio_rx, dummy_rx)
     }
+
+    /// Create a no-op transport handle that owns no resources.
+    ///
+    /// Used when a session path takes ownership of the real transport
+    /// but the `VoiceSession` struct still needs a placeholder for `_transport`.
+    pub fn dummy() -> Self {
+        struct NullSink;
+        #[async_trait::async_trait]
+        impl TransportAudioSink for NullSink {
+            async fn send_audio(&self, _: Bytes) -> Result<(), TransportError> {
+                Ok(())
+            }
+            async fn interrupt(&self) -> Result<(), TransportError> {
+                Ok(())
+            }
+        }
+        let (_, audio_rx) = mpsc::unbounded_channel();
+        let (control_tx, _) = mpsc::unbounded_channel();
+        let (_, control_rx) = mpsc::unbounded_channel();
+        Self {
+            audio_rx,
+            audio_tx: Box::new(NullSink),
+            control_rx,
+            control_tx,
+            input_sample_rate: 48_000,
+            _background_tasks: vec![],
+        }
+    }
 }
 
 impl Drop for TransportHandle {

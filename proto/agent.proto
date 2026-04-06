@@ -85,4 +85,9 @@ message AgentGraphDef {
   
   // Envelope field for versions (e.g. "v3_graph")
   optional string config_schema_version = 10;
+
+  // -- Native multimodal (Gemini Live) --
+  // When set, the session bypasses STT/LLM/TTS and uses Gemini Live's native
+  // bidirectional audio-to-audio WebSocket for the entire conversation.
+  optional string gemini_live_model = 12;
 }

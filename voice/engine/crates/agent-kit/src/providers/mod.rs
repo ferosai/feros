@@ -152,3 +152,5 @@ pub mod deepseek;
 pub mod groq;
 pub mod together;
 pub mod fireworks;
+pub mod realtime;
+pub mod gemini_live;

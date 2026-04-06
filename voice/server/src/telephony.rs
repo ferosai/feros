@@ -433,6 +433,23 @@ pub async fn register_session(
                 }
             }
         }
+        // Native Multimodal configuration
+        if let Some(ref gm) = graph.gemini_live_model {
+            if !gm.is_empty() {
+                // "default" / "models/default" means the graph has a placeholder — use
+                // the canonical model from the native_multimodal provider_config row.
+                let resolved_model = if gm == "default" || gm == "models/default" {
+                    agent.native_multimodal_model.clone()
+                } else {
+                    gm.clone()
+                };
+
+                config.native_multimodal = Some(voice_engine::session::NativeMultimodalConfig {
+                    api_key: agent.native_multimodal_api_key.clone(),
+                    model: Some(resolved_model),
+                });
+            }
+        }
     }
 
     // Apply language instruction injection and any other derived mutations.

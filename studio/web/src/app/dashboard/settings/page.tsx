@@ -110,6 +110,16 @@ const PROVIDER_HELP: Record<string, { models: string[]; docs: string; placeholde
     docs: "",
     placeholder: "https://your-api.example.com",
   },
+  "gemini-live": {
+    models: ["models/gemini-3.1-flash-live-preview"],
+    docs: "https://ai.google.dev/api/live",
+    placeholder: "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+  },
+  "openai-realtime": {
+    models: ["gpt-4o-realtime-preview"],
+    docs: "https://platform.openai.com/docs/guides/realtime",
+    placeholder: "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
+  },
 };
 
 const DEFAULT_VOICE_SERVER_URL = "http://localhost:8300";
@@ -915,6 +925,19 @@ function SettingsPageContent() {
     [router, searchParams],
   );
 
+  const voicePipelineParam = searchParams.get("voice_pipeline");
+  const voicePipelineTab: "standard" | "native" =
+    voicePipelineParam === "native" ? "native" : "standard";
+
+  const setVoicePipelineTab = useCallback(
+    (tab: "standard" | "native") => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("voice_pipeline", tab);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
   // Builder LLM state
@@ -936,6 +959,16 @@ function SettingsPageContent() {
   const [voiceApiKey, setVoiceApiKey] = useState("");
   const [voiceTemperature, setVoiceTemperature] = useState(0.7);
   const [voiceShowApiKey, setVoiceShowApiKey] = useState(false);
+
+  // Native Multimodal state
+  const [nativeMultimodal, setNativeMultimodal] = useState<LLMSettings | null>(null);
+  const [nativeMultimodalProviders, setNativeMultimodalProviders] = useState<LLMProviderOption[]>([]);
+  const [nativeMultimodalProvider, setNativeMultimodalProvider] = useState("gemini-live");
+  const [nativeMultimodalModel, setNativeMultimodalModel] = useState("models/gemini-3.1-flash-live-preview");
+  const [nativeMultimodalBaseUrl, setNativeMultimodalBaseUrl] = useState("wss://generativelanguage.googleapis.com");
+  const [nativeMultimodalApiKey, setNativeMultimodalApiKey] = useState("");
+  const [nativeMultimodalTemperature, setNativeMultimodalTemperature] = useState(0.7);
+  const [nativeMultimodalShowApiKey, setNativeMultimodalShowApiKey] = useState(false);
 
   // STT state
   const [stt, setSTT] = useState<VoiceProviderSettings | null>(null);
@@ -1017,9 +1050,10 @@ function SettingsPageContent() {
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
-      const [llmRes, voiceLlmRes, sttRes, ttsRes, telephonyRes, observabilityRes] = await Promise.all([
+      const [llmRes, voiceLlmRes, nmRes, sttRes, ttsRes, telephonyRes, observabilityRes] = await Promise.all([
         api.settings.getLLM(),
         api.settings.getVoiceLLM(),
+        api.settings.getNativeMultimodal(),
         api.settings.getSTT(),
         api.settings.getTTS(),
         api.settings.getTelephony(),
@@ -1043,6 +1077,15 @@ function SettingsPageContent() {
       setVoiceBaseUrl(voiceLlmRes.base_url);
       setVoiceTemperature(voiceLlmRes.temperature);
       setVoiceApiKey("");
+
+      // Native Multimodal
+      setNativeMultimodal(nmRes);
+      setNativeMultimodalProviders(nmRes.supported_providers);
+      setNativeMultimodalProvider(nmRes.provider);
+      setNativeMultimodalModel(nmRes.model);
+      setNativeMultimodalBaseUrl(nmRes.base_url);
+      setNativeMultimodalTemperature(nmRes.temperature);
+      setNativeMultimodalApiKey("");
 
       // STT
       setSTT(sttRes);
@@ -1146,6 +1189,15 @@ function SettingsPageContent() {
       };
       if (voiceApiKey) voiceUpdate.api_key = voiceApiKey;
 
+      // Native Multimodal
+      const nativeMultimodalUpdate: LLMSettingsUpdate = {
+        provider: nativeMultimodalProvider,
+        model: nativeMultimodalModel,
+        base_url: nativeMultimodalBaseUrl,
+        temperature: nativeMultimodalTemperature,
+      };
+      if (nativeMultimodalApiKey) nativeMultimodalUpdate.api_key = nativeMultimodalApiKey;
+
       // STT — pass api_key in config dict; backend extracts + encrypts it
       const sttUpdate: VoiceProviderUpdate = {
         provider: sttProvider,
@@ -1180,9 +1232,10 @@ function SettingsPageContent() {
       if (langfusePublicKey) observabilityUpdate.langfuse_public_key = langfusePublicKey;
       if (langfuseSecretKey) observabilityUpdate.langfuse_secret_key = langfuseSecretKey;
 
-      const [llmResult, voiceLlmResult, sttResult, ttsResult, telephonyResult, observabilityResult] = await Promise.all([
+      const [llmResult, voiceLlmResult, nativeMultimodalResult, sttResult, ttsResult, telephonyResult, observabilityResult] = await Promise.all([
         api.settings.updateLLM(builderUpdate),
         api.settings.updateVoiceLLM(voiceUpdate),
+        api.settings.updateNativeMultimodal(nativeMultimodalUpdate),
         api.settings.updateSTT(sttUpdate),
         api.settings.updateTTS(ttsUpdate),
         api.settings.updateTelephony(telephonyUpdate),
@@ -1193,6 +1246,8 @@ function SettingsPageContent() {
       setBuilderApiKey("");
       setVoiceLlm(voiceLlmResult);
       setVoiceApiKey("");
+      setNativeMultimodal(nativeMultimodalResult);
+      setNativeMultimodalApiKey("");
       setSTT(sttResult);
       // Clear sensitive fields so password inputs show "(saved)"
       setSTTConfig((prev) => {
@@ -1373,34 +1428,96 @@ function SettingsPageContent() {
             quickStartHint
           />
 
-          <LLMCard
-            title="Voice Agent LLM"
-            subtitle="The AI model used during live voice calls — optimise for speed"
-            icon={AiMicIcon}
-            llm={voiceLlm}
-            providers={voiceProviders}
-            provider={voiceProvider}
-            setProvider={(val) => {
-              setVoiceProvider(val);
-              const saved = voiceLlm?.all_configs?.[val];
-              if (saved) {
-                if (saved.model) setVoiceModel(saved.model);
-                if (saved.base_url) setVoiceBaseUrl(saved.base_url);
-                if (saved.temperature) setVoiceTemperature(parseFloat(saved.temperature));
-              }
-            }}
-            model={voiceModel}
-            setModel={setVoiceModel}
-            baseUrl={voiceBaseUrl}
-            setBaseUrl={setVoiceBaseUrl}
-            apiKey={voiceApiKey}
-            setApiKey={setVoiceApiKey}
-            temperature={voiceTemperature}
-            setTemperature={setVoiceTemperature}
-            showApiKey={voiceShowApiKey}
-            setShowApiKey={setVoiceShowApiKey}
-            loading={loading}
-          />
+          <div className="flat-card p-6 bg-transparent border-0 shadow-none ring-1 ring-border/50">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Voice Pipeline LLM</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Toggle between standard mode or native multimodal architectures</p>
+              </div>
+              <div className="flex p-1 bg-secondary/50 rounded-lg shrink-0">
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    voicePipelineTab === "standard" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                  }`}
+                  onClick={() => setVoicePipelineTab("standard")}
+                >
+                  Standard Voice LLM
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    voicePipelineTab === "native" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                  }`}
+                  onClick={() => setVoicePipelineTab("native")}
+                >
+                  Native Multimodal
+                </button>
+              </div>
+            </div>
+
+            {voicePipelineTab === "standard" && (
+              <LLMCard
+                title="Voice Agent LLM"
+                subtitle="The AI model used during live voice calls — optimise for speed"
+                icon={AiMicIcon}
+                llm={voiceLlm}
+                providers={voiceProviders}
+                provider={voiceProvider}
+                setProvider={(val) => {
+                  setVoiceProvider(val);
+                  const saved = voiceLlm?.all_configs?.[val];
+                  if (saved) {
+                    if (saved.model) setVoiceModel(saved.model);
+                    if (saved.base_url) setVoiceBaseUrl(saved.base_url);
+                    if (saved.temperature) setVoiceTemperature(parseFloat(saved.temperature));
+                  }
+                }}
+                model={voiceModel}
+                setModel={setVoiceModel}
+                baseUrl={voiceBaseUrl}
+                setBaseUrl={setVoiceBaseUrl}
+                apiKey={voiceApiKey}
+                setApiKey={setVoiceApiKey}
+                temperature={voiceTemperature}
+                setTemperature={setVoiceTemperature}
+                showApiKey={voiceShowApiKey}
+                setShowApiKey={setVoiceShowApiKey}
+                loading={loading}
+              />
+            )}
+
+            {voicePipelineTab === "native" && (
+              <LLMCard
+                title="Native Multimodal"
+                subtitle="The AI model that powers the agent in native multimodal mode (e.g., Gemini Live)"
+                icon={LiveStreaming02Icon}
+                llm={nativeMultimodal}
+                providers={nativeMultimodalProviders}
+                provider={nativeMultimodalProvider}
+                setProvider={(val) => {
+                  setNativeMultimodalProvider(val);
+                  const saved = nativeMultimodal?.all_configs?.[val];
+                  if (saved) {
+                    if (saved.model) setNativeMultimodalModel(saved.model);
+                    if (saved.base_url) setNativeMultimodalBaseUrl(saved.base_url);
+                    if (saved.temperature) setNativeMultimodalTemperature(parseFloat(saved.temperature));
+                  }
+                }}
+                model={nativeMultimodalModel}
+                setModel={setNativeMultimodalModel}
+                baseUrl={nativeMultimodalBaseUrl}
+                setBaseUrl={setNativeMultimodalBaseUrl}
+                apiKey={nativeMultimodalApiKey}
+                setApiKey={setNativeMultimodalApiKey}
+                temperature={nativeMultimodalTemperature}
+                setTemperature={setNativeMultimodalTemperature}
+                showApiKey={nativeMultimodalShowApiKey}
+                setShowApiKey={setNativeMultimodalShowApiKey}
+                loading={loading}
+              />
+            )}
+          </div>
         </div>
       </div>
       )}

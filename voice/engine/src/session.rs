@@ -22,6 +22,18 @@ use agent_kit::{
     AgentBackend, AgentBackendConfig, ArtifactInterceptor, ArtifactStore, DefaultAgentBackend,
 };
 
+// ── Native Multimodal Config ─────────────────────────────────────
+
+/// When set on a session, the STT/LLM/TTS pipeline is bypassed entirely.
+/// Audio flows directly between WebRTC and the Gemini Live WebSocket.
+#[derive(Clone, Debug)]
+pub struct NativeMultimodalConfig {
+    /// Gemini API key for the Live (bidirectional audio) endpoint.
+    pub api_key: String,
+    /// Model override. Defaults to `models/gemini-3.1-flash-live-preview`.
+    pub model: Option<String>,
+}
+
 // ── Configuration ───────────────────────────────────────────────
 
 /// Configuration for a voice session.
@@ -50,62 +62,40 @@ pub struct SessionConfig {
 
     // ── Turn Wisdom features ────────────────────────────────
     /// Enable LLM turn completion marker detection (✓/○/◐).
-    /// When enabled, the Reactor intercepts the first LLM token to detect
-    /// turn completion markers and routes accordingly.
-    /// Default: true
     pub turn_completion_enabled: bool,
 
     /// Seconds of user silence before sending a re-engagement prompt.
-    /// Set to 0 to disable idle detection. Default: 4.
     pub idle_timeout_secs: u32,
 
     /// Number of idle nudges to send before hanging up.
-    /// Nudge 1, nudge 2, … nudge N → hang up. Default: 2.
     pub idle_max_nudges: u32,
 
-    /// Minimum number of STT words required before a barge-in is
-    /// triggered during bot speech. Prevents filler words ("um", "uh")
-    /// from interrupting the bot.
-    /// Set to 0 to disable (any VAD triggers barge-in).
-    /// Default: 2
+    /// Minimum number of STT words required before a barge-in is triggered.
     pub min_barge_in_words: u32,
 
-    /// Maximum milliseconds to wait after SpeechStarted during bot speech
-    /// before triggering barge-in regardless of word count.
-    /// If the user is still speaking after this timeout, barge-in fires
-    /// immediately without waiting for STT. SpeechEnded before timeout
-    /// falls back to full-transcript word count check.
-    /// Default: 800
+    /// Maximum ms to wait after SpeechStarted before triggering barge-in.
     pub barge_in_timeout_ms: u32,
 
     /// Expected P99 latency from speech end to final STT transcript (ms).
-    /// After the turn-complete decision (SmartTurn prediction, EoT fallback,
-    /// or immediate when SmartTurn is disabled), we wait up to this long for
-    /// the STT transcript before abandoning the turn.
-    /// Applies to **all** turn-commit paths, not just SmartTurn.
-    /// Default: 1000 (conservative for Whisper-class STT)
     pub stt_p99_latency_ms: u32,
 
     // ── Tool execution ──────────────────────────────────────────
     /// Optional agent graph for multi-node / swarm routing.
-    /// When set, the Reactor uses swarm mode with `transfer_to` edges.
-    /// Tools are defined as QuickJS scripts in the graph's `tools` map.
     pub agent_graph: Option<AgentGraphDef>,
 
     // ── Observability labels ────────────────────────────────────
-    /// STT provider name for observability labels (e.g. "faster-whisper", "deepgram").
     pub stt_provider: String,
-    /// STT model name for observability labels (e.g. "large-v3", "nova-3").
     pub stt_model: String,
-    /// TTS provider name for observability labels (e.g. "fish-speech", "kokoro").
     pub tts_provider: String,
-    /// TTS model name for observability labels (e.g. "aura-asteria-en").
     pub tts_model: String,
 
     // ── Session Recording ───────────────────────────────────────
-    /// Configuration for session recording (audio + transcript capture).
-    /// When `enabled`, spawns a recording subscriber on the event bus.
     pub recording: RecordingConfig,
+
+    // ── Native Multimodal (Gemini Live) ─────────────────────────
+    /// When `Some`, the session bypasses STT/LLM/TTS entirely and uses
+    /// Gemini Live's bidirectional audio WebSocket instead.
+    pub native_multimodal: Option<NativeMultimodalConfig>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -121,6 +111,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("output_sample_rate", &self.output_sample_rate)
             .field("greeting", &self.greeting.as_deref().map(|_| "<set>"))
             .field("agent_graph", &self.agent_graph.as_ref().map(|_| "<set>"))
+            .field("native_multimodal", &self.native_multimodal.as_ref().map(|_| "<set>"))
             .finish()
     }
 }
@@ -154,16 +145,13 @@ impl Default for SessionConfig {
             tts_provider: "unknown".to_string(),
             tts_model: String::new(),
             recording: RecordingConfig::default(),
+            native_multimodal: None,
         }
     }
 }
 
 impl SessionConfig {
     /// Apply derived mutations that depend on multiple fields.
-    ///
-    /// Call once after all fields are set, before passing to [`VoiceSession::start`].
-    /// Currently injects a language-instruction prefix on `system_prompt` for
-    /// non-English sessions so the LLM responds in the configured language.
     pub fn finalize(mut self) -> Self {
         if !self.language.is_empty() && self.language != "en" {
             use crate::language_config::SUPPORTED_LANGUAGES;
@@ -178,6 +166,15 @@ impl SessionConfig {
             );
             self.system_prompt = format!("{instruction}{}", self.system_prompt);
         }
+
+        // Capitalize first letter to match Gemini expectations natively
+        if !self.voice_id.is_empty() {
+            let mut c = self.voice_id.chars();
+            if let Some(f) = c.next() {
+                self.voice_id = f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str();
+            }
+        }
+
         self
     }
 }
@@ -185,17 +182,8 @@ impl SessionConfig {
 // ── Voice Session ───────────────────────────────────────────────
 
 /// A single voice conversation session backed by the Reactor.
-///
-/// This is a thin coordinator that:
-/// 1. Accepts a [`TransportHandle`] for transport-agnostic audio I/O
-/// 2. Constructs the [`Reactor`] with all stages and a [`Tracer`]
-/// 3. Calls `reactor.start()` to load models and connect STT
-/// 4. Spawns the Reactor as a single Tokio task
-/// 5. Exposes `close()` and `wait_for_completion()` for lifecycle management
 pub struct VoiceSession {
-    /// Join handle for the Reactor task.
     reactor_handle: Option<tokio::task::JoinHandle<()>>,
-
     /// Keeps the transport alive (background tasks are aborted on drop).
     _transport: TransportHandle,
 }
@@ -203,15 +191,8 @@ pub struct VoiceSession {
 impl VoiceSession {
     /// Create and start a new voice session.
     ///
-    /// The caller must provide:
-    /// - A [`TransportHandle`] from the transport layer (WebSocket, WebRTC, etc.)
-    /// - A [`Tracer`] for event bus and observability
-    /// - Provider URLs and an LLM provider
-    ///
-    /// **Recording is the caller's responsibility.** Subscribe to the Tracer
-    /// (via `tracer.subscribe()` or `voice_trace::spawn_recording_subscriber`)
-    /// *before* calling this method. Voice-engine only emits `UserAudio`,
-    /// `Audio`, and `SessionEnded` events — it does not write any files.
+    /// When `config.native_multimodal` is `Some`, the STT/LLM/TTS pipeline is
+    /// bypassed and audio flows directly to/from the Gemini Live WebSocket.
     #[allow(clippy::too_many_arguments)]
     pub async fn start(
         _session_id: String,
@@ -223,12 +204,63 @@ impl VoiceSession {
         tracer: Tracer,
         mut transport: TransportHandle,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // ── Native Multimodal (Gemini Live) path ───────────────────────────
+        if let Some(nm_config) = config.native_multimodal.clone() {
+            // Pull mic audio receiver; transport (with audio_tx sink) is moved into the task.
+            let audio_in_rx = transport.take_audio_rx();
+
+            let agent_graphdef = config.agent_graph.clone();
+            let system_prompt = config.system_prompt.clone();
+            let voice_id = config.voice_id.clone();
+            let input_sample_rate = config.input_sample_rate;
+
+            let task = AgentTaskSettings::get();
+            let backend_config = AgentBackendConfig {
+                temperature: config.temperature,
+                max_tokens: config.max_tokens,
+                max_tool_rounds: 5,
+                secrets,
+                tool_summarizer: task.agent_tool_summarizer,
+                context_summarizer: task.agent_context_summarizer,
+                tool_filler: task.agent_tool_filler,
+            };
+
+            let models_dir = config.models_dir.clone();
+            let recording_enabled = config.recording.enabled;
+
+            // Move the transport into the task so its audio_tx sink stays alive.
+            let reactor_handle = tokio::spawn(async move {
+                run_native_multimodal(
+                    nm_config,
+                    agent_graphdef,
+                    system_prompt,
+                    voice_id,
+                    backend_config,
+                    audio_in_rx,
+                    transport,
+                    tracer,
+                    input_sample_rate,
+                    models_dir,
+                    recording_enabled,
+                    config.language.clone(),
+                    config.greeting.clone(),
+                )
+                .await;
+            });
+
+            info!("Voice session started (Gemini Live native audio)");
+            return Ok(Self {
+                reactor_handle: Some(reactor_handle),
+                // Real transport was moved into the task; placeholder keeps the struct valid.
+                _transport: TransportHandle::dummy(),
+            });
+        }
+
+        // ── Standard STT/LLM/TTS Reactor path ───────────────────────────────
         if tts_config.voice_id.is_empty() {
             return Err("A voice must be configured to start the session.".into());
         }
 
-        // The transport's audio_rx goes directly to the Reactor.
-        // When the transport closes, audio_rx returns None → Reactor stops.
         let audio_in_rx = transport.take_audio_rx();
 
         let agent_graph = config.agent_graph.clone();
@@ -243,12 +275,7 @@ impl VoiceSession {
             tool_filler: task.agent_tool_filler,
         };
 
-        // Convert the boxed provider to an Arc so it can be shared with the hooks
         let llm_provider: Arc<dyn LlmProvider> = Arc::from(llm_provider);
-
-        // Build backend with artifact hook.
-        // Summarizers are wired automatically by DefaultAgentBackend::new()
-        // using the same LLM provider.
         let backend: Box<dyn AgentBackend> = Box::new(
             DefaultAgentBackend::new(llm_provider, agent_graph, backend_config).with_interceptor(
                 std::sync::Arc::new(ArtifactInterceptor::new(ArtifactStore::new())),
@@ -267,16 +294,8 @@ impl VoiceSession {
             transport_control_tx,
         );
 
-        // NOTE: Recording is intentionally NOT started here.
-        // Voice-engine only emits audio events on the bus; the embedder
-        // (voice-server) is responsible for subscribing to the Tracer and
-        // handling recording/storage (filesystem, S3, etc.).
-        // Subscribe via tracer.subscribe() BEFORE calling VoiceSession::start.
-
-        // Load ONNX models, connect STT WebSocket, emit SessionReady, play greeting.
         reactor.start().await.map_err(|e| e.to_string())?;
 
-        // Spawn the Reactor
         let reactor_handle = tokio::spawn(async move {
             reactor.run().await;
         });
@@ -290,10 +309,7 @@ impl VoiceSession {
     }
 
     /// Close the session cleanly.
-    ///
-    /// Waits for the Reactor to finish its cleanup (with timeout safety net).
     pub async fn close(&mut self) {
-        // Wait for the Reactor to finish its cleanup (with timeout safety net)
         if let Some(handle) = self.reactor_handle.take() {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
         }
@@ -301,14 +317,323 @@ impl VoiceSession {
     }
 
     /// Wait for the session to complete.
-    ///
-    /// This blocks until the transport disconnects and the Reactor finishes.
-    /// After this returns, call `close()` for final cleanup.
     pub async fn wait_for_completion(&mut self) {
         if let Some(handle) = self.reactor_handle.take() {
             let _ = handle.await;
         }
     }
+}
+
+// ── Native Multimodal Event Loop ───────────────────────────────────────
+
+/// Self-contained event loop for Gemini Live native audio sessions.
+///
+/// # Audio path
+/// ```text
+/// WebRTC mic → 48kHz PCM → resample 16kHz → GeminiLiveProvider.push_audio()
+///                                                     │
+///                                         Gemini Live WS (bidirectional)
+///                                                     │
+/// backend.recv() → NativeAgentEvent::BotAudio (24kHz) → resample 48kHz → transport.audio_tx
+/// ```
+#[allow(clippy::too_many_arguments)]
+async fn run_native_multimodal(
+    nm_config: NativeMultimodalConfig,
+    agent_graph: Option<AgentGraphDef>,
+    system_prompt: String,
+    voice_id: String,
+    backend_config: AgentBackendConfig,
+    mut mic_rx: tokio::sync::mpsc::UnboundedReceiver<bytes::Bytes>,
+    transport: TransportHandle,
+    mut tracer: Tracer,
+    input_sample_rate: u32,
+    models_dir: String,
+    recording_enabled: bool,
+    language: String,
+    greeting: Option<String>,
+) {
+    use agent_kit::agent_backends::native::{NativeAgentEvent, NativeMultimodalBackend};
+    use agent_kit::providers::gemini_live::{GeminiLiveProvider, OUTPUT_SAMPLE_RATE};
+    use agent_kit::AgentBackend as _;
+    use bytes::Bytes;
+    use tracing::{error, info, warn};
+    use voice_trace::Event;
+
+    /// WebRTC Opus clock rate.
+    const WEBRTC_RATE: u32 = 48_000;
+
+    tracer.emit(Event::SessionReady);
+
+    // ── Build provider and backend ─────────────────────────────────
+    let api_key = nm_config.api_key.clone();
+
+
+    if api_key.is_empty() || api_key.trim().is_empty() {
+        tracing::error!("[native] No Gemini API key found in the Native Multimodal configuration block. Terminating session.");
+        tracer.emit(Event::Error {
+            source: "native_multimodal".into(),
+            message: "No Gemini API key found in Native Multimodal configuration.".into(),
+        });
+        tracer.emit(Event::SessionEnded);
+        return;
+    }
+
+    let provider = Box::new(GeminiLiveProvider::new(
+        api_key,
+        nm_config.model.clone(),
+    ));
+    let mut backend = NativeMultimodalBackend::new(
+        provider,
+        agent_graph.as_ref(), // No tools support yet? Graph is passed.
+        backend_config,
+        voice_id.clone(),
+    );
+    let mut final_system_prompt = system_prompt;
+    if let Some(mut greet) = greeting {
+        greet = greet.trim().to_string();
+        if !greet.is_empty() {
+            final_system_prompt = format!(
+                "{final_system_prompt}\n\nYour first message must be EXACTLY this greeting: \"{greet}\""
+            );
+        }
+    }
+    backend.set_system_prompt(final_system_prompt);
+
+    // Connect to Gemini Live WebSocket.
+    if let Err(e) = backend.connect().await {
+        error!("[native] Failed to connect to Gemini Live: {}", e);
+        tracer.emit(Event::Error {
+            source: "native_multimodal".into(),
+            message: format!("Gemini Live connect failed: {e}"),
+        });
+        tracer.emit(Event::SessionEnded);
+        return;
+    }
+    info!("[native] Gemini Live connected");
+
+    // ── Resamplers ─────────────────────────────────────────────────
+    // Input: client rate (e.g. 48kHz) → 16kHz (Gemini input requirement).
+    let mut in_resampler =
+        soxr::SoxrStreamResampler::new(input_sample_rate, crate::utils::SAMPLE_RATE)
+            .expect("Native in-resampler creation failed");
+
+    // Output: Gemini 24kHz → WebRTC 48kHz.
+    let mut out_resampler = soxr::SoxrStreamResampler::new(OUTPUT_SAMPLE_RATE, WEBRTC_RATE)
+        .expect("Native out-resampler creation failed");
+
+    // ── Local VAD for barge-in ─────────────────────────────────────
+    let vad_path = format!("{}/silero_vad/silero_vad.onnx", models_dir);
+    let mut vad = crate::reactor::proc::vad::VadStage::new(
+        &vad_path,
+        crate::audio_ml::vad::VadConfig::default(),
+    );
+    let vad_ok = vad.initialize().is_ok();
+    if !vad_ok {
+        warn!("[native] VAD init failed — barge-in disabled");
+    }
+
+    let mut ring = crate::utils::AudioRingBuffer::default();
+    let mut bot_speaking = false;
+    let mut bot_offset_samples: u64 = 0;
+
+    // ── Main event loop ────────────────────────────────────────────
+    loop {
+        tokio::select! {
+            // Mic audio: resample → push to Gemini; also run VAD for barge-in.
+            raw = mic_rx.recv() => {
+                match raw {
+                    Some(raw_bytes) => {
+                        let resampled = in_resampler.process(&raw_bytes);
+
+                        // Frame-align for VAD; collect audio to push async afterward.
+                        let mut pending_pcm: Vec<Vec<i16>> = Vec::new();
+                        let mut vad_event: Option<crate::types::VadEvent> = None;
+                        ring.process_frames(&resampled, |frame| {
+                            if recording_enabled {
+                                tracer.emit(Event::UserAudio {
+                                    pcm: Bytes::copy_from_slice(frame),
+                                    sample_rate: crate::utils::SAMPLE_RATE,
+                                });
+                            }
+                            if vad_ok {
+                                if let Some(ev) = vad.process(frame) {
+                                    vad_event = Some(ev);
+                                }
+                            }
+                            let samples: Vec<i16> = frame
+                                .chunks_exact(2)
+                                .map(|b| i16::from_le_bytes([b[0], b[1]]))
+                                .collect();
+                            pending_pcm.push(samples);
+                        });
+
+                        for samples in pending_pcm {
+                            if let Err(e) = backend.push_audio(&samples).await {
+                                warn!("[native] push_audio error: {}", e);
+                            }
+                        }
+
+                        // Barge-in when speech detected while bot is talking.
+                        if let Some(crate::types::VadEvent::SpeechStarted) = vad_event {
+                            tracer.trace("SpeechStarted");
+                            if bot_speaking {
+                                info!("[native] Barge-in — interrupting Gemini");
+                                if let Err(e) = backend.interrupt().await {
+                                    warn!("[native] Interrupt failed: {}", e);
+                                }
+                                let _ = transport.audio_tx.interrupt().await;
+                                tracer.cancel_turn();
+                                tracer.trace("SpeechEnded");
+                                bot_speaking = false;
+                            }
+                        }
+                    }
+                    None => {
+                        info!("[native] Mic channel closed — ending session");
+                        break;
+                    }
+                }
+            }
+
+            // Gemini events: audio out, transcripts, tool calls.
+            event = backend.recv() => {
+                match event {
+                    Some(ev) => match ev {
+                        NativeAgentEvent::BotAudio(samples) => {
+                            if !bot_speaking {
+                                bot_speaking = true;
+                                tracer.mark_tts_first_audio();
+                            }
+                            
+                            let pcm_bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
+
+                            let offset = bot_offset_samples;
+                            bot_offset_samples += samples.len() as u64;
+
+                            if recording_enabled {
+                                tracer.emit(Event::AgentAudio {
+                                    pcm: Bytes::from(pcm_bytes.clone()),
+                                    sample_rate: OUTPUT_SAMPLE_RATE,
+                                    offset_samples: offset,
+                                });
+                            }
+
+                            // Resample 24kHz → 48kHz for WebRTC.
+                            let upsampled = out_resampler.process(&pcm_bytes);
+                            if let Err(e) =
+                                transport.audio_tx.send_audio(Bytes::from(upsampled)).await
+                            {
+                                warn!("[native] audio_tx error: {}", e);
+                            }
+                        }
+                        NativeAgentEvent::TurnComplete { prompt_tokens, completion_tokens } => {
+                            bot_speaking = false;
+                            
+                            let provider_name = "gemini_live";
+                            let model_name = nm_config.model.as_deref().unwrap_or("gemini_live");
+                            
+                            use voice_trace::event::LlmCompletionData;
+                            tracer.emit(Event::LlmComplete(LlmCompletionData {
+                                provider: provider_name.to_string(),
+                                model: model_name.to_string(),
+                                input_json: "{}".to_string(),
+                                output_json: "{}".to_string(),
+                                tools_json: None,
+                                temperature: 0.0,
+                                max_tokens: 0,
+                                duration_ms: 0.0,
+                                ttfb_ms: None,
+                                prompt_tokens,
+                                completion_tokens,
+                                cache_read_tokens: None,
+                                span_label: "llm".into(),
+                            }));
+
+                            tracer.finish_turn(false, provider_name, model_name, &voice_id);
+                            info!("[native] Turn complete (prompt={}, completion={})", prompt_tokens, completion_tokens);
+                        }
+                        NativeAgentEvent::InputTranscript(text) => {
+                            tracer.emit(Event::Transcript {
+                                text: text.clone(),
+                                role: "user".into(),
+                            });
+                            tracer.start_turn(
+                                "gemini_live",
+                                nm_config.model.as_deref().unwrap_or("gemini_live"),
+                                &text,
+                                &language,
+                                vad_ok,
+                            );
+                            info!("[native] User: {}", text);
+                        }
+                        NativeAgentEvent::OutputTranscript(text) => {
+                            tracer.emit(Event::Transcript {
+                                text: text.clone(),
+                                role: "agent".into(),
+                            });
+                            tracer.mark_tts_text_fed();
+                            tracer.append_tts_text(&text);
+                            info!("[native] Agent: {}", text);
+                        }
+                        NativeAgentEvent::ToolCallStarted { id, name } => {
+                            tracer.emit(Event::ToolActivity {
+                                tool_call_id: Some(id),
+                                tool_name: name.clone(),
+                                status: "started".into(),
+                                error_message: None,
+                            });
+                        }
+                        NativeAgentEvent::ToolCallCompleted { name, success, .. } => {
+                            tracer.emit(Event::ToolActivity {
+                                tool_call_id: None,
+                                tool_name: name.clone(),
+                                status: if success { "completed".into() } else { "failed".into() },
+                                error_message: None,
+                            });
+                        }
+                        NativeAgentEvent::Error(msg) => {
+                            warn!("[native] Provider error: {}", msg);
+                            tracer.emit(Event::Error {
+                                source: "gemini_live".into(),
+                                message: msg,
+                            });
+                        }
+                    }
+                    None => {
+                        // Stream ended — attempt reconnect with exponential backoff.
+                        info!("[native] Provider stream ended — reconnecting");
+                        let mut connected = false;
+                        let mut backoff_ms = 500;
+                        for attempt in 1..=5 {
+                            if let Err(e) = backend.connect().await {
+                                warn!("[native] Reconnect failed (attempt {}): {}", attempt, e);
+                                tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
+                                backoff_ms *= 2;
+                            } else {
+                                connected = true;
+                                break;
+                            }
+                        }
+                        
+                        if !connected {
+                            error!("[native] Reconnect failed completely — ending session");
+                            break;
+                        }
+                        
+                        // Reset session logic state, but DO NOT reset bot_offset_samples to 
+                        // prevent audio trace corruption!
+                        bot_speaking = false;
+                        tracer.cancel_turn();
+                        
+                        info!("[native] Reconnected to Gemini Live");
+                    }
+                }
+            }
+        }
+    }
+
+    tracer.emit(Event::SessionEnded);
+    info!("[native] Gemini Live session ended");
 }
 
 #[cfg(test)]

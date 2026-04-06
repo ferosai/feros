@@ -109,4 +109,3 @@ class TestGetOAuthClientCredentials:
 
         assert client_id == ""
         assert client_secret == ""
-

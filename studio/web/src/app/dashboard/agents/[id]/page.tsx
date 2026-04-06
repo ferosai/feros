@@ -914,7 +914,7 @@ function AgentDetailPageContent({
                   <p className="text-xs text-muted-foreground">Select a version to preview its config.</p>
                 </div>
               ) : selectedVersionConfig ? (
-                <pre className="h-[420px] overflow-auto rounded-lg border border-border bg-accent/20 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre-wrap wrap-break-word lg:col-span-3">
+                <pre className="h-[420px] overflow-auto rounded-lg border border-border bg-accent/20 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-words lg:col-span-3">
                   {JSON.stringify(selectedVersionConfig, null, 2)}
                 </pre>
               ) : (

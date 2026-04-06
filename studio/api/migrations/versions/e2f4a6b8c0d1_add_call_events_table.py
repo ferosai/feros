@@ -27,14 +27,25 @@ def upgrade() -> None:
         sa.Column("event_type", sa.String(length=64), nullable=False),
         sa.Column("event_category", sa.String(length=32), nullable=False),
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("payload_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "payload_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["call_id"], ["calls.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_call_events_call_id", "call_events", ["call_id"], unique=False)
-    op.create_index("ix_call_events_session_id", "call_events", ["session_id"], unique=False)
-    op.create_index("ix_call_events_occurred_at", "call_events", ["occurred_at"], unique=False)
+    op.create_index(
+        "ix_call_events_session_id", "call_events", ["session_id"], unique=False
+    )
+    op.create_index(
+        "ix_call_events_occurred_at", "call_events", ["occurred_at"], unique=False
+    )
     op.create_index(
         "ix_call_events_session_id_seq",
         "call_events",

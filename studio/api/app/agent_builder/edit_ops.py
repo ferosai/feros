@@ -259,8 +259,7 @@ def _apply_one(
         case SetNodeFields(node_id=node_id, fields=fields):
             if node_id not in nodes:
                 raise ValueError(
-                    f"Node '{node_id}' does not exist. "
-                    f"Use add_node to create it first."
+                    f"Node '{node_id}' does not exist. Use add_node to create it first."
                 )
             nodes[node_id].update(fields)
 
