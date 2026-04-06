@@ -29,7 +29,13 @@ Common triggers:
    - Never ask the user to paste credentials into chat.
 
 3. **Clarify tenant context** before writing tools:
-   - Ask for the `location_id` when the user knows which sub-account should be used.
+   - `location_id` can come from two places:
+     1. The credential's connection config (user filled it in when connecting) — read via
+        `secret('gohighlevel.location_id')` in scripts.
+     2. A tool parameter — the LLM passes it at call time.
+   - Always try `secret('gohighlevel.location_id')` first in scripts and fall back to a
+     tool parameter. Make the tool param `required: false` so the LLM doesn't need to
+     supply it when it's already stored in the credential.
    - If the user only knows the agency/company, ask for `company_id` and the target
      `location_id`.
    - Do NOT pretend the current runtime can auto-discover `location_id` from OAuth.
@@ -65,10 +71,10 @@ Common triggers:
   "name": "gohighlevel.search_contact_by_phone",
   "description": "Find a GoHighLevel contact by phone number within a location",
   "params": [
-    {"name": "location_id", "description": "GoHighLevel location ID", "type": "string", "required": true},
+    {"name": "location_id", "description": "GoHighLevel location ID (optional if stored in credential)", "type": "string", "required": false},
     {"name": "phone", "description": "Phone number to search for", "type": "string", "required": true}
   ],
-  "script": "let key = secret('gohighlevel');\nlet body = {locationId: location_id, pageLimit: 1, filters: [{field: 'phone', operator: 'eq', value: phone}]};\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/search', body, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28', 'Content-Type': 'application/json'});\nif (resp.status < 200 || resp.status >= 300) { throw new Error(`GoHighLevel ${resp.status}: ${resp.body}`); }\nlet data = JSON.parse(resp.body);\nlet contacts = data.contacts || data.results || [];\nif (!contacts.length) { return 'No contact found.'; }\nreturn JSON.stringify(contacts[0]);",
+  "script": "let key = secret('gohighlevel');\nlet loc = (typeof location_id !== 'undefined' && location_id) ? location_id : secret('gohighlevel.location_id');\nif (!loc) { throw new Error('location_id is required — either pass it as a parameter or store it in the GoHighLevel credential connection config'); }\nlet body = {locationId: loc, pageLimit: 1, filters: [{field: 'phone', operator: 'eq', value: phone}]};\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/search', body, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28'});\nif (resp.status < 200 || resp.status >= 300) { throw new Error(`GoHighLevel ${resp.status}: ${resp.body}`); }\nlet data = JSON.parse(resp.body);\nlet contacts = data.contacts || data.results || [];\nif (!contacts.length) { return 'No contact found.'; }\nreturn JSON.stringify(contacts[0]);",
   "side_effect": false
 }
 ```
@@ -80,13 +86,13 @@ Common triggers:
   "name": "gohighlevel.create_contact",
   "description": "Create a new contact in GoHighLevel for the caller",
   "params": [
-    {"name": "location_id", "description": "GoHighLevel location ID", "type": "string", "required": true},
+    {"name": "location_id", "description": "GoHighLevel location ID (optional if stored in credential)", "type": "string", "required": false},
     {"name": "first_name", "description": "Contact first name", "type": "string", "required": false},
     {"name": "last_name", "description": "Contact last name", "type": "string", "required": false},
     {"name": "phone", "description": "Contact phone number", "type": "string", "required": true},
     {"name": "email", "description": "Contact email address", "type": "string", "required": false}
   ],
-  "script": "let key = secret('gohighlevel');\nlet body = {locationId: location_id, phone: phone};\nif (first_name) body.firstName = first_name;\nif (last_name) body.lastName = last_name;\nif (email) body.email = email;\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/', body, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28', 'Content-Type': 'application/json'});\nif (resp.status >= 200 && resp.status < 300) { return resp.body; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
+  "script": "let key = secret('gohighlevel');\nlet loc = (typeof location_id !== 'undefined' && location_id) ? location_id : secret('gohighlevel.location_id');\nif (!loc) { throw new Error('location_id is required — either pass it as a parameter or store it in the GoHighLevel credential connection config'); }\nlet body = {locationId: loc, phone: phone};\nif (first_name) body.firstName = first_name;\nif (last_name) body.lastName = last_name;\nif (email) body.email = email;\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/', body, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28'});\nif (resp.status >= 200 && resp.status < 300) { return resp.body; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
   "side_effect": true
 }
 ```
