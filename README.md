@@ -1,4 +1,11 @@
-# Feros
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ac973ace-00a5-40dc-91e8-7b5d8bde79ec">
+    <img alt="Feros" src="https://github.com/user-attachments/assets/fe0be429-6823-4dfa-8c41-9f23fff703f5" height="40">
+  </picture>
+</p>
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 **Feros Voice Agent OS** is built with a clear goal: providing an **open**, **airtight**, and **enterprise-grade** infrastructure layer for production voice AI.
 
@@ -6,27 +13,15 @@ We built Feros to solve the structural problems of the current voice AI ecosyste
 
 | The Approach | The Barrier | The Feros Solution |
 | :--- | :--- | :--- |
-| **Managed Platforms**<br>*(Vapi, Retell)* | **The "Second Mile" barrier:** Strict data residency requirements, and per-minute costs that compound at scale. | **Full Stack Ownership:** Deploy the complete platform in your own infrastructure. Eliminate per-minute API taxes and keep full control over data residency and compliance. |
-| **Low-Level Frameworks**<br>*(Pipecat, LiveKit)* | **The "Plumbing" trap:** Wasting weeks pulling off the voice pipeline rather than focusing on building and testing agent qualities. | **Production-Ready Runtime:** A sub-second core engine handles transport, STT, and TTS orchestration out-of-the-box. |
-| **Visual Node Builders**<br>*(Legacy platforms)* | **The "Spaghetti" trap:** Hand-wiring agent logic, dragging nodes, and stitching call flows step-by-step becomes unmaintainable. | **AI-Driven Agent Building:** Describe what you want your agent to accomplish, and the AI autonomously provisions the tools, prompts, and routing logic for you. |
-
-## Why Feros
-
-Hosted platforms own your pipeline. Legacy builders make you own the wiring. Feros does neither.
-
-- **Zero lock-in architecture** — Maintain absolute control over the entire voice stack. Effortlessly swap between cloud APIs or self-hosted models for STT, LLM, and TTS, and bring your own telephony provider to completely bypass platform lock-in.
-- **Built to scale without compromise** — The Rust-based voice runtime is engineered for resource efficiency, so scaling your deployment costs significantly less than Python-based runtimes. The same workload runs on meaningfully less infrastructure.
-- **AI-driven agent building** — Describe your intent in plain language. Feros autonomously provisions the entire agent: generating prompts, tool definitions, routing logic, and escalation rules. No node editors, no manual flow stitching.
-- **Native SaaS integrations** — Connect directly to CRMs, calendars, and external databases out-of-the-box. Your agents can securely read, write, and take actions across your existing tech stack.
-
-## Demo
+| **Managed Platforms**<br>*(Vapi, Retell)* | Per-minute costs compound at scale, with no path to self-host or satisfy strict data residency requirements. | Deploy the complete platform in your own infrastructure — no per-minute taxes, full control over data residency and compliance. |
+| **Low-Level Frameworks**<br>*(Pipecat, LiveKit)* | Weeks spent building and maintaining the voice pipeline, rather than focusing on agent quality. | A production-ready voice pipeline — VAD, STT, LLM, TTS — ships on day one. Focus on the agent, not the plumbing. |
+| **Visual Node Builders**<br>*(Legacy platforms)* | Hand-wiring agent logic, dragging nodes, and stitching call flows step-by-step becomes unmaintainable. | Describe what you want your agent to do, and the AI autonomously provisions the tools, prompts, and routing logic. |
 
 <video src="https://github.com/user-attachments/assets/aec117bf-e85d-4e6f-be14-95666a44addc" autoplay loop muted playsinline style="max-width:100%; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.1);"></video>
 
+## Architecture
 
-## How It Works
-
-Feros has a deliberate split between a **Python control plane** for agent configuration and management, and a **Rust runtime** that handles every live call. The two layers scale independently, and you can swap any component — STT, LLM, TTS, telephony provider — without touching the rest.
+The control plane (Python) handles configuration and management. The voice runtime (Rust) handles every live call. The two layers scale independently, and every component — STT, LLM, TTS, telephony provider — is swappable without touching the rest.
 
 ```mermaid
 flowchart LR
@@ -40,23 +35,23 @@ flowchart LR
   VE --> TTS[TTS]
 ```
 
-| Layer | Component | What it does |
+| Layer | Component | Purpose |
 | :--- | :--- | :--- |
-| **Dashboard** | Studio Web | AI-driven agent builder, call monitoring, phone numbers, and in-browser voice testing |
-| **Control Plane** | Studio API | Agent definitions, integration secrets, evaluation pipelines, and session provisioning |
-| | Integrations | Encrypted credential vault — third-party secrets never leave your infrastructure in plaintext |
-| **Voice Runtime** | Voice Server | Inbound telephony and WebSocket gateway — provisions sessions and routes live calls to the engine |
-| | Voice Engine | The performance core — orchestrates the full VAD → STT → LLM → TTS pipeline at sub-second latency |
-| **Inference** *(optional)* | Inference Stack | Self-hosted, GPU-accelerated STT and TTS — drop-in replacements for cloud APIs to cut costs and satisfy data residency requirements |
+| Dashboard | studio/web | Agent builder, call monitoring, in-browser voice testing |
+| Control Plane | studio/api | Agent config, integrations, evaluations, session provisioning |
+| Integrations | integrations | Encrypted credential vault for CRMs, calendars, etc. — third-party secrets never leave your infrastructure in plaintext |
+| Voice Runtime | voice/server | Inbound telephony and WebSocket gateway |
+| | voice/engine | High-performance VAD → STT → LLM → TTS orchestration |
+| Inference (optional) | inference | Self-hosted GPU STT/TTS — drop-in for cloud APIs |
 
-## Monorepo Structure
+## Repository Structure
 
-> For contributors and developers. All services live in a single repo and share a common Postgres database and config layer.
+> All services live in a single repo and share a common Postgres database and config layer.
 
 | Path | Purpose |
-|---|---|
-| `studio/web` | Next.js dashboard and AI-driven builder UI |
-| `studio/api` | FastAPI control plane — config, APIs, integrations, evaluations, session setup |
+| :--- | :--- |
+| `studio/web` | Next.js dashboard and AI-driven agent builder |
+| `studio/api` | FastAPI control plane — agent config, integrations, evaluations, session setup |
 | `voice/server` | Rust telephony gateway and session router |
 | `voice/engine` | Rust runtime core — streaming STT/LLM/TTS orchestration at sub-second latency |
 | `integrations` | Credential encryption, secret resolution, and automatic token refresh |
@@ -65,60 +60,47 @@ flowchart LR
 
 ## Quickstart
 
-One command brings up the full platform locally.
-
-### 1. Start the stack
+**Requirements:** Docker and Docker Compose.
 
 ```bash
+git clone https://github.com/ferosai/feros.git
+cd feros
+cp .env.example .env
 docker compose up -d
 ```
 
-This brings up:
+Open `http://localhost:3000` to access the dashboard.
 
-- `db` (Postgres)
-- `studio-api` on `http://localhost:8000`
-- `voice-server` on `http://localhost:8300`
-- `studio-web` on `http://localhost:3000`
+**Local services:**
 
-> **Note:** Both `studio-api` and `voice-server` share `AUTH__SECRET_KEY` and `DATABASE__URL` — make sure these are set consistently in your `.env`.
+| Service | URL |
+| :--- | :--- |
+| Studio Web | `http://localhost:3000` |
+| Studio API | `http://localhost:8000` |
+| Voice Server | `http://localhost:8300` |
 
-### 2. Verify health
-
-```bash
-curl http://localhost:8000/api/health
-docker compose ps
-```
-
-### 3. Open the app
-
-Go to `http://localhost:3000`.
-
-### 4. Stop the stack
-
-```bash
-docker compose down
-```
+`AUTH__SECRET_KEY` and `DATABASE__URL` must be set consistently across all services in your `.env`.
 
 ## Roadmap
 
-- [ ] **Gemini Live native audio** — end-to-end native multimodal backend for ultra-low-latency audio-to-audio models
-- [ ] **Outbound calls** — agent-initiated outbound dialing with programmable call scheduling and retry logic
-- [ ] **Agent-to-agent audio testing** — spin up a dedicated tester agent that calls the target agent over a live audio channel and evaluates responses end-to-end, covering the full voice pipeline without mocks
-- [ ] **Audit logs** — immutable, tamper-evident log trail of all agent actions, credential access, and configuration changes for compliance and security review
-- [ ] **Direct PSTN via SIP** — direct PSTN connectivity via any SIP provider without a telephony middleware layer; no Twilio or Telnyx required
-- [ ] **Evaluation replay** — re-run historical call transcripts against new agent versions to catch regressions
-- [ ] **Usage-based analytics** — per-agent cost tracking across STT, LLM, and TTS providers
-- [ ] **Deployment templates** — one-click Kubernetes manifests and Terraform modules for cloud-native production deployments
+- [ ] Outbound calls — agent-initiated dialing with retry and scheduling
+- [ ] Gemini Live native audio — end-to-end multimodal backend
+- [ ] Direct PSTN via SIP — no Twilio or Telnyx required
+- [ ] Agent-to-agent evaluation — tester agent calling target agent over live audio
+- [ ] Evaluation replay — run historical transcripts against new agent versions
+- [ ] Audit logs — immutable trail of agent actions and config changes
+- [ ] Usage analytics — per-agent cost tracking across STT, LLM, and TTS providers
 
 ## Contributing
 
-- The voice runtime has strict ordering and concurrency constraints — familiarize yourself with the architecture before making larger changes.
-- Always run the service you're changing locally to verify actual behavior before opening a PR.
+Contributions are welcome. Before starting larger changes, please open an issue or discussion first — alignment before implementation saves time.
+
+- Familiarize yourself with the voice runtime architecture before making changes to the Rust core; it has strict ordering and concurrency constraints.
+- Run the affected service locally before opening a PR.
 - Add or update tests when behavior changes; the voice pipeline has integration tests that catch regressions the unit tests miss.
-- Open an issue or discussion first for architectural changes — alignment before implementation saves everyone time.
 
 ## License
 
-This repository is released under the Apache License 2.0. See the root [`LICENSE`](LICENSE) file for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 Third-party code vendored in this repository remains subject to its own license terms where noted in the source tree.
