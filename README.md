@@ -99,6 +99,17 @@ Go to `http://localhost:3000`.
 docker compose down
 ```
 
+## Roadmap
+
+- [ ] **Gemini Live native audio** — end-to-end native multimodal backend for ultra-low-latency audio-to-audio models
+- [ ] **Outbound calls** — agent-initiated outbound dialing with programmable call scheduling and retry logic
+- [ ] **Agent-to-agent audio testing** — spin up a dedicated tester agent that calls the target agent over a live audio channel and evaluates responses end-to-end, covering the full voice pipeline without mocks
+- [ ] **Audit logs** — immutable, tamper-evident log trail of all agent actions, credential access, and configuration changes for compliance and security review
+- [ ] **Direct PSTN via SIP** — direct PSTN connectivity via any SIP provider without a telephony middleware layer; no Twilio or Telnyx required
+- [ ] **Evaluation replay** — re-run historical call transcripts against new agent versions to catch regressions
+- [ ] **Usage-based analytics** — per-agent cost tracking across STT, LLM, and TTS providers
+- [ ] **Deployment templates** — one-click Kubernetes manifests and Terraform modules for cloud-native production deployments
+
 ## Contributing
 
 - The voice runtime has strict ordering and concurrency constraints — familiarize yourself with the architecture before making larger changes.
