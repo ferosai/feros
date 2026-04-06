@@ -182,10 +182,9 @@ class TestPinEntryToTop:
     s2 --> s3{Slot available?}
   end"""
         pinned = _pin_entry_to_top(mermaid, "scheduler")
-        assert (
-            pinned.index("s1[Greet & ask details] --> s2[Check availability]")
-            < pinned.index("__entry_anchor --- s1")
-        )
+        assert pinned.index(
+            "s1[Greet & ask details] --> s2[Check availability]"
+        ) < pinned.index("__entry_anchor --- s1")
         # 2 edges inside subgraph (-->, -->), so anchor's hidden edge is index 2
         assert "linkStyle 2 stroke:none,stroke-width:0px" in pinned
 
@@ -205,7 +204,9 @@ class TestPinEntryToTop:
   reservation_handler -.-> make_reservation"""
         pinned = _pin_entry_to_top(mermaid, "reservation_handler")
         # Target label defined before anchor reference
-        assert pinned.index('rh1[Greet and ask details]') < pinned.index("__entry_anchor --- rh1")
+        assert pinned.index("rh1[Greet and ask details]") < pinned.index(
+            "__entry_anchor --- rh1"
+        )
         # Anchor after subgraph end, not inside
         assert pinned.index("end\n") < pinned.index("__entry_anchor(( ))")
         # 5 edges inside subgraph: -->, -->, -->, -->, -->

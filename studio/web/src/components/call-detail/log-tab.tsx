@@ -518,8 +518,8 @@ export function LogTab({
                   </div>
                   <div className="mt-1 grid grid-cols-4 gap-2 text-[10px] text-muted-foreground">
                     <div>STT: {formatMs(sttMs)}</div>
-                    <div>LLM: {formatMs(llmMs)}</div>
-                    <div>TTS: {formatMs(ttsMs)}</div>
+                    <div>LLM: {llmMs > 0 ? formatMs(llmMs) : "N/A"}</div>
+                    <div>TTS: {ttsMs > 0 || turn.tts.length > 0 ? formatMs(ttsMs) : "N/A"}</div>
                     <div>Tool: {formatMs(toolMs)} ({turn.tools.length})</div>
                   </div>
                 </button>
@@ -548,14 +548,22 @@ export function LogTab({
                         {turn.llm.length === 0 ? (
                           <p className="text-muted-foreground">No LLM event</p>
                         ) : (
-                          turn.llm.map((e) => (
-                            <div key={`llm-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
-                              <p className="text-muted-foreground">
-                                {formatMs(e.durationMs)} · tokens {asNumber(e.payload.prompt_tokens) ?? 0}/{asNumber(e.payload.completion_tokens) ?? 0}
-                              </p>
-                              <p className="mt-1 break-words text-foreground">{asString(e.payload.model) ?? "model: —"}</p>
-                            </div>
-                          ))
+                          turn.llm.map((e) => {
+                            const promptTokens = asNumber(e.payload.prompt_tokens) ?? 0;
+                            const compTokens = asNumber(e.payload.completion_tokens) ?? 0;
+                            const hasTokens = promptTokens > 0 || compTokens > 0;
+                            const hasDuration = e.durationMs > 0;
+                            return (
+                              <div key={`llm-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
+                                <p className="text-muted-foreground">
+                                  {hasDuration ? formatMs(e.durationMs) : "Duration N/A"}
+                                  {(hasTokens || hasDuration) && " · "}
+                                  {hasTokens ? `tokens ${promptTokens}/${compTokens}` : "tokens N/A"}
+                                </p>
+                                <p className="mt-1 break-words text-foreground">{asString(e.payload.model) ?? "model: —"}</p>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
 

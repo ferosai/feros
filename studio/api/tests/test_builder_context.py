@@ -1,6 +1,5 @@
 """Tests for agent builder context (history compression)."""
 
-
 import pytest
 from pydantic_ai.messages import (
     ModelMessage,
@@ -32,9 +31,27 @@ def _msg(role: str, content: str = "") -> ModelMessage:
     elif role == "assistant":
         return ModelResponse(parts=[TextPart(content=content)], timestamp=None)
     elif role == "tool_call":
-        return ModelResponse(parts=[ToolCallPart(tool_name="test_tool", args={"arg": content}, tool_call_id="call_123")], timestamp=None)
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="test_tool",
+                    args={"arg": content},
+                    tool_call_id="call_123",
+                )
+            ],
+            timestamp=None,
+        )
     elif role == "tool":
-        return ModelRequest(parts=[ToolReturnPart(tool_name="test_tool", content=content, tool_call_id="call_123", timestamp=None)])
+        return ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="test_tool",
+                    content=content,
+                    tool_call_id="call_123",
+                    timestamp=None,
+                )
+            ]
+        )
     raise ValueError(f"Unknown role {role}")
 
 
@@ -78,11 +95,11 @@ class TestFindSafeSplit:
     def test_split_on_assistant_walks_back_to_user(self) -> None:
         """Splitting on an assistant message walks back to prior user."""
         msgs = [
-            _msg("user", "q1"),        # 0
-            _msg("assistant", "a1"),    # 1
-            _msg("user", "q2"),         # 2
-            _msg("assistant", "a2"),    # 3
-            _msg("user", "q3"),         # 4
+            _msg("user", "q1"),  # 0
+            _msg("assistant", "a1"),  # 1
+            _msg("user", "q2"),  # 2
+            _msg("assistant", "a2"),  # 3
+            _msg("user", "q3"),  # 4
         ]
         # desired=1 → assistant → walk back to user at 0 → clamp to 1
         assert _find_safe_split(msgs, 1) == 1
@@ -103,14 +120,14 @@ class TestFindSafeSplit:
     def test_multiple_tool_groups(self) -> None:
         """Multiple tool-call groups — split lands on user boundaries."""
         msgs = [
-            _msg("user", "q1"),           # 0
-            _msg("tool_call", "call1"),    # 1
-            _msg("tool", "r1"),            # 2
-            _msg("user", "q2"),            # 3
-            _msg("tool_call", "call2"),    # 4
-            _msg("tool", "r2a"),           # 5
-            _msg("tool", "r2b"),           # 6
-            _msg("user", "q3"),            # 7
+            _msg("user", "q1"),  # 0
+            _msg("tool_call", "call1"),  # 1
+            _msg("tool", "r1"),  # 2
+            _msg("user", "q2"),  # 3
+            _msg("tool_call", "call2"),  # 4
+            _msg("tool", "r2a"),  # 5
+            _msg("tool", "r2b"),  # 6
+            _msg("user", "q3"),  # 7
         ]
         # desired=5 → tool → walk back to user at 3
         assert _find_safe_split(msgs, 5) == 3
@@ -173,7 +190,6 @@ class TestFormatMessages:
 # ── compress_history ─────────────────────────────────────────────
 
 
-
 class TestCompressHistory:
     """Tests for the main compress_history function."""
 
@@ -217,6 +233,7 @@ class TestCompressHistory:
     @pytest.mark.asyncio
     async def test_llm_failure_falls_back_to_recent(self) -> None:
         """If LLM compression fails, fall back to recent messages only."""
+
         class FailingModel(TestModel):
             async def request(self, *args, **kwargs):
                 raise RuntimeError("LLM down")
@@ -239,7 +256,9 @@ class TestCompressHistory:
 
         # Should not include a summary, just recent messages
         assert not any(
-            isinstance(m, ModelRequest) and isinstance(m.parts[0], UserPromptPart) and "Context from earlier" in str(m.parts[0].content)
+            isinstance(m, ModelRequest)
+            and isinstance(m.parts[0], UserPromptPart)
+            and "Context from earlier" in str(m.parts[0].content)
             for m in result
         )
 
@@ -261,9 +280,11 @@ class TestCompressHistory:
 
         result = await compress_history(model, msgs)
 
-        recently_kept = result[2:] # skip the first two (context summary + ack)
+        recently_kept = result[2:]  # skip the first two (context summary + ack)
         if len(recently_kept) > 0:
             first_kept = recently_kept[0]
             if isinstance(first_kept, ModelRequest):
                 # Ensure the first kept message doesn't start with a ToolReturnPart
-                assert not isinstance(first_kept.parts[0], ToolReturnPart), "Recent portion starts with orphaned tool result"
+                assert not isinstance(first_kept.parts[0], ToolReturnPart), (
+                    "Recent portion starts with orphaned tool result"
+                )

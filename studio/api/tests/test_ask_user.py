@@ -45,6 +45,7 @@ def _build_service(
         return "Paused. Waiting for user response."
 
     if extra_tools:
+
         @service.stream_agent.tool
         async def discover_schema(ctx, source: str) -> str:  # type: ignore[no-untyped-def]
             """Discover a schema from a data source."""
@@ -81,7 +82,9 @@ class TestAskUserLoopBreak:
         assert deps.pause_requested is True
 
     @pytest.mark.asyncio
-    async def test_ask_user_prevents_second_model_round(self, deps: BuilderDeps) -> None:
+    async def test_ask_user_prevents_second_model_round(
+        self, deps: BuilderDeps
+    ) -> None:
         """The LLM's second-round output should NOT appear when ask_user
         breaks the loop after the first round.
 
@@ -107,14 +110,15 @@ class TestAskUserLoopBreak:
         events = await _collect_events(service, deps)
 
         tool_events = [
-            e for e in events
-            if e.get("kind") in ("tool_return",)
-            and e.get("tool_name") == "ask_user"
+            e
+            for e in events
+            if e.get("kind") in ("tool_return",) and e.get("tool_name") == "ask_user"
         ]
         assert tool_events == [], "ask_user events leaked to chat stream"
 
         tool_call_events = [
-            e for e in events
+            e
+            for e in events
             if e.get("kind") == "part_start"
             and e.get("part_kind") == "tool-call"
             and e.get("tool_name") == "ask_user"
@@ -163,7 +167,8 @@ class TestAskUserLoopBreak:
 
         # discover_schema result SHOULD appear in stream (it's not hidden)
         discover_returns = [
-            e for e in events
+            e
+            for e in events
             if e.get("kind") == "tool_return"
             and e.get("tool_name") == "discover_schema"
         ]
@@ -172,9 +177,8 @@ class TestAskUserLoopBreak:
 
         # ask_user should NOT appear in stream
         ask_returns = [
-            e for e in events
-            if e.get("kind") == "tool_return"
-            and e.get("tool_name") == "ask_user"
+            e
+            for e in events
+            if e.get("kind") == "tool_return" and e.get("tool_name") == "ask_user"
         ]
         assert ask_returns == [], "ask_user result leaked to stream"
-

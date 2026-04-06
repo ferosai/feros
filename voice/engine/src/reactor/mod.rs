@@ -30,7 +30,7 @@
 mod audio;
 pub mod hooks;
 pub mod policies;
-mod proc;
+pub(crate) mod proc;
 pub mod replay;
 mod session;
 pub mod testing;

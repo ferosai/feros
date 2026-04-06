@@ -8,6 +8,7 @@ from app.lib import config as config_lib
 
 # ── helper ──────────────────────────────────────────────────────
 
+
 def _fake_get_provider_row(rows: dict[tuple[str, str], SimpleNamespace]):
     """Return an async fake for ``_get_provider_row`` backed by *rows*."""
 
@@ -19,6 +20,7 @@ def _fake_get_provider_row(rows: dict[tuple[str, str], SimpleNamespace]):
 
 
 # ── scoped-key resolution ──────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_builder_resolves_to_scoped_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,7 +75,9 @@ async def test_voice_resolves_to_scoped_key(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.asyncio
-async def test_builder_and_voice_same_provider_independent(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_builder_and_voice_same_provider_independent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Builder and voice both using openai should each get their own config."""
     rows = {
         ("llm", "__builder__"): SimpleNamespace(config_json={"active": "openai"}),
@@ -117,8 +121,11 @@ async def test_builder_and_voice_same_provider_independent(monkeypatch: pytest.M
 
 # ── fallback to default when scoped row is missing ─────────────
 
+
 @pytest.mark.asyncio
-async def test_missing_scoped_row_returns_default(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_missing_scoped_row_returns_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """If the pointer row exists but scoped creds row is missing, return LLMConfig defaults."""
     rows = {
         ("llm", "__builder__"): SimpleNamespace(config_json={"active": "openai"}),

@@ -7,6 +7,7 @@
 //! `HttpExecutor`, `ChatMessage`, or `build_agent_tool_schemas`.
 
 pub mod default;
+pub mod native;
 
 use async_trait::async_trait;
 

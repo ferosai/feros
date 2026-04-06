@@ -59,6 +59,29 @@ const TIMEZONE_OPTIONS = [
   { value: "Australia/Sydney", label: "Sydney (AEST)" },
 ] as const;
 
+// Gemini Live's built-in prebuilt voices.
+// Voice names sourced from the Gemini API docs (prebuilt_voice_config.voice_name).
+// This is a subset — Google documents 30 total. Preview all voices at:
+// https://aistudio.google.com/apps/bundled/voice-library
+const GEMINI_LIVE_VOICES = [
+  { value: "Puck" },
+  { value: "Charon" },
+  { value: "Kore" },
+  { value: "Fenrir" },
+  { value: "Aoede" },
+  { value: "Leda" },
+  { value: "Orus" },
+  { value: "Zephyr" },
+  { value: "Schedar" },
+  { value: "Gacrux" },
+  { value: "Pulcherrima" },
+  { value: "Achird" },
+  { value: "Zubenelgenubi" },
+  { value: "Vindemiatrix" },
+  { value: "Sadachbia" },
+  { value: "Sulafat" },
+] as const;
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function getConfigFields(config: Record<string, unknown>): {
@@ -67,13 +90,15 @@ function getConfigFields(config: Record<string, unknown>): {
   voice_id: string;
   tts_provider: string;
   tts_model: string;
+  gemini_live_api_key: string;
+  gemini_live_model: string;
 } {
   return {
     language: (config?.language as string) || "en",
     timezone: (config?.timezone as string) || "",
     voice_id: (config?.voice_id as string) || "",
     tts_provider: (config?.tts_provider as string) || "",
-    tts_model: (config?.tts_model as string) || "",
+    gemini_live_model: (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
   };
 }
 
@@ -149,6 +174,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
   const fullConfig = (config || {}) as FullConfig;
   const nodeIds = useMemo(() => Object.keys(fullConfig.nodes || {}), [fullConfig.nodes]);
   const [selectedNodeId, setSelectedNodeId] = useState<string>(fullConfig.entry || nodeIds[0] || "");
+  const [nativeMultimodalEnabled, setNativeMultimodalEnabled] = useState(false);
   const globalSyncToastId = `agent-config-sync-${agentId}`;
 
   // Fetch voice catalog — called on mount and whenever language changes.
@@ -168,6 +194,9 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
   // Load TTS provider settings + language list + voice catalog once
   useEffect(() => {
     api.settings.getTTS().then(setTts).catch(() => {});
+    api.settings.getNativeMultimodal()
+      .then(res => setNativeMultimodalEnabled(res.has_api_key))
+      .catch(() => {});
     api.agents
       .getLanguages()
       .then((langs) => setLanguageOptions(langs.map((l) => ({ value: l.code, label: l.label }))))
@@ -188,17 +217,16 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
-  // Sync when agent data changes externally
+  // Sync draft states when fields change from outside (e.g., initial load or full sync)
   useEffect(() => {
-    if (!config) return;
-    const f = getConfigFields(config);
-    setLanguage(f.language);
-    setTimezone(f.timezone);
-    setVoiceIdDraft(f.voice_id);
+    if (!fields) return;
+    setLanguage(fields.language);
+    setTimezone(fields.timezone);
+    setVoiceIdDraft(fields.voice_id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent]);
+  }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model]);
 
-  const patchField = useCallback(async (payload: Record<string, string | boolean>) => {
+  const patchField = useCallback(async (payload: Record<string, string | boolean | null>) => {
     const primaryField = Object.keys(payload).find((k) => k !== "regenerate_greeting");
     if (!primaryField && !payload.regenerate_greeting) return;
     const trackField = primaryField ?? "language";
@@ -256,6 +284,17 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
     }, 600);
   }, [patchField, tts, config]);
 
+  // Debounced save for Gemini Voice, avoids clobbering TTS provider/model
+  const handleGeminiVoiceIdChange = useCallback((value: string) => {
+    setVoiceIdDraft(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      patchField({ voice_id: value });
+    }, 600);
+  }, [patchField]);
+
+
+
   // Switch the agent's TTS provider — saves provider + model, clears voice, re-fetches voices
   const handleProviderChange = useCallback(async (newProvider: string) => {
     if (!tts) return;
@@ -282,6 +321,9 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
   const providerName = providerLabel(tts, f.tts_provider);
   const docsUrl = providerDocsUrl(tts, f.tts_provider);
   const defaultVoiceId = providerDefaultVoiceId(tts, f.tts_provider);
+  // When Gemini Live is active, TTS is entirely bypassed.
+  // Voice selection goes through Gemini's own prebuilt voices instead.
+  const isGeminiLive = !!f.gemini_live_model.trim();
   const timezoneOptions = TIMEZONE_OPTIONS.some((o) => o.value === timezone)
     ? TIMEZONE_OPTIONS
     : [{ value: timezone, label: `${timezone} (Custom)` }, ...TIMEZONE_OPTIONS];
@@ -388,135 +430,213 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                       />
                     </SettingRow>
 
-                    <SettingRow
-                      icon={<HugeiconsIcon icon={AiVoiceGeneratorIcon} className="size-4" />}
-                      label="Voice Settings"
-                      description="Configure the provider, model, and vocal identity for synthetic speech"
-                      className="items-start py-6 flex-col gap-4"
-                      childrenClassName="w-full ml-0"
-                    >
-                      <div className="flex w-full items-center gap-3 pl-12 flex-wrap">
+                    {/* ── Voice Settings ───────────────────────────────────────────────────────
+                        When Gemini Live is active, TTS is bypassed entirely. Show Gemini's
+                        built-in prebuilt voice picker instead of the TTS provider controls.
+                    */}
+                    {isGeminiLive ? (
+                      <SettingRow
+                        icon={<HugeiconsIcon icon={AiVoiceGeneratorIcon} className="size-4" />}
+                        label="Gemini Voice"
+                        description="Gemini Live's built-in prebuilt voice — replaces TTS while native audio is active"
+                      >
                         <div className="flex items-center gap-2">
-                          {tts && (() => {
-                            const configuredProviders = tts.supported_providers.filter(
-                              (p) => tts.all_credentials?.[p.value]
-                            );
-                            if (configuredProviders.length > 1) {
-                              return (
-                                <Select
-                                  value={f.tts_provider || tts.provider}
-                                  onValueChange={handleProviderChange}
-                                  disabled={saving === "tts_provider"}
-                                >
-                                  <SelectTrigger className="h-9 w-auto min-w-32 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
-                                    <SelectValue>{providerName}</SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {configuredProviders.map((p) => (
-                                      <SelectItem key={p.value} value={p.value} className="text-xs font-semibold">
-                                        {p.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              );
-                            }
-                            return (
-                              <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-accent/50 border border-border/50 text-muted-foreground uppercase tracking-wider">
-                                {providerName}
-                                {docsUrl && (
-                                  <a href={docsUrl} target="_blank" rel="noopener noreferrer"
-                                    className="text-muted-foreground hover:text-primary transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <HugeiconsIcon icon={LinkSquare01Icon} className="size-3" />
-                                  </a>
-                                )}
-                              </span>
-                            );
-                          })()}
+                          <Select
+                            value={GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft) ? voiceIdDraft : GEMINI_LIVE_VOICES[0].value}
+                            onValueChange={(v) => handleGeminiVoiceIdChange(v)}
+                            disabled={saving === "voice_id"}
+                          >
+                            <SelectTrigger className="h-9 w-auto min-w-36 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                              <SelectValue>
+                                {GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft) ? voiceIdDraft : GEMINI_LIVE_VOICES[0].value}
+                              </SelectValue>
 
-                          {ttsModels && tts && (() => {
-                            const activeProvider = f.tts_provider || tts.provider;
-                            const providerModels = ttsModels.filter(m => m.provider === activeProvider);
-                            if (providerModels.length > 0) {
-                              let activeModel = f.tts_model || (activeProvider === tts.provider ? tts.config?.model : "") || providerModels[0].model_id;
-                              if (!providerModels.some(m => m.model_id === activeModel)) {
-                                activeModel = providerModels[0].model_id;
-                              }
-
-                              return (
-                                <Select
-                                  value={activeModel}
-                                  onValueChange={(m) => patchField({ tts_model: m })}
-                                  disabled={saving === "tts_model"}
-                                >
-                                  <SelectTrigger className="h-9 w-auto min-w-28 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
-                                    <SelectValue>
-                                      {providerModels.find(m => m.model_id === activeModel)?.label ?? activeModel}
-                                    </SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {providerModels.map((m) => (
-                                      <SelectItem key={m.model_id} value={m.model_id} className="text-xs font-semibold">
-                                        {m.label || m.model_id}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              );
-                            }
-                            return null;
-                          })()}
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GEMINI_LIVE_VOICES.map((v) => (
+                                <SelectItem key={v.value} value={v.value} className="text-xs font-semibold">
+                                  {v.value}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex items-center w-6 justify-center">
+                            {saving === "voice_id" && <Spinner className="size-3.5 text-primary animate-spin" />}
+                            {saved === "voice_id" && <HugeiconsIcon icon={Tick01Icon} className="size-4 text-emerald-500" />}
+                          </div>
                         </div>
+                      </SettingRow>
+                    ) : (
+                      <SettingRow
+                        icon={<HugeiconsIcon icon={AiVoiceGeneratorIcon} className="size-4" />}
+                        label="Voice Settings"
+                        description="Configure the provider, model, and vocal identity for synthetic speech"
+                        className="items-start py-6 flex-col gap-4"
+                        childrenClassName="w-full ml-0"
+                      >
+                        <div className="flex w-full items-center gap-3 pl-12 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {tts && (() => {
+                              const configuredProviders = tts.supported_providers.filter(
+                                (p) => tts.all_credentials?.[p.value]
+                              );
+                              if (configuredProviders.length > 1) {
+                                return (
+                                  <Select
+                                    value={f.tts_provider || tts.provider}
+                                    onValueChange={handleProviderChange}
+                                    disabled={saving === "tts_provider"}
+                                  >
+                                    <SelectTrigger className="h-9 w-auto min-w-32 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                                      <SelectValue>{providerName}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {configuredProviders.map((p) => (
+                                        <SelectItem key={p.value} value={p.value} className="text-xs font-semibold">
+                                          {p.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              }
+                              return (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-accent/50 border border-border/50 text-muted-foreground uppercase tracking-wider">
+                                  {providerName}
+                                  {docsUrl && (
+                                    <a href={docsUrl} target="_blank" rel="noopener noreferrer"
+                                      className="text-muted-foreground hover:text-primary transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <HugeiconsIcon icon={LinkSquare01Icon} className="size-3" />
+                                    </a>
+                                  )}
+                                </span>
+                              );
+                            })()}
 
-                        <div className="flex items-center gap-3">
-                          {voicesLoading ? (
-                            <div className="h-9 w-52 flex items-center justify-center bg-accent/20 rounded-lg border border-dashed border-border/60">
-                              <Spinner className="size-4 text-muted-foreground/60" />
-                            </div>
-                          ) : voices.length > 0 ? (
-                            <VoicePicker
-                              voices={voices}
-                              value={voiceIdDraft}
-                              onChange={(id) => { handleVoiceIdChange(id); }}
-                              disabled={saving === "voice_id"}
-                            />
-                          ) : (
-                            <div className="relative flex-1">
-                              <input
-                                type="text"
+                            {ttsModels && tts && (() => {
+                              const activeProvider = f.tts_provider || tts.provider;
+                              const providerModels = ttsModels.filter(m => m.provider === activeProvider);
+                              if (providerModels.length > 0) {
+                                let activeModel = f.tts_model || (activeProvider === tts.provider ? tts.config?.model : "") || providerModels[0].model_id;
+                                if (!providerModels.some(m => m.model_id === activeModel)) {
+                                  activeModel = providerModels[0].model_id;
+                                }
+                                return (
+                                  <Select
+                                    value={activeModel}
+                                    onValueChange={(m) => patchField({ tts_model: m })}
+                                    disabled={saving === "tts_model"}
+                                  >
+                                    <SelectTrigger className="h-9 w-auto min-w-28 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                                      <SelectValue>
+                                        {providerModels.find(m => m.model_id === activeModel)?.label ?? activeModel}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {providerModels.map((m) => (
+                                        <SelectItem key={m.model_id} value={m.model_id} className="text-xs font-semibold">
+                                          {m.label || m.model_id}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {voicesLoading ? (
+                              <div className="h-9 w-52 flex items-center justify-center bg-accent/20 rounded-lg border border-dashed border-border/60">
+                                <Spinner className="size-4 text-muted-foreground/60" />
+                              </div>
+                            ) : voices.length > 0 ? (
+                              <VoicePicker
+                                voices={voices}
                                 value={voiceIdDraft}
-                                onChange={(e) => handleVoiceIdChange(e.target.value)}
-                                placeholder={defaultVoiceId ? `default (${truncate(defaultVoiceId, 16)})` : "custom-voice-id"}
+                                onChange={(id) => { handleVoiceIdChange(id); }}
                                 disabled={saving === "voice_id"}
-                                className="h-9 w-full rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all font-mono"
                               />
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-1">
-                            {voiceIdDraft && (
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(voiceIdDraft);
-                                  setSaved("voice_id_copy");
-                                  setTimeout(() => setSaved(null), 1500);
-                                }}
-                                title="Copy Voice ID"
-                                className="p-2 rounded-lg hover:bg-accent/60 text-muted-foreground hover:text-primary transition-all active:scale-95"
-                              >
-                                <HugeiconsIcon icon={saved === "voice_id_copy" ? Tick01Icon : Copy01Icon} className={`size-4 ${saved === "voice_id_copy" ? "text-emerald-500" : ""}`} />
-                              </button>
+                            ) : (
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={voiceIdDraft}
+                                  onChange={(e) => handleVoiceIdChange(e.target.value)}
+                                  placeholder={defaultVoiceId ? `default (${truncate(defaultVoiceId, 16)})` : "custom-voice-id"}
+                                  disabled={saving === "voice_id"}
+                                  className="h-9 w-full rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all font-mono"
+                                />
+                              </div>
                             )}
 
-                            <div className="flex items-center w-6 justify-center">
-                              {saving === "voice_id" && <Spinner className="size-3.5 text-primary animate-spin" />}
-                              {saved === "voice_id" && <HugeiconsIcon icon={Tick01Icon} className="size-4 text-emerald-500" />}
+                            <div className="flex items-center gap-1">
+                              {voiceIdDraft && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(voiceIdDraft);
+                                    setSaved("voice_id_copy");
+                                    setTimeout(() => setSaved(null), 1500);
+                                  }}
+                                  title="Copy Voice ID"
+                                  className="p-2 rounded-lg hover:bg-accent/60 text-muted-foreground hover:text-primary transition-all active:scale-95"
+                                >
+                                  <HugeiconsIcon icon={saved === "voice_id_copy" ? Tick01Icon : Copy01Icon} className={`size-4 ${saved === "voice_id_copy" ? "text-emerald-500" : ""}`} />
+                                </button>
+                              )}
+                              <div className="flex items-center w-6 justify-center">
+                                {saving === "voice_id" && <Spinner className="size-3.5 text-primary animate-spin" />}
+                                {saved === "voice_id" && <HugeiconsIcon icon={Tick01Icon} className="size-4 text-emerald-500" />}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </SettingRow>
+                    )}
+
+                    <SettingRow
+                      icon={<HugeiconsIcon icon={ChatBotIcon} className="size-4" />}
+                      label="Conversation Mode"
+                      description="Choose between the standard Builder LLM pipeline or native bidirectional audio"
+                      className="items-start py-6 flex-col gap-4"
+                      childrenClassName="w-full ml-0 pl-12"
+                    >
+                      <Select
+                        value={isGeminiLive ? "native" : "standard"}
+                        onValueChange={(val) => {
+                          const newModel = val === "native" ? "default" : "";
+                          const payload: Record<string, string> = { gemini_live_model: newModel };
+                          
+                          if (val === "native") {
+                            if (!GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft)) {
+                              payload.voice_id = GEMINI_LIVE_VOICES[0].value;
+                              setVoiceIdDraft(GEMINI_LIVE_VOICES[0].value);
+                            }
+                          } else {
+                            if (GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft)) {
+                              payload.voice_id = "";
+                              setVoiceIdDraft("");
+                            }
+                          }
+                          
+                          patchField(payload);
+                        }}
+                      >
+                        <SelectTrigger className="h-9 w-[280px] text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                          <SelectValue>
+                            {isGeminiLive ? "Native Multimodal (Gemini Live)" : "Standard Pipeline (STT + LLM + TTS)"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="standard" className="text-xs font-semibold">Standard Pipeline (STT + LLM + TTS)</SelectItem>
+                          {(isGeminiLive || nativeMultimodalEnabled) && (
+                            <SelectItem value="native" className="text-xs font-semibold">Native Multimodal (Gemini Live)</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </SettingRow>
                   </div>
                 </div>

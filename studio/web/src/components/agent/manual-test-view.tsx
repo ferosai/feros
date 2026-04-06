@@ -346,7 +346,7 @@ export default function ManualTestView({
       setVoiceTimeline([]);
       isNearBottomRef.current = true;
 
-      let latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
+      const latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
       attemptedVoiceServerUrlRef.current = latestVoiceServerUrl;
 
       if (!latestVoiceServerUrl) {
@@ -869,7 +869,7 @@ function TimelineEntryCard({ entry, previousEntries: _previousEntries, index: _i
             </span>
           </div>
           {entry.error_message && (
-            <p className="mt-1 text-[10px] text-destructive leading-normal max-w-[400px] wrap-break-word font-medium">
+            <p className="mt-1 text-[10px] text-destructive leading-normal max-w-[400px] break-words font-medium">
               {entry.error_message}
             </p>
           )}

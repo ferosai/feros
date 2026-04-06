@@ -4,8 +4,6 @@
 //   protoc               v4.25.0
 // source: agent.proto
 
-/* eslint-disable */
-
 export const protobufPackage = "agent";
 
 export enum AudioLayout {
@@ -108,6 +106,8 @@ export interface AgentGraphDef {
     | undefined;
   /** Envelope field for versions (e.g. "v3_graph") */
   config_schema_version?: string | undefined;
+  gemini_live_api_key?: string | undefined;
+  gemini_live_model?: string | undefined;
 }
 
 export interface AgentGraphDef_NodesEntry {

@@ -135,6 +135,8 @@ impl PySessionConfig {
                         }
                     }
 
+                    // Native Multimodal Override now in config.finalize()
+
                     // Recording configuration
                     if let Some(ref recording) = graph.recording {
                         cfg.recording = map_recording_config(recording);

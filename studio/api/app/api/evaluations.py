@@ -505,15 +505,17 @@ async def _run_execution_task(run_id: uuid.UUID) -> None:
                 attempts = 0
                 while True:
                     try:
-                        assembled_text, finished_text, runtime_error = (
-                            await asyncio.wait_for(
-                                asyncio.to_thread(
-                                    _collect_target_runner_result,
-                                    target_runner,
-                                    caller_text,
-                                ),
-                                timeout=per_turn_timeout,
-                            )
+                        (
+                            assembled_text,
+                            finished_text,
+                            runtime_error,
+                        ) = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                _collect_target_runner_result,
+                                target_runner,
+                                caller_text,
+                            ),
+                            timeout=per_turn_timeout,
                         )
                     except TimeoutError as exc:
                         raise RuntimeError(

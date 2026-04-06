@@ -152,7 +152,7 @@ class LLMSettingsUpdate(BaseModel):
 
     provider: str = Field(
         ...,
-        pattern="^(groq|openai|anthropic|gemini|deepseek|ollama|together|fireworks|openrouter|vllm|custom)$",
+        pattern="^(groq|openai|anthropic|gemini|deepseek|ollama|together|fireworks|openrouter|vllm|custom|gemini-live|openai-realtime)$",
     )
     model: str
     base_url: str = ""
@@ -866,6 +866,102 @@ async def update_voice_llm_settings(
     all_creds = await _get_all_llm_credentials(db, "__voice__", _LLM_PROVIDER_SLUGS)
     all_cfgs = await _get_all_llm_provider_configs(db, "__voice__", _LLM_PROVIDER_SLUGS)
     return _llm_response(llm_config, all_creds, all_cfgs)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Native Multimodal Endpoints
+# ══════════════════════════════════════════════════════════════════
+
+
+_NATIVE_MULTIMODAL_PROVIDER_SLUGS = [
+    "gemini-live",
+    "openai-realtime",
+]
+
+
+@router.get("/native-multimodal", response_model=LLMSettingsResponse)
+async def get_native_multimodal_settings(
+    db: AsyncSession = Depends(get_db),
+) -> LLMSettingsResponse:
+    """Return the current native multimodal configuration from the DB."""
+    cfg = await get_llm_config(db, "__native_multimodal__")
+
+    all_creds = await _get_all_llm_credentials(
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+    )
+    all_cfgs = await _get_all_llm_provider_configs(
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+    )
+
+    res = _llm_response(cfg, all_creds, all_cfgs)
+    res.supported_providers = [
+        {
+            "value": "gemini-live",
+            "label": "Google Gemini",
+            "description": "Native multimodal streaming via Gemini Live API",
+        }
+    ]
+    return res
+
+
+@router.put("/native-multimodal", response_model=LLMSettingsResponse)
+async def update_native_multimodal_settings(
+    body: LLMSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> LLMSettingsResponse:
+    """Update the provider used by native multimodal mode."""
+    config_json: dict[str, Any] = {
+        "provider": body.provider,
+        "model": body.model,
+        "base_url": body.base_url,
+        "temperature": body.temperature,
+        "max_tokens": body.max_tokens,
+    }
+    api_key = _normalize_api_key(body.api_key)
+    existing_creds = await _get_llm_creds_row(
+        db, "__native_multimodal__", body.provider
+    )
+    if api_key:
+        engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
+        _ct, _iv = engine.encrypt({"value": api_key})
+        config_json["api_key_encrypted"] = {
+            "ciphertext": _ct,
+            "iv": _iv,
+            "version": CURRENT_ENCRYPTION_VERSION,
+        }
+    elif existing_creds:
+        for key in ("api_key_encrypted", "api_key"):
+            if key in (existing_creds.config_json or {}):
+                config_json[key] = existing_creds.config_json[key]
+
+    creds_row = await _upsert_llm_creds_row(
+        db, "__native_multimodal__", body.provider, config_json
+    )
+    await _set_active_provider(db, "llm", "__native_multimodal__", body.provider)
+
+    llm_config = llm_config_from_row(creds_row)
+    logger.info(
+        "Native Multimodal settings updated: provider={}, model={}",
+        body.provider,
+        body.model,
+    )
+
+    all_creds = await _get_all_llm_credentials(
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+    )
+    all_cfgs = await _get_all_llm_provider_configs(
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+    )
+
+    res = _llm_response(llm_config, all_creds, all_cfgs)
+    res.supported_providers = [
+        {
+            "value": "gemini-live",
+            "label": "Google Gemini",
+            "description": "Native multimodal streaming via Gemini Live API",
+        }
+    ]
+    return res
 
 
 # ══════════════════════════════════════════════════════════════════

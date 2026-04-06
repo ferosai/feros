@@ -201,10 +201,7 @@ class TestNormalizeWithValidator:
     def test_complex_mixed_escaping_with_validator(self) -> None:
         r"""A script mixing regex escapes (\w) and artificial \n newlines."""
         script = "const regex = /\\w+/;\\nconsole.log('string with \\\\n inside');"
-        decoded = (
-            "const regex = /\\w+/;\n"
-            "console.log('string with \\\\n inside');"
-        )
+        decoded = "const regex = /\\w+/;\nconsole.log('string with \\\\n inside');"
         # Raw fails, decoded passes
         validator = _make_validator(valid_scripts={decoded})
         cfg = _cfg_with_script(script)

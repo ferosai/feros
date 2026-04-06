@@ -164,7 +164,10 @@ class TestSetNodeFields:
                 )
             ],
         )
-        assert result["nodes"]["main"]["system_prompt"] == "You are a friendly booking agent."
+        assert (
+            result["nodes"]["main"]["system_prompt"]
+            == "You are a friendly booking agent."
+        )
         assert result["nodes"]["main"]["greeting"] == "Hello!"
 
     def test_replace_tools_list(self):
@@ -178,11 +181,7 @@ class TestSetNodeFields:
         cfg = _dispatcher_config()
         result = apply_edits(
             cfg,
-            [
-                SetNodeFields(
-                    node_id="dispatcher", fields={"edges": ["billing"]}
-                )
-            ],
+            [SetNodeFields(node_id="dispatcher", fields={"edges": ["billing"]})],
         )
         assert result["nodes"]["dispatcher"]["edges"] == ["billing"]
 
@@ -224,7 +223,9 @@ class TestUpsertTool:
                     tool_id="get_weather",
                     fields={
                         "description": "Check weather",
-                        "params": [{"name": "city", "type": "string", "required": True}],
+                        "params": [
+                            {"name": "city", "type": "string", "required": True}
+                        ],
                         "script": "return http_get(`/weather/${city}`).body;",
                         "side_effect": False,
                     },
@@ -472,7 +473,9 @@ class TestMultiOp:
                 base,
                 [
                     SetTopLevel(key="language", value="zh"),  # valid
-                    SetNodeFields(node_id="ghost", fields={"greeting": "hi"}),  # invalid
+                    SetNodeFields(
+                        node_id="ghost", fields={"greeting": "hi"}
+                    ),  # invalid
                 ],
             )
         # Base not mutated

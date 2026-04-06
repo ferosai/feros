@@ -312,6 +312,7 @@ class AgentConfigPatch(BaseModel):
     voice_id: str | None = None
     tts_provider: str | None = None
     tts_model: str | None = None
+    gemini_live_model: str | None = None
     regenerate_greeting: bool = False
 
 
@@ -487,6 +488,9 @@ async def _inject_config_change_event(
         changes.append(f"timezone set to {patch['timezone']}")
     if "voice_id" in patch:
         changes.append(f"voice_id set to {patch['voice_id']}")
+    if "gemini_live_model" in patch:
+        mode = "Native Multimodal (Gemini Live)" if patch["gemini_live_model"] else "Standard Pipeline"
+        changes.append(f"conversation mode set to {mode}")
 
     if not changes:
         return

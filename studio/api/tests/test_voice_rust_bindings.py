@@ -16,6 +16,6 @@ def test_voice_rust_exports_agent_runner() -> None:
     """AgentRunner must be exported for deterministic tool-mock test orchestration."""
     import voice_rust
 
-    assert hasattr(
-        voice_rust, "AgentRunner"
-    ), "voice_rust.AgentRunner is missing; hook-based test runner is unavailable"
+    assert hasattr(voice_rust, "AgentRunner"), (
+        "voice_rust.AgentRunner is missing; hook-based test runner is unavailable"
+    )
