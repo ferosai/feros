@@ -609,6 +609,7 @@ fn http_call_sync<'js>(
 
     let url_copy = url.to_string();
     let method_copy = method.to_string();
+    let caller_set_content_type = has_content_type_header(&parsed_headers);
 
     let result = tokio::task::block_in_place(|| {
         handle.block_on(async move {
@@ -620,7 +621,9 @@ fn http_call_sync<'js>(
             };
 
             if let Some(ref json_str) = body_json {
-                req = req.header("Content-Type", "application/json");
+                if !caller_set_content_type {
+                    req = req.header("Content-Type", "application/json");
+                }
                 req = req.body(json_str.clone());
             }
 
@@ -660,6 +663,12 @@ impl Default for QuickJsToolEngine {
     fn default() -> Self {
         Self::new(None, Arc::new(std::sync::RwLock::new(SecretMap::new())))
     }
+}
+
+fn has_content_type_header(headers: &HashMap<String, String>) -> bool {
+    headers
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("Content-Type"))
 }
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -770,6 +779,13 @@ mod tests {
             }
             other => panic!("Expected ScriptError, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn content_type_detection_is_case_insensitive() {
+        let mut headers = HashMap::new();
+        headers.insert("content-type".to_string(), "application/json".to_string());
+        assert!(has_content_type_header(&headers));
     }
 
     #[test]

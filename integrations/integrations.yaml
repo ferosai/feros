@@ -260,6 +260,14 @@ integrations:
       pkce: false
       token_expires_in_seconds: 86400
       refresh_margin_minutes: 10
+    credentials:
+      api_key:
+        type: string
+        title: Private Integration Token
+        description: "Static GoHighLevel Private Integration Token. Use this when you want to connect without OAuth."
+        secret: true
+        required: true
+        doc_url: "https://marketplace.gohighlevel.com/docs/Authorization/PrivateIntegrationsToken/index.html"
     connection_config:
       location_id:
         type: string
@@ -276,6 +284,7 @@ integrations:
     api:
       base_url: "https://services.leadconnectorhq.com"
       headers:
+        authorization: "Bearer ${credentials.api_key}"
         Version: "2021-07-28"
 
   discord:
