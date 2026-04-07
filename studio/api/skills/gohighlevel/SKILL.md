@@ -121,7 +121,7 @@ Common triggers:
     {"name": "contact_id", "description": "GoHighLevel contact ID", "type": "string", "required": true},
     {"name": "note_text", "description": "Call summary or note content", "type": "string", "required": true}
   ],
-  "script": "let key = secret('gohighlevel');\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/' + encodeURIComponent(contact_id) + '/notes', {body: note_text}, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28', 'Content-Type': 'application/json'});\nif (resp.status >= 200 && resp.status < 300) { return 'Note created.'; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
+  "script": "let key = secret('gohighlevel');\nlet resp = http_post_h('https://services.leadconnectorhq.com/contacts/' + encodeURIComponent(contact_id) + '/notes', {body: note_text}, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28'});\nif (resp.status >= 200 && resp.status < 300) { return 'Note created.'; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
   "side_effect": true
 }
 ```
@@ -150,7 +150,7 @@ Common triggers:
     {"name": "opportunity_id", "description": "GoHighLevel opportunity ID", "type": "string", "required": true},
     {"name": "payload_json", "description": "Raw JSON body to send to the opportunity update endpoint", "type": "string", "required": true}
   ],
-  "script": "let key = secret('gohighlevel');\nlet payload = JSON.parse(payload_json);\nlet resp = http_put_h('https://services.leadconnectorhq.com/opportunities/' + encodeURIComponent(opportunity_id), payload, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28', 'Content-Type': 'application/json'});\nif (resp.status >= 200 && resp.status < 300) { return resp.body; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
+  "script": "let key = secret('gohighlevel');\nlet payload = JSON.parse(payload_json);\nlet resp = http_put_h('https://services.leadconnectorhq.com/opportunities/' + encodeURIComponent(opportunity_id), payload, {'Authorization': 'Bearer ' + key, 'Version': '2021-07-28'});\nif (resp.status >= 200 && resp.status < 300) { return resp.body; }\nthrow new Error(`GoHighLevel ${resp.status}: ${resp.body}`);",
   "side_effect": true
 }
 ```
