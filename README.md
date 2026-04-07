@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ac973ace-00a5-40dc-91e8-7b5d8bde79ec">
-    <img alt="Feros" src="https://github.com/user-attachments/assets/fe0be429-6823-4dfa-8c41-9f23fff703f5" height="40">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/44900cfc-85f0-4013-8d9c-041b108aeb59">
+    <img alt="Feros" src="https://github.com/user-attachments/assets/883678b9-f495-4191-ab0a-17aea1a7adaa" height="40">
   </picture>
 </p>
 
