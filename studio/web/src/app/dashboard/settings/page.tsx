@@ -1,7 +1,7 @@
 "use client";
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { Alert01Icon, AlertCircleIcon, ArrowRight01Icon, ArrowDown01Icon, ArrowUp01Icon, Call02Icon, CheckmarkCircle02Icon, CloudIcon, LockPasswordIcon, FlashIcon, SettingDone02Icon, Globe02Icon, LinkSquare01Icon, SquareLock01Icon, Mic01Icon, ServerStack01Icon, Settings01Icon, ViewIcon, ViewOffIcon, VolumeHighIcon, AiVoiceIcon, Analytics01Icon, AiCloudIcon, AiProgrammingIcon, AiMicIcon, LiveStreaming02Icon } from "@hugeicons/core-free-icons";
+import { Alert01Icon, AlertCircleIcon, ArrowRight01Icon, ArrowDown01Icon, ArrowUp01Icon, Call02Icon, CheckmarkCircle02Icon, CloudIcon, FlashIcon, SettingDone02Icon, LinkSquare01Icon, SquareLock01Icon, Mic01Icon, ServerStack01Icon, Settings01Icon, ViewIcon, ViewOffIcon, VolumeHighIcon, AiVoiceIcon, Analytics01Icon, AiCloudIcon, AiProgrammingIcon, AiMicIcon, LiveStreaming02Icon } from "@hugeicons/core-free-icons";
 import { useState, useEffect, useCallback, useRef, type ClipboardEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";

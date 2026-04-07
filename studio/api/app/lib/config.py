@@ -58,6 +58,20 @@ class RedisConfig(BaseModel):
     url: str = ""
 
 
+class StorageConfig(BaseModel):
+    """S3/Cloudflare R2 Storage settings for recordings.
+    
+    Env vars: STORAGE__AWS_ACCESS_KEY_ID, STORAGE__AWS_SECRET_ACCESS_KEY, 
+              STORAGE__AWS_REGION, STORAGE__AWS_ENDPOINT_URL_S3
+    """
+    
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "auto"
+    aws_endpoint_url_s3: str = "https://<account_id>.r2.cloudflarestorage.com"
+    presigned_url_expiry_seconds: int = 3600
+
+
 class AuthConfig(BaseModel):
     """Authentication settings.
 
@@ -210,6 +224,7 @@ class Settings(BaseSettings):
     # Nested configs — populated from prefixed env vars
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
 

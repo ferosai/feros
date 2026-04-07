@@ -114,6 +114,9 @@ impl WebRtcConnection {
         let local_ip = if let Some(ip) = configured_public_ip {
             info!("[webrtc:{}] Using WEBRTC__PUBLIC_IP={}", &id[..8], ip);
             ip
+        } else if !bound_addr.ip().is_unspecified() && !bound_addr.ip().is_loopback() {
+            info!("[webrtc:{}] Bound to specific IP {}; using as public IP", &id[..8], bound_addr.ip());
+            bound_addr.ip()
         } else {
             let probe = UdpSocket::bind("0.0.0.0:0").await?;
             probe.connect("8.8.8.8:80").await?;

@@ -6,7 +6,7 @@ description = "Unified event bus — trace, metrics, and structured events for t
 
 [dependencies]
 # Async runtime
-tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
+tokio = { version = "1", features = ["sync", "rt", "time", "macros", "fs"] }
 
 # Binary data (audio chunks)
 bytes = "1"
