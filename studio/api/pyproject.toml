@@ -3,7 +3,7 @@ name = "studio-api"
 version = "0.3.0"
 description = "Open-source Voice Agent OS — API"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.14"
 
 dependencies = [
     # Web framework
@@ -37,6 +37,7 @@ dependencies = [
     "telnyx>=4.39.0",
     "pynacl>=1.5.0", # Required by telnyx SDK for Ed25519 webhook verification
     "pyyaml>=6.0.3",
+    "boto3>=1.42.85",
     "voice-engine",
     "integrations",
     "authlib>=1.6.8",
@@ -115,6 +116,8 @@ module = [
     "pydantic_ai.*",
     "loguru.*",
     "authlib.*",
+    "boto3.*",
+    "botocore.*",
 ]
 ignore_missing_imports = true
 

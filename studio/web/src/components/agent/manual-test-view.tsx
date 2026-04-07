@@ -412,9 +412,9 @@ export default function ManualTestView({
 
       // 8. Handle incoming audio track from server
       pc.ontrack = (e) => {
-        if (e.track.kind === "audio" && e.streams[0] && remoteAudioRef.current) {
+        if (e.track.kind === "audio" && remoteAudioRef.current) {
           const audio = remoteAudioRef.current;
-          audio.srcObject = e.streams[0];
+          audio.srcObject = e.streams && e.streams.length > 0 ? e.streams[0] : new MediaStream([e.track]);
           audio.play().catch((err) => {
             if (process.env.NODE_ENV === "development") console.warn("[voice] audio.play() returned an error:", err);
           });

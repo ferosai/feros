@@ -457,7 +457,10 @@ pub fn spawn_recording_subscriber<F>(
         .await;
 
         // Persist bytes to the configured destination and attach storage_uri.
-        let output = output.map(|o| persist_recording(o, &options.output_uri));
+        let output = match output {
+            Some(o) => Some(persist_recording(o, &options.output_uri).await),
+            None => None,
+        };
 
         if let Some(cb) = on_complete {
             cb(output);
@@ -490,13 +493,11 @@ fn resolve_file_path(uri: &str) -> Option<std::path::PathBuf> {
 /// Write encoded audio (and optional transcript) to a `file://` destination,
 /// then return the output with `storage_uri` populated.
 ///
-/// On S3 (feature-gated), upload asynchronously — but since this runs inside
-/// `spawn_blocking` context already, we use a blocking S3 variant.
-/// For now the `s3` branch is a placeholder stub that warns and falls through.
-fn persist_recording(mut output: RecordingOutput, output_uri: &str) -> RecordingOutput {
+/// On S3 (feature-gated), upload asynchronously.
+async fn persist_recording(mut output: RecordingOutput, output_uri: &str) -> RecordingOutput {
     if let Some(dir) = resolve_file_path(output_uri) {
         // ── file:// ──────────────────────────────────────────────
-        if let Err(e) = std::fs::create_dir_all(&dir) {
+        if let Err(e) = tokio::fs::create_dir_all(&dir).await {
             warn!("[recording] Could not create dir {:?}: {}", dir, e);
             output.storage_uri = String::new();
             return output;
@@ -508,7 +509,7 @@ fn persist_recording(mut output: RecordingOutput, output_uri: &str) -> Recording
         // Note: audio_bytes are not stored on RecordingOutput after this call —
         // we write them here and discard to avoid holding the buffer in memory.
         // The storage_uri is the durable reference going forward.
-        if let Err(e) = std::fs::write(&audio_path, &output.audio_bytes) {
+        if let Err(e) = tokio::fs::write(&audio_path, &output.audio_bytes).await {
             warn!("[recording] Failed to write {:?}: {}", audio_path, e);
             output.storage_uri = String::new();
             return output;
@@ -525,7 +526,7 @@ fn persist_recording(mut output: RecordingOutput, output_uri: &str) -> Recording
 
         if let Some(ref tx_bytes) = output.transcript_json {
             let json_path = dir.join(format!("{}.json", output.session_id));
-            if let Err(e) = std::fs::write(&json_path, tx_bytes) {
+            if let Err(e) = tokio::fs::write(&json_path, tx_bytes).await {
                 warn!("[recording] Failed to write transcript {:?}: {}", json_path, e);
             } else {
                 info!("[recording] Saved transcript → {:?}", json_path);
@@ -543,7 +544,7 @@ fn persist_recording(mut output: RecordingOutput, output_uri: &str) -> Recording
     #[cfg(feature = "s3")]
     if output_uri.starts_with("s3://") {
         // S3 upload — implemented in the s3 feature module.
-        output.storage_uri = s3_sink::upload_blocking(&output, output_uri)
+        output.storage_uri = crate::s3_store::upload_async(&output, output_uri).await
             .unwrap_or_else(|e| {
                 warn!("[recording] S3 upload failed: {} — recording lost", e);
                 String::new()

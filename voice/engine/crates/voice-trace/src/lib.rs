@@ -45,6 +45,10 @@ pub mod recording;
 pub mod sinks;
 pub mod tracer;
 
+#[cfg(feature = "s3")]
+pub mod s3_store;
+
+
 // ── Re-exports ──────────────────────────────────────────────────
 
 pub use bus::{EventBus, FilteredReceiver};
