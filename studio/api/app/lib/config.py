@@ -60,11 +60,11 @@ class RedisConfig(BaseModel):
 
 class StorageConfig(BaseModel):
     """S3/Cloudflare R2 Storage settings for recordings.
-    
-    Env vars: STORAGE__AWS_ACCESS_KEY_ID, STORAGE__AWS_SECRET_ACCESS_KEY, 
+
+    Env vars: STORAGE__AWS_ACCESS_KEY_ID, STORAGE__AWS_SECRET_ACCESS_KEY,
               STORAGE__AWS_REGION, STORAGE__AWS_ENDPOINT_URL_S3
     """
-    
+
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_region: str = "auto"

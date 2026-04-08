@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { APP_SITE_DESCRIPTION, APP_TITLE } from "@/lib/constants";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], preload: false });
 
 export const metadata: Metadata = {
   title: APP_TITLE,
@@ -20,6 +20,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `var __name = function (target, value) { return Object.defineProperty(target, "name", { value, configurable: true }); };`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <NuqsAdapter>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>

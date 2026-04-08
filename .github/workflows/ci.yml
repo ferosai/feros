@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies (protoc)
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # pnpm must be installed BEFORE setup-node so that
+      # setup-node can detect the pnpm store path for caching.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'studio/web/pnpm-lock.yaml'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # The project has three independent Cargo workspaces;
+          # rust-cache needs to know about each one to hash their
+          # Cargo.lock files and locate their target/ dirs.
+          workspaces: |
+            voice/engine -> target
+            voice/server -> target
+            integrations -> target
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "studio/api/uv.lock"
+          # uv resolves Python from pyproject.toml requires-python;
+          # no separate setup-python step needed.
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        working-directory: studio/api
+        run: uv sync
+
+      - name: Install Web dependencies
+        working-directory: studio/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Proto Stubs
+        run: make proto
+
+      - name: Run Lint
+        run: make lint
+
+      - name: Run Tests
+        run: make test

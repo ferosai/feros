@@ -61,10 +61,12 @@ dev = [
 [tool.black]
 line-length = 88
 target-version = ["py312"]
+extend-exclude = '.*_pb2\.pyi?$'
 
 [tool.isort]
 profile = "black"
 line_length = 88
+skip_glob = ["*_pb2.py", "*_pb2.pyi"]
 
 [tool.ruff]
 line-length = 88

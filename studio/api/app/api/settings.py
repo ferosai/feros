@@ -1487,7 +1487,11 @@ _OBS_DEFAULT_FLUSH_INTERVAL_MS: int = 1000
 _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS: int = 1500
 _OBS_DEFAULT_DROP_POLICY: str = "drop_oldest"
 _OBS_DEFAULT_DB_CATEGORIES: list[str] = [
-    "session", "metrics", "observability", "tool", "error"
+    "session",
+    "metrics",
+    "observability",
+    "tool",
+    "error",
 ]
 _OBS_DEFAULT_DB_EVENT_TYPES: list[str] = []  # empty = capture all event types
 
@@ -1504,8 +1508,12 @@ class ObservabilitySettingsResponse(BaseModel):
     flush_interval_ms: int = _OBS_DEFAULT_FLUSH_INTERVAL_MS
     shutdown_flush_timeout_ms: int = _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS
     drop_policy: str = _OBS_DEFAULT_DROP_POLICY
-    db_categories: list[str] = Field(default_factory=lambda: list(_OBS_DEFAULT_DB_CATEGORIES))
-    db_event_types: list[str] = Field(default_factory=lambda: list(_OBS_DEFAULT_DB_EVENT_TYPES))
+    db_categories: list[str] = Field(
+        default_factory=lambda: list(_OBS_DEFAULT_DB_CATEGORIES)
+    )
+    db_event_types: list[str] = Field(
+        default_factory=lambda: list(_OBS_DEFAULT_DB_EVENT_TYPES)
+    )
 
 
 class ObservabilitySettingsUpdate(BaseModel):
@@ -1517,11 +1525,19 @@ class ObservabilitySettingsUpdate(BaseModel):
     langfuse_trace_public: bool = False
     queue_size: int = Field(default=_OBS_DEFAULT_QUEUE_SIZE, ge=1, le=1_000_000)
     batch_size: int = Field(default=_OBS_DEFAULT_BATCH_SIZE, ge=1, le=10_000)
-    flush_interval_ms: int = Field(default=_OBS_DEFAULT_FLUSH_INTERVAL_MS, ge=50, le=60_000)
-    shutdown_flush_timeout_ms: int = Field(default=_OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS, ge=50, le=60_000)
+    flush_interval_ms: int = Field(
+        default=_OBS_DEFAULT_FLUSH_INTERVAL_MS, ge=50, le=60_000
+    )
+    shutdown_flush_timeout_ms: int = Field(
+        default=_OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS, ge=50, le=60_000
+    )
     drop_policy: str = _OBS_DEFAULT_DROP_POLICY
-    db_categories: list[str] = Field(default_factory=lambda: list(_OBS_DEFAULT_DB_CATEGORIES))
-    db_event_types: list[str] = Field(default_factory=lambda: list(_OBS_DEFAULT_DB_EVENT_TYPES))
+    db_categories: list[str] = Field(
+        default_factory=lambda: list(_OBS_DEFAULT_DB_CATEGORIES)
+    )
+    db_event_types: list[str] = Field(
+        default_factory=lambda: list(_OBS_DEFAULT_DB_EVENT_TYPES)
+    )
 
     @field_validator("langfuse_base_url")
     @classmethod
@@ -1621,8 +1637,12 @@ async def get_observability_settings(
         langfuse_trace_public=bool(cfg.get("langfuse_trace_public", False)),
         queue_size=int(cfg.get("queue_size", _OBS_DEFAULT_QUEUE_SIZE)),
         batch_size=int(cfg.get("batch_size", _OBS_DEFAULT_BATCH_SIZE)),
-        flush_interval_ms=int(cfg.get("flush_interval_ms", _OBS_DEFAULT_FLUSH_INTERVAL_MS)),
-        shutdown_flush_timeout_ms=int(cfg.get("shutdown_flush_timeout_ms", _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS)),
+        flush_interval_ms=int(
+            cfg.get("flush_interval_ms", _OBS_DEFAULT_FLUSH_INTERVAL_MS)
+        ),
+        shutdown_flush_timeout_ms=int(
+            cfg.get("shutdown_flush_timeout_ms", _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS)
+        ),
         drop_policy=str(cfg.get("drop_policy", _OBS_DEFAULT_DROP_POLICY)),
         db_categories=list(cfg.get("db_categories", _OBS_DEFAULT_DB_CATEGORIES)),
         db_event_types=list(cfg.get("db_event_types", _OBS_DEFAULT_DB_EVENT_TYPES)),
@@ -1721,9 +1741,19 @@ async def update_observability_settings(
         langfuse_trace_public=bool(config_json.get("langfuse_trace_public", False)),
         queue_size=int(config_json.get("queue_size", _OBS_DEFAULT_QUEUE_SIZE)),
         batch_size=int(config_json.get("batch_size", _OBS_DEFAULT_BATCH_SIZE)),
-        flush_interval_ms=int(config_json.get("flush_interval_ms", _OBS_DEFAULT_FLUSH_INTERVAL_MS)),
-        shutdown_flush_timeout_ms=int(config_json.get("shutdown_flush_timeout_ms", _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS)),
+        flush_interval_ms=int(
+            config_json.get("flush_interval_ms", _OBS_DEFAULT_FLUSH_INTERVAL_MS)
+        ),
+        shutdown_flush_timeout_ms=int(
+            config_json.get(
+                "shutdown_flush_timeout_ms", _OBS_DEFAULT_SHUTDOWN_FLUSH_TIMEOUT_MS
+            )
+        ),
         drop_policy=str(config_json.get("drop_policy", _OBS_DEFAULT_DROP_POLICY)),
-        db_categories=list(config_json.get("db_categories", _OBS_DEFAULT_DB_CATEGORIES)),
-        db_event_types=list(config_json.get("db_event_types", _OBS_DEFAULT_DB_EVENT_TYPES)),
+        db_categories=list(
+            config_json.get("db_categories", _OBS_DEFAULT_DB_CATEGORIES)
+        ),
+        db_event_types=list(
+            config_json.get("db_event_types", _OBS_DEFAULT_DB_EVENT_TYPES)
+        ),
     )

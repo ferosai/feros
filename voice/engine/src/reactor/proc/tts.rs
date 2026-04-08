@@ -373,7 +373,9 @@ impl TtsStage {
 
             // Fast path: try to send the Finished sentinel synchronously.
             // This prevents unbounded task spawning during rapid barge-in cycles.
-            if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) = tx.try_send(TtsEvent::Finished) {
+            if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) =
+                tx.try_send(TtsEvent::Finished)
+            {
                 // If the channel is full, we must not drop the chunk (it would
                 // stall the reactor), nor can we block. So we spawn a task to
                 // wait for channel capacity.

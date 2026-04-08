@@ -17,7 +17,6 @@ to keep it co-located with the rest of the call resources.
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import uuid
 from typing import Any

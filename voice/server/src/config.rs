@@ -70,7 +70,10 @@ pub struct Settings {
     /// studio/api serves recorded files at `/api/recordings/{filename}`.
     /// Both processes must access the same filesystem path for `file://` URIs
     /// (shared Docker volume, NFS, or same bare-metal host).
-    #[serde(rename = "recording__output_uri", default = "default_recording_output_uri")]
+    #[serde(
+        rename = "recording__output_uri",
+        default = "default_recording_output_uri"
+    )]
     pub recording_output_uri: String,
 }
 

@@ -714,7 +714,6 @@ fn build_llm_provider(providers: &ProviderConfig) -> Box<dyn LlmProvider> {
             agent_kit::FireworksProvider::new(&providers.llm_api_key, &providers.llm_model)
         ),
         _ => {} // Fall through to OpenAI-compat default
-
     }
 
     // Default: OpenAI-compatible via rig's Chat Completions client with custom base_url.
