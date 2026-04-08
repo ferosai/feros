@@ -85,28 +85,34 @@ impl WebRtcConnection {
         let id = uuid::Uuid::new_v4().to_string();
         let offer: SdpOffer = serde_json::from_value(offer_json)?;
 
+        let ice_lite = std::env::var("WEBRTC__ICE_LITE")
+            .ok()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(false);
+
         // Create str0m Rtc instance
-        let mut rtc = RtcConfig::new().build(Instant::now());
+        let mut rtc = RtcConfig::new().set_ice_lite(ice_lite).build(Instant::now());
 
         // Bind a UDP socket for WebRTC traffic.
-        // In Docker/local-dev, use a fixed port so the host can publish it.
-        let bind_port = std::env::var("WEBRTC_UDP_PORT")
+        // WEBRTC__BIND_IP controls the bind address (default: 0.0.0.0).
+        // Some UDP proxy deployments require binding to a specific address
+        // so that outbound packets are sourced correctly.
+        let bind_ip = std::env::var("WEBRTC__BIND_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let bind_port = std::env::var("WEBRTC__UDP_PORT")
             .ok()
             .and_then(|v| v.parse::<u16>().ok())
             .unwrap_or(0);
-        let bind_addr = format!("0.0.0.0:{bind_port}");
+        let bind_addr = format!("{}:{}", bind_ip, bind_port);
+
         let socket = UdpSocket::bind(&bind_addr).await?;
         let bound_addr = socket.local_addr()?;
-        info!("[webrtc:{}] Bound UDP socket on {}", &id[..8], bound_addr);
+        info!("[webrtc:{}] Bound UDP socket on {}", &id[..8], bind_addr);
 
-        // Discover candidate IP.
-        // In Docker/local-dev, WEBRTC_PUBLIC_IP forces a host-reachable
-        // candidate (for example 127.0.0.1 on Desktop Docker).
-        let configured_public_ip = std::env::var("WEBRTC_PUBLIC_IP")
+        let configured_public_ip = std::env::var("WEBRTC__PUBLIC_IP")
             .ok()
             .and_then(|v| v.parse::<std::net::IpAddr>().ok());
         let local_ip = if let Some(ip) = configured_public_ip {
-            info!("[webrtc:{}] Using WEBRTC_PUBLIC_IP={}", &id[..8], ip);
+            info!("[webrtc:{}] Using WEBRTC__PUBLIC_IP={}", &id[..8], ip);
             ip
         } else {
             let probe = UdpSocket::bind("0.0.0.0:0").await?;
@@ -154,7 +160,7 @@ impl WebRtcConnection {
             }
         } else {
             info!(
-                "[webrtc:{}] Skipping STUN srflx candidate because WEBRTC_PUBLIC_IP is set",
+                "[webrtc:{}] Skipping STUN srflx candidate because WEBRTC__PUBLIC_IP is set",
                 &id[..8]
             );
         }
