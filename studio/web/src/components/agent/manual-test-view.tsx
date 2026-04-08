@@ -302,7 +302,7 @@ export default function ManualTestView({
 
     ws?.close();
     pc?.close();
-    if (audio) { audio.pause(); audio.srcObject = null; audio.remove(); }
+    if (audio) { audio.pause(); audio.srcObject = null; }
     stream?.getTracks().forEach((t) => t.stop());
     setVoiceState("idle");
   }, []);
@@ -358,6 +358,11 @@ export default function ManualTestView({
         return;
       }
 
+      // Attempt immediate unlock of the audio context within the click handler's transient activation
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
+
       // 1. Get microphone — catch separately: mic errors are local, not server errors
       let stream: MediaStream;
       try {
@@ -398,18 +403,21 @@ export default function ManualTestView({
       const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
 
-      // 7. Add mic tracks
-      stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+      // 7. Explicitly add a bidirectional audio transceiver, then attach the primary mic track.
+      // addTrack will reuse the transceiver's sender (per WebRTC spec §4.2.2).
+      // We only add the first track to prevent multiple transceivers if the stream has multiple.
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      const firstTrack = stream.getAudioTracks()[0];
+      if (firstTrack) pc.addTrack(firstTrack, stream);
 
       // 8. Handle incoming audio track from server
       pc.ontrack = (e) => {
-        if (e.track.kind === "audio" && e.streams[0]) {
-          const audio = document.createElement("audio");
-          audio.autoplay = true;
-          audio.style.display = "none";
-          document.body.appendChild(audio);
+        if (e.track.kind === "audio" && e.streams[0] && remoteAudioRef.current) {
+          const audio = remoteAudioRef.current;
           audio.srcObject = e.streams[0];
-          remoteAudioRef.current = audio;
+          audio.play().catch((err) => {
+            if (process.env.NODE_ENV === "development") console.warn("[voice] audio.play() returned an error:", err);
+          });
         }
       };
 
@@ -462,7 +470,14 @@ export default function ManualTestView({
       wsRef.current = ws;
       ws.onmessage = handleWsMsg;
       ws.onerror = () => { showVoiceErrorToast(); stopVoice(); };
-      ws.onclose = () => { showVoiceErrorToast(); stopVoice(); };
+      ws.onclose = (ev) => {
+        if (ev.code === 1000 || ev.code === 1005) {
+          voiceStopExpectedRef.current = true;
+        } else {
+          showVoiceErrorToast();
+        }
+        stopVoice();
+      };
 
       setVoiceState("listening");
     } catch (err: unknown) {
@@ -508,6 +523,8 @@ export default function ManualTestView({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background relative overflow-hidden">
+      {/* Audio element statically mounted to satisfy autoplay policy constraints reliably */}
+      <audio ref={remoteAudioRef} autoPlay style={{ display: "none" }} />
       {/* Dynamic Background Accents */}
       <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
