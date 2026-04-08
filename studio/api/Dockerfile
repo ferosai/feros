@@ -1,10 +1,15 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 1 — builder
+#   Installs Rust + build tools, compiles PyO3 extensions, syncs Python deps.
+#   Nothing from this stage's toolchain ships in the final image.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
 
-WORKDIR /workspace/studio/api
+WORKDIR /workspace
 
-# Install system deps (build-essential for Rust/C extensions, libssl-dev + pkg-config for openssl-sys)
-RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+# Build-time system dependencies (NOT copied to the final stage)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     clang \
     cmake \
@@ -17,37 +22,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust (required to compile voice-engine)
+# Install Rust (needed to compile voice-engine PyO3 extensions)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 ENV PATH="/root/.cargo/bin:${PATH}"
-# voice-engine/.cargo/config.toml sets rustc-wrapper=sccache for local dev.
-# sccache is not installed in this image — clear the wrapper so cargo uses rustc directly.
+# sccache is not present here — ensure cargo uses rustc directly.
 ENV RUSTC_WRAPPER=""
-
-# Keep the venv outside /app so it isn't shadowed by the ./studio/api bind mount
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /usr/local/bin/uv
 
-# ── Stage 1: Install all third-party Python deps ─────────────────────────────
-# voice-engine is a path dependency (not a uv workspace member), so
-# --no-install-workspace does nothing for it.  Use --no-install-package instead.
-# uv still needs voice-engine/pyproject.toml to resolve the lock file (it reads
-# package metadata from the path source), but does NOT need Cargo.toml / src/.
-# This layer is only invalidated when pyproject.toml / uv.lock change.
-COPY studio/api/pyproject.toml studio/api/uv.lock* ./
+# Keep the venv in a fixed path so the final stage can copy it cleanly.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+
+# ── Dependency layer (cache-friendly) ────────────────────────────────────────
+# Copy only the metadata files first so this layer is only invalidated when
+# pyproject.toml / uv.lock change — not when application code changes.
+COPY studio/api/pyproject.toml studio/api/uv.lock* /workspace/studio/api/
 COPY voice/engine/pyproject.toml /workspace/voice/engine/pyproject.toml
 COPY integrations/pyproject.toml /workspace/integrations/pyproject.toml
+
+WORKDIR /workspace/studio/api
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-package voice-engine --no-install-package integrations
 
-# ── Stage 2: Compile the local voice-engine and integrations PyO3 extensions ──
-# Copying sources here means source changes only invalidate this step,
-# not the expensive third-party download step above.
+# ── Compile PyO3 extensions ───────────────────────────────────────────────────
 COPY voice/engine /workspace/voice/engine
 COPY integrations /workspace/integrations
 COPY proto /workspace/proto
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
@@ -55,9 +58,35 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/workspace/integrations/target \
     uv sync --frozen --no-dev
 
-# ── Stage 3: Copy application source ─────────────────────────────────────────
-COPY studio/api/ .
+# ── Copy application source ───────────────────────────────────────────────────
+COPY studio/api/ /workspace/studio/api/
 
-EXPOSE 8000 8300
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2 — final runtime image
+#   Only the compiled venv + application code. No Rust, no clang, no cmake.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM python:3.12-slim
 
-CMD ["uv", "run", "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app
+
+# Runtime-only libraries our compiled extensions actually link against
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    libopus0 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy compiled venv and application from builder
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /workspace/studio/api /app
+
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# Run as a non-root user
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app /opt/venv
+USER appuser
+
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
