@@ -297,7 +297,7 @@ export default function ManualTestView({
     // Null refs first to prevent re-entry from onclose/onerror callbacks
     const ws = wsRef.current; wsRef.current = null;
     const pc = pcRef.current; pcRef.current = null;
-    const audio = remoteAudioRef.current; remoteAudioRef.current = null;
+    const audio = remoteAudioRef.current;
     const stream = streamRef.current; streamRef.current = null;
 
     ws?.close();
@@ -469,8 +469,13 @@ export default function ManualTestView({
       const ws = new WebSocket(ws_url);
       wsRef.current = ws;
       ws.onmessage = handleWsMsg;
-      ws.onerror = () => { showVoiceErrorToast(); stopVoice(); };
+      ws.onerror = () => {
+        if (wsRef.current !== ws) return;
+        showVoiceErrorToast();
+        stopVoice();
+      };
       ws.onclose = (ev) => {
+        if (wsRef.current !== ws) return;
         if (ev.code === 1000 || ev.code === 1005) {
           voiceStopExpectedRef.current = true;
         } else {
