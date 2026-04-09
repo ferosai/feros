@@ -31,6 +31,7 @@ services:
     build:
       context: .
       dockerfile: studio/api/Dockerfile
+      target: builder
       args:
         BUILDKIT_INLINE_CACHE: "1"
     ports:
