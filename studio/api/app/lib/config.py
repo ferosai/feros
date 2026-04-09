@@ -75,7 +75,7 @@ class StorageConfig(BaseModel):
 class AuthConfig(BaseModel):
     """Authentication settings.
 
-    Env vars: AUTH_SECRET_KEY, AUTH_API_KEY, AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+    Env vars: AUTH__SECRET_KEY, AUTH__API_KEY, AUTH__ACCESS_TOKEN_EXPIRE_MINUTES
     """
 
     secret_key: str = "dev-secret-change-in-production"
@@ -202,9 +202,9 @@ class Settings(BaseSettings):
     All fields are strongly typed. Nested models use env_prefix
     for flat environment variable naming:
 
-        DATABASE_URL=...
-        REDIS_URL=...
-        AUTH_SECRET_KEY=...
+        DATABASE__URL=...
+        REDIS__URL=...
+        AUTH__SECRET_KEY=...
 
     .env files are loaded with cascading precedence based on
     the ENVIRONMENT variable.
