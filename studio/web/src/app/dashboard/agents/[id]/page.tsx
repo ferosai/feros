@@ -129,6 +129,7 @@ function AgentDetailPageContent({
   const [registerOAuthOpen, setRegisterOAuthOpen] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<IntegrationSummary | null>(null);
   const [selectedExisting, setSelectedExisting] = useState<Credential | null>(null);
+  const [oauthEditReturnTarget, setOauthEditReturnTarget] = useState<"none" | "override">("none");
 
   // Diff state (from pipeline SSE)
   const [lastDiff, setLastDiff] = useState<string | null>(null);
@@ -325,25 +326,8 @@ function AgentDetailPageContent({
 
   // ── Credential Modal ──────────────────────────────────────────
 
-   const startOAuthConnect = useCallback(async (provider: string): Promise<boolean> => {
-     try {
-       const { authorize_url } = await api.oauth.authorize(provider, id);
-       const popup = window.open(authorize_url, "oauth_authorize", "width=500,height=700,noopener=0");
-       if (!popup) return false;
-       return true;
-     } catch {
-       return false;
-     }
-   }, [id]);
-
    const openCredentialModal = async (card: ActionCard) => {
-     // OAuth flow: open popup → user authorizes → popup closes → refresh credentials
-     if (card.type === "oauth_redirect") {
-       await startOAuthConnect(card.skill);
-       return;
-     }
-
-     // Use standardized dialog for manual credential flow
+     // Unified: always open the shared IntegrationConnectionDialog
      try {
        const [integrations, apps] = await Promise.all([
          api.integrations.list(),
@@ -358,16 +342,17 @@ function AgentDetailPageContent({
        setSelectedExisting(existing);
        setOverrideDialogOpen(true);
      } catch {
-       // ignore
+       toast.error("Failed to load integration details. Please try again.");
      }
    };
 
-   const refreshOAuthApps = useCallback(async () => {
+   const refreshOAuthApps = useCallback(async (): Promise<OAuthApp[] | null> => {
      try {
        const apps = await api.oauthApps.list();
        setOAuthApps(apps);
+       return apps;
      } catch {
-       // ignore
+       return null;
      }
    }, []);
 
@@ -987,16 +972,31 @@ function AgentDetailPageContent({
           // popup is opened; on oauth_complete message we refresh credentials
         }}
         onConfigureOAuthApp={() => {
+          setOauthEditReturnTarget("override");
           setRegisterOAuthOpen(true);
         }}
       />
 
       <OAuthAppRegistrationDialog
         open={registerOAuthOpen}
-        onOpenChange={setRegisterOAuthOpen}
+        onOpenChange={(open) => {
+          setRegisterOAuthOpen(open);
+          if (!open) setOauthEditReturnTarget("none");
+        }}
         integration={selectedIntegration}
         existing={existingOAuthApp}
-        onSaved={() => void refreshOAuthApps()}
+        onSaved={async () => {
+          const apps = await refreshOAuthApps();
+          if (!apps) {
+            toast.error("Failed to refresh OAuth apps.");
+            return;
+          }
+          if (oauthEditReturnTarget === "override") {
+            setRegisterOAuthOpen(false);
+            setOauthEditReturnTarget("none");
+            setOverrideDialogOpen(true);
+          }
+        }}
       />
 
       <Dialog

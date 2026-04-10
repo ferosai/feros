@@ -399,14 +399,6 @@ export default function ChatPanel({
                                 ? <><HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3.5" /> Saved</>
                                 : credentials.find((c) => c.provider === card.skill) ? "Update" : "Connect"}
                             </Button>
-                            {card.type === "oauth_redirect" && !recentlySavedSkill && (
-                              <button
-                                onClick={() => onOpenCredentialModal({ ...card, type: "connect_credential" })}
-                                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors"
-                              >
-                                Use API key instead
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
