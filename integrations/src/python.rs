@@ -107,7 +107,6 @@ fn start_token_refresher(
                     return;
                 }
             };
-            let connect_opts = connect_opts.statement_cache_capacity(0);
 
             let pool = match sqlx::postgres::PgPoolOptions::new()
                 .max_connections(3)
@@ -252,8 +251,7 @@ fn resolve_agent_secrets(
 ///
 /// Both must share the same runtime so the pool's background connection
 /// health-check tasks always have a live IO driver.  The pool is
-/// configured with `statement_cache_capacity(0)` so it works behind
-/// PgBouncer in transaction-pooling mode (no prepared statements).
+/// configured properly so it works behind PgBouncer.
 struct CachedRuntimePool {
     rt: tokio::runtime::Runtime,
     pool: PgPool,
@@ -294,17 +292,13 @@ fn get_or_create_runtime_and_pool(
         .enable_all()
         .build()?;
 
-    // Create the pool on the new runtime with PgBouncer-safe settings
+    // Create the pool on the new runtime
     let pool = rt.block_on(async {
         let connect_opts: sqlx::postgres::PgConnectOptions = db_url.parse().map_err(
             |e: sqlx::Error| -> Box<dyn std::error::Error + Send + Sync> {
                 format!("Invalid DB URL: {}", e).into()
             },
         )?;
-
-        // Disable prepared-statement cache — required for PgBouncer
-        // transaction-pooling mode (e.g. Supabase port 6543).
-        let connect_opts = connect_opts.statement_cache_capacity(0);
 
         sqlx::postgres::PgPoolOptions::new()
             .max_connections(3)

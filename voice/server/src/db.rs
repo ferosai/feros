@@ -7,9 +7,9 @@
 //!   `agent_versions`   — get config_json (v3_graph)
 //!   `provider_configs` — get STT/TTS/LLM settings and telephony credentials
 //!
-//! PgBouncer compatibility: the pool is created with `statement_cache_capacity(0)`
-//! in main.rs, forcing the simple query protocol for all queries. Individual
-//! `.persistent(false)` calls are therefore not needed.
+//! PgBouncer compatibility: The pool connects natively using extended query protocol.
+//! To use this securely behind a transaction pooler without query overlap bugs in SQLx 0.8,
+//! ensure the pooler is running in Session Mode.
 //!
 //! Encrypted fields (stored as `{ciphertext, iv}` JSON blobs) are decrypted
 //! inline using `integrations::EncryptionEngine` with the same key as the Python
@@ -454,7 +454,7 @@ async fn agent_config_for_id(
     // Fetch voice provider settings in a single round-trip.
     // This is faster than tokio::join! (which requires 3 connections) and
     // sequential fetches (which requires 3 RTTs). A single query is also
-    // the most stable pattern for PgBouncer/Supabase.
+    // the most stable pattern for PgBouncer.
     let provider_map = fetch_providers_bulk(pool, &["stt", "tts"], "__voice__").await;
     let llm = fetch_role_scoped_llm_provider(pool, "__voice__").await;
     let stt = provider_map.get("stt").cloned().unwrap_or_default();

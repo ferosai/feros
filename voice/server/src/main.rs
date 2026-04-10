@@ -45,16 +45,11 @@ async fn main() {
     info!(?settings, "voice-server starting");
 
     // Connect to the same Postgres DB as the Python backend.
-    // statement_cache_capacity(0) on PgConnectOptions forces the simple query
-    // protocol for every query, which is required by Supabase/PgBouncer in
-    // transaction mode. Without this, parallel sqlx queries (tokio::join!) can
-    // hit a connection with a stale prepared-statement handle, causing
-    // "unnamed prepared statement does not exist" errors.
+    // Requires a Session-mode pooler to avoid prepared-statement handle conflicts.
     let connect_opts = settings
         .database_url
         .parse::<PgConnectOptions>()
-        .expect("Invalid DATABASE__URL")
-        .statement_cache_capacity(0);
+        .expect("Invalid DATABASE__URL");
     let pool = PgPoolOptions::new()
         .connect_with(connect_opts)
         .await

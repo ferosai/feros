@@ -439,9 +439,6 @@ pub fn start_vault_server_with_engine(
             Box::pin(async move {
                 let connect_opts: sqlx::postgres::PgConnectOptions =
                     db_url.parse().map_err(|e: sqlx::Error| e.to_string())?;
-                // Disable the prepared-statement cache so we work behind
-                // PgBouncer in transaction-pooling mode (e.g. Supabase port 6543).
-                let connect_opts = connect_opts.statement_cache_capacity(0);
 
                 let pool = sqlx::postgres::PgPoolOptions::new()
                     .max_connections(5)
