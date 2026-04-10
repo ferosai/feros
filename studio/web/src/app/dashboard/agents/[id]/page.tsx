@@ -1,10 +1,11 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, Robot01Icon, CheckmarkCircle02Icon, CodeIcon, Delete02Icon, GitBranchIcon, Key02Icon, PencilEdit01Icon, Rocket01Icon, MoreHorizontalIcon, Clock01Icon, LeftToRightListBulletIcon, Settings03Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, Robot01Icon, CheckmarkCircle02Icon, CodeIcon, Copy01Icon, Delete02Icon, GitBranchIcon, Key02Icon, PencilEdit01Icon, Rocket01Icon, MoreHorizontalIcon, Clock01Icon, LeftToRightListBulletIcon, Settings03Icon } from "@hugeicons/core-free-icons";
 import { useState, useRef, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -532,6 +533,15 @@ function AgentDetailPageContent({
     }
   }, [agent, deleteConfirmName, id, router]);
 
+  const copyAgentId = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      toast.success("Agent ID copied");
+    } catch {
+      toast.error("Failed to copy Agent ID");
+    }
+  }, [id]);
+
   // ── Render ────────────────────────────────────────────────────
 
   return (
@@ -601,6 +611,10 @@ function AgentDetailPageContent({
                 <DropdownMenuItem onClick={openDeployDialog} className="text-xs font-bold py-2" disabled={!hasVersions}>
                   <HugeiconsIcon icon={Rocket01Icon} className="size-4" />
                   Version Sync
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyAgentId} className="text-xs font-bold py-2">
+                  <HugeiconsIcon icon={Copy01Icon} className="size-4" />
+                  Copy Agent ID
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" className="text-xs font-bold py-2" onClick={() => { setDeleteConfirmName(""); setDeleteDialogOpen(true); }}>
