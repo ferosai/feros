@@ -1,0 +1,39 @@
+# ==============================================================================
+# 🔧 SOURCE BUILD OVERRIDE — for developing the Rust/Python core
+# ==============================================================================
+# This file is a Docker Compose override. It CANNOT be used on its own.
+# Use it with the base docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.source.yml up --build
+#
+# HOW IT WORKS:
+# Docker Compose deep-merges this file on top of docker-compose.yml. All ports,
+# environment variables, volumes, and depends_on from the base file are preserved.
+# This file only adds the `build:` blocks, which tell Compose to compile the
+# images locally from source instead of pulling them from ghcr.io.
+#
+# WHY USE THIS?
+# Only needed when you're modifying the Rust voice-server/engine or the
+# Python studio-api PyO3 bindings. For regular development (Python app code,
+# Next.js frontend), the prebuilt images in docker-compose.yml support
+# live-reload without any recompilation.
+# ==============================================================================
+services:
+  studio-api:
+    build:
+      context: .
+      dockerfile: studio/api/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+
+  voice-server:
+    build:
+      context: .
+      dockerfile: voice/server/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+
+  studio-web:
+    build:
+      context: .
+      dockerfile: studio/web/Dockerfile

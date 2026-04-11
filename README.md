@@ -67,7 +67,12 @@ flowchart LR
 git clone https://github.com/ferosai/feros.git
 cd feros
 cp .env.example .env
+
+# Run with prebuilt multi-arch images (Lightning fast startup)
 docker compose up -d
+
+# OR, if you need to build the Rust/Python core from source:
+# docker compose -f docker-compose.yml -f docker-compose.source.yml up -d --build
 ```
 
 Open `http://localhost:3000` to access the dashboard.
