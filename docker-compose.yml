@@ -28,12 +28,7 @@ services:
 
   # Python Backend (FastAPI)
   studio-api:
-    build:
-      context: .
-      dockerfile: studio/api/Dockerfile
-      target: builder
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
+    image: ghcr.io/ferosai/feros-studio-api:latest
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -60,11 +55,7 @@ services:
 
   # Rust Voice Server (telephony gateway + WebRTC)
   voice-server:
-    build:
-      context: .
-      dockerfile: voice/server/Dockerfile
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
+    image: ghcr.io/ferosai/feros-voice-server:latest
     ports:
       - "127.0.0.1:8300:8300"
       - "127.0.0.1:50000:50000/udp"
@@ -90,9 +81,7 @@ services:
 
   # Next.js Frontend
   studio-web:
-    build:
-      context: .
-      dockerfile: studio/web/Dockerfile
+    image: ghcr.io/ferosai/feros-studio-web:latest
     ports:
       - "127.0.0.1:3000:3000"
     environment:

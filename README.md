@@ -67,7 +67,12 @@ flowchart LR
 git clone https://github.com/ferosai/feros.git
 cd feros
 cp .env.example .env
+
+# Run with prebuilt multi-arch images (Lightning fast startup)
 docker compose up -d
+
+# OR, if you need to build the Rust/Python core from source:
+# docker compose -f docker-compose.yml -f docker-compose.source.yml up -d --build
 ```
 
 Open `http://localhost:3000` to access the dashboard.
@@ -85,6 +90,8 @@ Open `http://localhost:3000` to access the dashboard.
 ## Roadmap
 
 - [ ] Outbound calls — agent-initiated dialing with retry and scheduling
+- [ ] Dynamic Agent Variables — resolve runtime context at session start for personalized conversations
+- [ ] Granular Usage Billing — step-level cost attribution across models and third-party services
 - [ ] Gemini Live native audio — end-to-end multimodal backend
 - [ ] Direct PSTN via SIP — no Twilio or Telnyx required
 - [ ] Agent-to-agent evaluation — tester agent calling target agent over live audio
