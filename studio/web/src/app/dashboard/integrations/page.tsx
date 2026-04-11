@@ -126,7 +126,7 @@ function IntegrationCard({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" sideOffset={6}>
-                      {!oauthReady ? "OAuth app not configured. Click to set up." : "Click to update OAuth App"}
+                      {!oauthReady ? "Configure OAuth App" : "Update OAuth App"}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -205,6 +205,7 @@ export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<IntegrationSummary | null>(null);
   const [deleteDefaultTarget, setDeleteDefaultTarget] = useState<string | null>(null);
   const [deletingDefault, setDeletingDefault] = useState(false);
+  const [oauthEditReturnTarget, setOauthEditReturnTarget] = useState<"none" | "connect">("none");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -237,12 +238,13 @@ export default function IntegrationsPage() {
     setByokSupport(next);
   }, [integrations]);
 
-  const refreshOAuthApps = useCallback(async () => {
+  const refreshOAuthApps = useCallback(async (): Promise<OAuthApp[] | null> => {
     try {
       const apps = await api.oauthApps.list();
       setOAuthApps(apps);
+      return apps;
     } catch {
-      // ignore
+      return null;
     }
   }, []);
 
@@ -359,6 +361,7 @@ export default function IntegrationsPage() {
                 onDisconnect={() => setDeleteDefaultTarget(integration.name)}
                 onConfigureOAuth={() => {
                   setSelectedIntegration(integration);
+                  setOauthEditReturnTarget("none");
                   setRegisterOpen(true);
                 }}
               />
@@ -369,10 +372,24 @@ export default function IntegrationsPage() {
 
       <OAuthAppRegistrationDialog
         open={registerOpen}
-        onOpenChange={setRegisterOpen}
+        onOpenChange={(open) => {
+          setRegisterOpen(open);
+          if (!open) setOauthEditReturnTarget("none");
+        }}
         integration={selectedIntegration}
         existing={existingOAuthApp}
-        onSaved={() => void refreshOAuthApps()}
+        onSaved={async () => {
+          const apps = await refreshOAuthApps();
+          if (!apps) {
+            toast.error("Failed to refresh OAuth apps.");
+            return;
+          }
+          if (oauthEditReturnTarget === "connect") {
+            setRegisterOpen(false);
+            setOauthEditReturnTarget("none");
+            setConnectOpen(true);
+          }
+        }}
       />
 
       <IntegrationConnectionDialog
@@ -391,6 +408,7 @@ export default function IntegrationsPage() {
           // popup is opened; postMessage listener refreshes connection list on completion
         }}
         onConfigureOAuthApp={() => {
+          setOauthEditReturnTarget("connect");
           setRegisterOpen(true);
         }}
       />

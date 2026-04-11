@@ -53,7 +53,7 @@ export interface OAuthAppRegistrationDialogProps {
   onOpenChange: (open: boolean) => void;
   integration: IntegrationSummary | null;
   existing: OAuthApp | null;
-  onSaved?: () => void;
+  onSaved?: () => void | Promise<void>;
 }
 
 export function OAuthAppRegistrationDialog({
@@ -105,7 +105,7 @@ export function OAuthAppRegistrationDialog({
       toast.success(
         `${integration.display_name} OAuth app ${existing ? "updated" : "registered"}`
       );
-      onSaved?.();
+      await onSaved?.();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save OAuth app");
@@ -493,6 +493,14 @@ export function IntegrationConnectionDialog({
                       </>
                     )}
                   </Button>
+                  <button
+                    type="button"
+                    onClick={openOAuthSetup}
+                    className="w-full text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <HugeiconsIcon icon={Settings02Icon} className="size-3" />
+                    Edit OAuth App
+                  </button>
                 </div>
               )}
 
