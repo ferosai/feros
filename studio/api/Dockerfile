@@ -43,7 +43,7 @@ COPY integrations/pyproject.toml /workspace/integrations/pyproject.toml
 
 WORKDIR /workspace/studio/api
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv sync --frozen --no-dev --no-install-package voice-engine --no-install-package integrations
 
 # ── Compile PyO3 extensions ───────────────────────────────────────────────────
@@ -51,11 +51,11 @@ COPY voice/engine /workspace/voice/engine
 COPY integrations /workspace/integrations
 COPY proto /workspace/proto
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    --mount=type=cache,target=/workspace/voice/engine/target \
-    --mount=type=cache,target=/workspace/integrations/target \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/registry,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/git,sharing=locked \
+    --mount=type=cache,target=/workspace/voice/engine/target,sharing=locked \
+    --mount=type=cache,target=/workspace/integrations/target,sharing=locked \
     uv sync --frozen --no-dev
 
 # ── Copy application source ───────────────────────────────────────────────────

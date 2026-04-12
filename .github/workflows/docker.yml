@@ -1,11 +1,6 @@
 name: Docker Multi-Architecture Build
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
   release:
     types: [published]
   workflow_dispatch:
