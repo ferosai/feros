@@ -53,9 +53,9 @@ COPY proto/ proto/
 # Build using the dev profile: skips LTO + codegen-units=1 (7+ min → ~2 min).
 # All deps are still opt-level=3 (see [profile.dev.package."*"] in Cargo.toml)
 # so runtime perf of libraries is equivalent to release.
-RUN --mount=type=cache,target=/build/target \
-    --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
+RUN --mount=type=cache,target=/build/target,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/registry,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/git,sharing=locked \
     cd voice/server && cargo build \
     && cp /build/target/debug/voice-server /voice-server-bin
 
