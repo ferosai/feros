@@ -43,7 +43,6 @@ jobs:
             context: .
             dockerfile: studio/web/Dockerfile
             image_name: feros-studio-web
-    if: ${{ !inputs.image || inputs.image == matrix.name }}
 
     steps:
       - name: Checkout repository
@@ -74,6 +73,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
+        if: ${{ !inputs.image || inputs.image == matrix.name }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
