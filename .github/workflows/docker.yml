@@ -4,6 +4,17 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      image:
+        description: 'Image to build (leave empty to build all)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - studio-api
+          - voice-server
+          - studio-web
 
 env:
   REGISTRY: ghcr.io
@@ -32,6 +43,7 @@ jobs:
             context: .
             dockerfile: studio/web/Dockerfile
             image_name: feros-studio-web
+    if: ${{ !inputs.image || inputs.image == matrix.name }}
 
     steps:
       - name: Checkout repository
