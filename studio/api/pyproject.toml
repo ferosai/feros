@@ -1,6 +1,6 @@
 [project]
 name = "studio-api"
-version = "0.3.0"
+version = "0.1.0"
 description = "Open-source Voice Agent OS — API"
 readme = "README.md"
 requires-python = ">=3.12, <3.14"
