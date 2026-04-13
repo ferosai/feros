@@ -36,9 +36,7 @@ services:
       AUTH__SECRET_KEY: ${AUTH__SECRET_KEY:-n4tdUP80bCKerLNVf7eHMjTnlpatHcz1SFcKfBuvl1s=}
       ENVIRONMENT: development
     volumes:
-      - ./studio/api:/workspace/studio/api
-      - ./voice/engine:/workspace/voice/engine
-      - ./integrations:/workspace/integrations
+      - ./studio/api:/app
       - recordings:/recordings
     depends_on:
       db:
@@ -48,10 +46,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 60s  # give maturin/uv time to compile voice-engine on first run
+      start_period: 10s
     command: >
-      sh -c "uv run --no-sync alembic upgrade head &&
-             uv run --no-sync python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude .venv"
+      sh -c "alembic upgrade head &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   # Rust Voice Server (telephony gateway + WebRTC)
   voice-server:
