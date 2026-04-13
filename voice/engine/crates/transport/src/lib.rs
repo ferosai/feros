@@ -92,6 +92,9 @@ pub enum TransportCommand {
     SendMessage(serde_json::Value),
     /// Signal the transport to close.
     Close,
+    /// Add a remote ICE candidate.
+    #[cfg(feature = "webrtc")]
+    AddIceCandidate(String),
 }
 
 /// Trait for sending audio to the remote end.

@@ -86,7 +86,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
-      API_URL: http://studio-api:8000
+      BACKEND_API_URL: http://studio-api:8000
       WATCHPACK_POLLING: "true"
     volumes:
       - ./studio/web:/app

@@ -394,6 +394,14 @@ async fn run_rtc_loop(
                             warn!("[webrtc:{}] SendMessage dropped: no data channel yet", tag);
                         }
                     }
+                    Some(TransportCommand::AddIceCandidate(candidate)) => {
+                        info!("[webrtc:{tag}] Adding remote ICE candidate: {}", candidate);
+
+                        match str0m::Candidate::from_sdp_string(&candidate) {
+                            Ok(c) => rtc.add_remote_candidate(c),
+                            Err(e) => warn!("[webrtc:{tag}] Failed to parse ICE candidate {}: {}", candidate, e)
+                        }
+                    }
                     None => {
                         info!("[webrtc:{}] Control channel closed", tag);
                         return Ok(());

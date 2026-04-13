@@ -429,6 +429,10 @@ async fn telephony_cmd_loop(
             TransportCommand::SendMessage(msg) => {
                 info!("[telephony:{}] Control message: {:?}", provider.name(), msg);
             }
+            #[cfg(feature = "webrtc")]
+            TransportCommand::AddIceCandidate(_) => {
+                // No-op for telephony.
+            }
         }
     }
 }
