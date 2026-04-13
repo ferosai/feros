@@ -1,0 +1,105 @@
+name: Docker Compose Integration
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose*.yml'
+      - '**/Dockerfile'
+      - 'studio/web/package.json'
+      - 'studio/web/pnpm-lock.yaml'
+      - 'studio/api/pyproject.toml'
+      - 'studio/api/uv.lock'
+      - '.github/workflows/docker-compose-test.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to test (e.g. a specific SHA or PR tag)'
+        default: 'latest'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  smoke-test:
+    name: Compose Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT: feros-voice-agent-os
+      IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start Docker Compose Stack
+        run: docker compose -p $PROJECT up -d
+
+      - name: Wait for API Healthcheck
+        run: |
+          echo "Waiting for studio-api to report healthy..."
+          # Wait up to 2 minutes for the database to init and python API to boot
+          timeout 120 bash -c '
+            while true; do
+              API_CONTAINER=$(docker compose -p ${{ env.PROJECT }} ps -q studio-api)
+              STATUS=$(docker inspect --format="{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}" "$API_CONTAINER" 2>/dev/null || echo "missing")
+              if [ "$STATUS" = "healthy" ]; then
+                echo "studio-api is healthy!"
+                break
+              fi
+              if [ "$STATUS" = "unhealthy" ]; then
+                echo "studio-api became unhealthy!"
+                exit 1
+              fi
+              echo "Current status: $STATUS, waiting 5 seconds..."
+              sleep 5
+            done
+          '
+
+      - name: Check Voice Server is Running
+        run: |
+          # voice-server depends on studio-api being healthy, so give it a moment to start
+          timeout 30 bash -c '
+            while true; do
+              VOICE_SERVER_CONTAINER=$(docker compose -p ${{ env.PROJECT }} ps -q voice-server)
+              STATUS=$(docker inspect --format="{{.State.Status}}" "$VOICE_SERVER_CONTAINER" 2>/dev/null || echo "missing")
+              if [ "$STATUS" = "running" ]; then
+                echo "voice-server is running!"
+                break
+              fi
+              echo "voice-server status: $STATUS, waiting 5 seconds..."
+              sleep 5
+            done
+          '
+
+      - name: Test API Connectivity
+        run: |
+          curl --retry 5 --retry-delay 2 --retry-connrefused -sf http://localhost:8000/api/health
+
+      - name: Wait for Next.js Compilation & Connectivity
+        run: |
+          echo "Waiting for Next.js to start serving the frontend..."
+          # Next.js running via 'pnpm dev' in docker requires 'pnpm install' + initial JIT compilation.
+          # In severely constrained GitHub runners (2 vCPUs), this can easily take 2-3 minutes.
+          timeout 240 bash -c '
+            while ! curl -sf http://localhost:3000 > /dev/null; do
+              echo "Next.js not ready yet, waiting 5 seconds..."
+              sleep 5
+            done
+          '
+          echo "Next.js is up and responding on port 3000!"
+
+      - name: Print Container Logs on Failure
+        if: failure()
+        run: docker compose -p $PROJECT logs --tail=200
+
+      - name: Tear Down Stack
+        if: always()
+        run: docker compose -p $PROJECT down -v
