@@ -347,13 +347,6 @@ export default function ManualTestView({
       isNearBottomRef.current = true;
 
       let latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
-      try {
-        const s = await api.settings.getTelephony();
-        if (s.voice_server_url) {
-          latestVoiceServerUrl = s.voice_server_url.replace(/\/$/, "");
-          setVoiceServerUrl(latestVoiceServerUrl); // update state so error toasts use the fresh one
-        }
-      } catch { /* keep defaults */ }
       attemptedVoiceServerUrlRef.current = latestVoiceServerUrl;
 
       if (!latestVoiceServerUrl) {
@@ -477,7 +470,7 @@ export default function ManualTestView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offer }),
       });
-      
+
       const rtcData = await rtcRes.json();
       if (!rtcRes.ok) {
         throw new Error(rtcData.error || `WebRTC offer failed: ${rtcRes.status}`);
@@ -688,7 +681,7 @@ export default function ManualTestView({
       {/* Contextual Action Bar */}
       {showBottomBar && (
         <div className="z-30 p-4 bg-transparent pointer-events-none sticky bottom-0">
-          <div className="max-w-2xl mx-auto w-full bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-premium pointer-events-auto flex items-center animate-in fade-in slide-in-from-bottom-4 duration-500 p-1.5">
+          <div className={`max-w-2xl mx-auto w-full pointer-events-auto flex items-center animate-in fade-in slide-in-from-bottom-4 duration-500 ${(showTextRestartBar || showVoiceRestartBar) ? "" : "bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-premium p-1.5"}`}>
             {showTextBottomBar && (
               <>
                 <div className="flex-1 relative group pl-3 flex items-center min-h-[40px]">
