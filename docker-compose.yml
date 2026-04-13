@@ -28,7 +28,7 @@ services:
 
   # Python Backend (FastAPI)
   studio-api:
-    image: ghcr.io/ferosai/feros-studio-api:latest
+    image: ghcr.io/ferosai/feros-studio-api:${IMAGE_TAG:-latest}
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -42,7 +42,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -53,7 +53,7 @@ services:
 
   # Rust Voice Server (telephony gateway + WebRTC)
   voice-server:
-    image: ghcr.io/ferosai/feros-voice-server:latest
+    image: ghcr.io/ferosai/feros-voice-server:${IMAGE_TAG:-latest}
     ports:
       - "127.0.0.1:8300:8300"
       - "127.0.0.1:50000:50000/udp"
@@ -79,7 +79,7 @@ services:
 
   # Next.js Frontend
   studio-web:
-    image: ghcr.io/ferosai/feros-studio-web:latest
+    image: ghcr.io/ferosai/feros-studio-web:${IMAGE_TAG:-latest}
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -94,7 +94,7 @@ services:
     depends_on:
       - studio-api
     command: >
-      sh -c "pnpm install --frozen-lockfile &&
+      sh -c "CI=true pnpm install --frozen-lockfile &&
              pnpm dev"
 
 volumes:
