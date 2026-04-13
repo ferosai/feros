@@ -444,19 +444,25 @@ pub async fn register_session(
     let agent_id_for_secrets = agent.agent_id.clone();
     let vault_token_for_refresh = vault_token.clone();
 
-    // Verify and refresh expiring OAuth tokens on-demand before reading from Vault.
+    // Verify and refresh expiring OAuth tokens on-demand.
+    // We spawn this so it runs asynchronously in the background. It will opportunistically
+    // refresh tokens, so by the time the agent acts, they should be fresh, without
+    // blocking the critical path of the voice session handshake.
     #[cfg(feature = "integrations")]
     {
-        // Avoid tokio::join or blocking the event loop on DB tasks, just await it directly
-        // since setting up the session is fine to wait a few milliseconds.
         if let Ok(parsed_id) = agent.agent_id.parse::<uuid::Uuid>() {
-            let _ = integrations::token_refresh::ensure_agent_tokens_fresh(
-                &state.pool,
-                &state.encryption,
-                &state.registry,
-                parsed_id,
-            )
-            .await;
+            let pool = state.pool.clone();
+            let encryption = state.encryption.clone();
+            let registry = state.registry.clone();
+            tokio::spawn(async move {
+                let _ = integrations::token_refresh::ensure_agent_tokens_fresh(
+                    &pool,
+                    &encryption,
+                    &registry,
+                    parsed_id,
+                )
+                .await;
+            });
         }
     }
 

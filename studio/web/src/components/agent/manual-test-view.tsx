@@ -300,6 +300,12 @@ export default function ManualTestView({
     const audio = remoteAudioRef.current;
     const stream = streamRef.current; streamRef.current = null;
 
+    // Send explicit session.end before closing — this triggers the server's
+    // clean shutdown path (TransportCommand::Close → reactor teardown) immediately,
+    // rather than relying solely on the WS close event which may arrive late.
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: "session.end" })); } catch { /* ignore */ }
+    }
     ws?.close();
     pc?.close();
     if (audio) { audio.pause(); audio.srcObject = null; }
@@ -340,17 +346,15 @@ export default function ManualTestView({
       setVoiceTimeline([]);
       isNearBottomRef.current = true;
 
-      let latestVoiceServerUrl = voiceServerUrl.replace(/\/$/, "");
+      let latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
       try {
         const s = await api.settings.getTelephony();
         if (s.voice_server_url) {
           latestVoiceServerUrl = s.voice_server_url.replace(/\/$/, "");
-          setVoiceServerUrl(latestVoiceServerUrl);
+          setVoiceServerUrl(latestVoiceServerUrl); // update state so error toasts use the fresh one
         }
-      } catch {
-        // Fall back to the last known settings value already loaded in the UI.
-      }
-      attemptedVoiceServerUrlRef.current = latestVoiceServerUrl || voiceServerUrl || "unknown";
+      } catch { /* keep defaults */ }
+      attemptedVoiceServerUrlRef.current = latestVoiceServerUrl;
 
       if (!latestVoiceServerUrl) {
         stopVoice();
@@ -421,51 +425,77 @@ export default function ManualTestView({
         }
       };
 
+      // Handle Trickle ICE candidates.
+      // Candidates are buffered until after the offer POST resolves and
+      // setRemoteDescription is called, because the server only inserts the
+      // session into hybrid_sessions at the end of rtc_create_session.
+      // Sending candidates before that window closes causes a guaranteed 404.
+      const iceCandidateBuffer: string[] = [];
+      let offerComplete = false;
+
+      const sendIceCandidate = (candidateSdp: string) => {
+        fetch(`${rtcBase}/rtc/candidate/${session_id}?token=${token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidate: candidateSdp }),
+        })
+          .then((res) => {
+            if (!res.ok && process.env.NODE_ENV === "development") {
+              console.warn(`[webrtc] ICE candidate POST returned ${res.status}`);
+            }
+          })
+          .catch((err) => {
+            if (process.env.NODE_ENV === "development") console.warn("[webrtc] Failed to send trickle ICE candidate", err);
+          });
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && event.candidate.candidate) {
+          if (offerComplete) {
+            sendIceCandidate(event.candidate.candidate);
+          } else {
+            iceCandidateBuffer.push(event.candidate.candidate);
+          }
+        }
+      };
+
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+        if (pc.iceConnectionState === "failed") {
           stopVoice();
         }
       };
+
 
       // 9. Create SDP offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // 10. Wait for ICE gathering (or timeout).
-      // With no trickle ICE endpoint on the server side, we need a complete
-      // SDP offer here; 2s is too short in many networks.
-      await new Promise<void>((resolve) => {
-        if (pc.iceGatheringState === "complete") {
-          resolve();
-          return;
-        }
-        const timer = setTimeout(resolve, 10000);
-        const prev = pc.onicegatheringstatechange;
-        pc.onicegatheringstatechange = (event) => {
-          if (typeof prev === "function") prev.call(pc, event);
-          if (pc.iceGatheringState === "complete") {
-            clearTimeout(timer);
-            resolve();
-          }
-        };
-      });
-
-      // 11. Send SDP offer to voice-server
+      // 10. Send SDP offer to voice-server immediately (Trickle ICE enabled)
       const rtcUrl = `${rtcBase}/rtc/offer/${session_id}?token=${token}`;
       const rtcRes = await fetch(rtcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offer: pc.localDescription }),
+        body: JSON.stringify({ offer }),
       });
-
-      if (!rtcRes.ok) throw new Error(`RTC offer failed: ${rtcRes.status}`);
-      const { answer, error } = await rtcRes.json() as { answer: RTCSessionDescriptionInit; error?: string };
-      if (error) throw new Error(error);
+      
+      const rtcData = await rtcRes.json();
+      if (!rtcRes.ok) {
+        throw new Error(rtcData.error || `WebRTC offer failed: ${rtcRes.status}`);
+      }
+      const { answer } = rtcData as { answer: RTCSessionDescriptionInit };
 
       // 12. Set remote description
-      await pc.setRemoteDescription(answer);
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
 
-      // 13. Connect WebSocket for UI events (transcripts, state, tools)
+      // 13. Drain buffered ICE candidates now that the server session is live
+      //     and setRemoteDescription has been applied locally.
+      offerComplete = true;
+      for (const c of iceCandidateBuffer) {
+        sendIceCandidate(c);
+      }
+      iceCandidateBuffer.length = 0;
+
+      // 14. Connect WebSocket for UI events (transcripts, state, tools)
       const ws = new WebSocket(ws_url);
       wsRef.current = ws;
       ws.onmessage = handleWsMsg;

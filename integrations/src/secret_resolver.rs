@@ -72,7 +72,7 @@ pub async fn resolve_secrets(
     // so they override defaults when we insert into the map.
     let rows = sqlx::query_as::<_, CredentialRow>(
         "SELECT provider, encrypted_data, encryption_iv, encryption_version,
-                agent_id IS NOT NULL AS is_agent_specific
+                CASE WHEN agent_id IS NOT NULL THEN true ELSE false END AS is_agent_specific
          FROM credentials
          WHERE agent_id = $1 OR agent_id IS NULL
          ORDER BY agent_id NULLS LAST",

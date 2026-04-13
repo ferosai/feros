@@ -210,9 +210,15 @@ pub async fn agent_by_id(
     agent_config_for_id(pool, engine, agent_id, active_version).await
 }
 
-/// Fetch the public voice-server URL from the DB.
+/// Fetch the public voice-server URL from the DB, or from the SERVER__PUBLIC_URL env var if set.
 /// Defaults to `http://localhost:8300` if not yet configured.
 pub async fn voice_server_url(pool: &PgPool) -> String {
+    if let Ok(env_url) = std::env::var("SERVER__PUBLIC_URL") {
+        if !env_url.is_empty() {
+            return env_url;
+        }
+    }
+
     let cfg = fetch_provider(pool, "telephony", "__voice__").await;
     if cfg.voice_server_url.is_empty() {
         "http://localhost:8300".to_string()
