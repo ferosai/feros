@@ -273,6 +273,9 @@ pub struct GeminiLiveProvider {
     /// we see end-of-sentence punctuation (`.`, `?`, `!`) or a `TurnComplete`
     /// flushes the remainder.
     input_transcript_buf: String,
+    /// Accumulates fragmented `output_transcription` chunks from the Gemini wire
+    /// protocol so that UI logs are not fragmented by emitting per chunk.
+    output_transcript_buf: String,
     /// Pending token counts from the last `usage_metadata` frame, consumed
     /// when `TurnComplete` is emitted so callers can update billing metrics.
     pending_usage: Option<UsageMetadata>,
@@ -307,6 +310,7 @@ impl GeminiLiveProvider {
             session_resumption_handle: None,
             ws: None,
             input_transcript_buf: String::new(),
+            output_transcript_buf: String::new(),
             pending_usage: None,
             pending_events: std::collections::VecDeque::new(),
         }
@@ -553,7 +557,20 @@ impl GeminiLiveProvider {
             // ── Output (bot) transcription ───────────────────────────
             if let Some(ot) = sc.output_transcription {
                 if let Some(text) = ot.text.filter(|t| !t.is_empty()) {
-                    events.push(RealtimeEvent::OutputTranscription(text));
+                    let chunk = if self.output_transcript_buf.is_empty() {
+                        text.trim_start().to_string()
+                    } else {
+                        text
+                    };
+                    self.output_transcript_buf.push_str(&chunk);
+
+                    if let Some(pos) = self.output_transcript_buf.rfind(|c| matches!(c, '.' | '?' | '!')) {
+                        let sentence = self.output_transcript_buf[..=pos].trim().to_string();
+                        self.output_transcript_buf = self.output_transcript_buf[pos + 1..].trim_start().to_string();
+                        if !sentence.is_empty() {
+                            events.push(RealtimeEvent::OutputTranscription(sentence));
+                        }
+                    }
                 }
             }
 
@@ -562,6 +579,7 @@ impl GeminiLiveProvider {
                 debug!("[gemini-live] Server signalled interruption");
                 // Discard any buffered partial transcript on interruption.
                 self.input_transcript_buf.clear();
+                self.output_transcript_buf.clear();
                 // No separate event needed — the NativeMultimodalBackend
                 // cancels TTS when it sees barge-in from the local VAD.
             }
@@ -591,7 +609,20 @@ impl GeminiLiveProvider {
 
                     // Text output (TEXT modality fallback, not audio).
                     if let Some(text) = part.text.filter(|t| !t.is_empty()) {
-                        events.push(RealtimeEvent::OutputTranscription(text));
+                        let chunk = if self.output_transcript_buf.is_empty() {
+                            text.trim_start().to_string()
+                        } else {
+                            text
+                        };
+                        self.output_transcript_buf.push_str(&chunk);
+
+                        if let Some(pos) = self.output_transcript_buf.rfind(|c| matches!(c, '.' | '?' | '!')) {
+                            let sentence = self.output_transcript_buf[..=pos].trim().to_string();
+                            self.output_transcript_buf = self.output_transcript_buf[pos + 1..].trim_start().to_string();
+                            if !sentence.is_empty() {
+                                events.push(RealtimeEvent::OutputTranscription(sentence));
+                            }
+                        }
                     }
                 }
             }
@@ -600,10 +631,16 @@ impl GeminiLiveProvider {
             if matches!(sc.turn_complete, Some(true)) {
                 // Flush any buffered partial transcript that never hit punctuation
                 // (e.g. a single-word utterance or a question without trailing `?`).
-                let leftover = std::mem::take(&mut self.input_transcript_buf);
-                let leftover = leftover.trim().to_string();
-                if !leftover.is_empty() {
-                    events.push(RealtimeEvent::InputTranscription(leftover));
+                let leftover_in = std::mem::take(&mut self.input_transcript_buf);
+                let leftover_in = leftover_in.trim().to_string();
+                if !leftover_in.is_empty() {
+                    events.push(RealtimeEvent::InputTranscription(leftover_in));
+                }
+
+                let leftover_out = std::mem::take(&mut self.output_transcript_buf);
+                let leftover_out = leftover_out.trim().to_string();
+                if !leftover_out.is_empty() {
+                    events.push(RealtimeEvent::OutputTranscription(leftover_out));
                 }
 
                 let usage = self.pending_usage.take().unwrap_or_default();
