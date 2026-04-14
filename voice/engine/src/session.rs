@@ -334,8 +334,14 @@ impl VoiceSession {
 ///                                                     │
 ///                                         Gemini Live WS (bidirectional)
 ///                                                     │
-/// backend.recv() → NativeAgentEvent::BotAudio (24kHz) → resample 48kHz → transport.audio_tx
+/// backend.recv() → NativeAgentEvent::BotAudio (24kHz) → resample 48kHz → tracer.emit(AgentAudio)
+///                                                                                  │
+///                                                              WebRTC forwarder ←──┘
+///                                                              Recording sink  ←──┘
 /// ```
+///
+/// Audio is delivered via the shared EventBus, identical to the standard Reactor path.
+/// This ensures recording, WebRTC delivery, and future transports all work without special-casing.
 #[allow(clippy::too_many_arguments)]
 async fn run_native_multimodal(
     nm_config: NativeMultimodalConfig,
@@ -435,6 +441,7 @@ async fn run_native_multimodal(
     let mut ring = crate::utils::AudioRingBuffer::default();
     let mut bot_speaking = false;
     let mut bot_offset_samples: u64 = 0;
+    let mut bot_transcript_buf = String::new();
 
     // ── Main event loop ────────────────────────────────────────────
     loop {
@@ -485,6 +492,7 @@ async fn run_native_multimodal(
                                 tracer.cancel_turn();
                                 tracer.trace("SpeechEnded");
                                 bot_speaking = false;
+                                bot_transcript_buf.clear();
                             }
                         }
                     }
@@ -504,30 +512,34 @@ async fn run_native_multimodal(
                                 bot_speaking = true;
                                 tracer.mark_tts_first_audio();
                             }
-                            
+
                             let pcm_bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
 
                             let offset = bot_offset_samples;
                             bot_offset_samples += samples.len() as u64;
 
-                            if recording_enabled {
-                                tracer.emit(Event::AgentAudio {
-                                    pcm: Bytes::from(pcm_bytes.clone()),
-                                    sample_rate: OUTPUT_SAMPLE_RATE,
-                                    offset_samples: offset,
-                                });
-                            }
-
-                            // Resample 24kHz → 48kHz for WebRTC.
+                            // Resample 24kHz → 48kHz before putting on the bus.
+                            // The WebRTC forwarder and recording sinks both consume
+                            // AgentAudio from the bus — this is the single audio path.
                             let upsampled = out_resampler.process(&pcm_bytes);
-                            if let Err(e) =
-                                transport.audio_tx.send_audio(Bytes::from(upsampled)).await
-                            {
-                                warn!("[native] audio_tx error: {}", e);
-                            }
+                            tracer.emit(Event::AgentAudio {
+                                pcm: Bytes::from(upsampled),
+                                sample_rate: WEBRTC_RATE,
+                                offset_samples: offset,
+                            });
                         }
                         NativeAgentEvent::TurnComplete { prompt_tokens, completion_tokens } => {
                             bot_speaking = false;
+                            
+                            let bot_text = std::mem::take(&mut bot_transcript_buf);
+                            let bot_text = bot_text.trim();
+                            if !bot_text.is_empty() {
+                                tracer.emit(Event::Transcript {
+                                    text: bot_text.to_string(),
+                                    role: "assistant".into(),
+                                });
+                                info!("[native] Agent turn complete: {}", bot_text);
+                            }
                             
                             let provider_name = "gemini_live";
                             let model_name = nm_config.model.as_deref().unwrap_or("gemini_live");
@@ -567,13 +579,20 @@ async fn run_native_multimodal(
                             info!("[native] User: {}", text);
                         }
                         NativeAgentEvent::OutputTranscript(text) => {
-                            tracer.emit(Event::Transcript {
-                                text: text.clone(),
-                                role: "agent".into(),
-                            });
+                            // Accumulate output transcript for the turn-complete bubble.
+                            let clean_text = text.trim();
+                            if !clean_text.is_empty() {
+                                if !bot_transcript_buf.is_empty() {
+                                    bot_transcript_buf.push(' ');
+                                }
+                                bot_transcript_buf.push_str(clean_text);
+                            }
+                            // Feed text to the TTS metrics accumulator so that finish_turn()
+                            // emits a TtsComplete observability event (Langfuse tts span,
+                            // character count for billing). These calls do NOT trigger any
+                            // audio synthesis — the audio comes exclusively from the Bus path above.
                             tracer.mark_tts_text_fed();
                             tracer.append_tts_text(&text);
-                            info!("[native] Agent: {}", text);
                         }
                         NativeAgentEvent::ToolCallStarted { id, name } => {
                             tracer.emit(Event::ToolActivity {

@@ -338,16 +338,17 @@ impl NativeMultimodalBackend {
                 let tn = name_clone.clone();
                 let ag = arguments.clone();
                 match tokio::task::spawn_blocking(move || engine_clone.execute(&tn, &ag)).await {
-                    Ok(Ok(r)) => (Value::String(r), true),
-                    Ok(Err(e)) => (Value::String(format!("Tool error: {e}")), false),
-                    Err(e) => (Value::String(format!("Tool panicked: {e}")), false),
+                    Ok(Ok(r)) => {
+                        let parsed = serde_json::from_str(&r)
+                            .unwrap_or_else(|_| serde_json::json!({"result": r}));
+                        (parsed, true)
+                    }
+                    Ok(Err(e)) => (serde_json::json!({"error": format!("Tool error: {e}")}), false),
+                    Err(e) => (serde_json::json!({"error": format!("Tool panicked: {e}")}), false),
                 }
             } else {
                 (
-                    Value::String(format!(
-                        "Tool '{}' is not defined in the agent graph.",
-                        name_clone
-                    )),
+                    serde_json::json!({ "error": format!("Tool '{}' is not defined in the agent graph.", name_clone) }),
                     false,
                 )
             };
