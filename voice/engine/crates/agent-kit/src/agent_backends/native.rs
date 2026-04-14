@@ -67,10 +67,10 @@ pub enum NativeAgentEvent {
     BotAudio(Vec<i16>),
 
     /// Transcription of what the user said (from the model's recognition stream).
-    InputTranscript(String),
+    InputTranscript { text: String, is_final: bool },
 
     /// Transcription of what the model is saying (from the model's TTS stream).
-    OutputTranscript(String),
+    OutputTranscript { text: String, is_final: bool },
 
     /// A tool has started executing.
     ToolCallStarted { id: String, name: String },
@@ -288,13 +288,15 @@ impl NativeMultimodalBackend {
                 Some(NativeAgentEvent::BotAudio(samples))
             }
 
-            RealtimeEvent::InputTranscription(text) => {
-                info!("[native-backend] User said: {:?}", text);
-                Some(NativeAgentEvent::InputTranscript(text))
+            RealtimeEvent::InputTranscription { text, is_final } => {
+                if is_final {
+                    info!("[native-backend] User said: {:?}", text);
+                }
+                Some(NativeAgentEvent::InputTranscript { text, is_final })
             }
 
-            RealtimeEvent::OutputTranscription(text) => {
-                Some(NativeAgentEvent::OutputTranscript(text))
+            RealtimeEvent::OutputTranscription { text, is_final } => {
+                Some(NativeAgentEvent::OutputTranscript { text, is_final })
             }
 
             RealtimeEvent::TurnComplete { prompt_tokens, completion_tokens } => {

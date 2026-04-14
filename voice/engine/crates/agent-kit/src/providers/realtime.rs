@@ -26,10 +26,10 @@ pub enum RealtimeEvent {
     },
     
     /// Optional: The transcript of what the user said (from the model's STT).
-    InputTranscription(String),
+    InputTranscription { text: String, is_final: bool },
     
     /// Optional: The transcript of what the model is saying.
-    OutputTranscription(String),
+    OutputTranscription { text: String, is_final: bool },
     
     /// A turn has finished fully (no more audio or tools).
     TurnComplete {

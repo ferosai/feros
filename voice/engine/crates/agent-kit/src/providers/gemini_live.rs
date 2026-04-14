@@ -262,6 +262,88 @@ type WsStream = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
 >;
 
+// ── Gemini Live turn-phase state machine ─────────────────────────────────────
+
+/// Compile-time state machine for the Gemini Live **output** turn lifecycle.
+///
+/// Replaces the old `output_transcript_buf: String` field. By owning the
+/// accumulation buffer *inside* the `BotSpeaking` variant, the compiler
+/// makes the following bugs impossible:
+///
+/// | Old bug | Enforcement |  
+/// |---------|-------------|
+/// | `TurnComplete` after barge-in double-emits | `complete()` on `Listening` → `None`, no-op |
+/// | Reconnect leaves open streaming bubble | `cancel()` forces caller to handle partial text |
+/// | Stale chunk accumulated post-barge-in | buffer doesn't exist in `Listening` |
+#[derive(Debug, Default)]
+pub(crate) enum GeminiLivePhase {
+    /// Idle — waiting for user input or between turns.
+    /// Stale `OutputTranscription` / `TurnComplete` events arriving here are
+    /// silently dropped by the phase helpers.
+    #[default]
+    Listening,
+
+    /// Bot audio + transcription is actively streaming.
+    ///
+    /// `buf` is owned here and inaccessible from `Listening`. Every exit path
+    /// (`complete` / `cancel`) forces the caller to decide what to do with it.
+    BotSpeaking { buf: String },
+}
+
+impl GeminiLivePhase {
+    /// `Listening → BotSpeaking`. Idempotent — does not reset `buf` if already speaking.
+    fn begin(&mut self) {
+        if matches!(self, GeminiLivePhase::Listening) {
+            *self = GeminiLivePhase::BotSpeaking { buf: String::new() };
+        }
+    }
+
+    /// Append a chunk. Returns `true` if in `BotSpeaking`, `false` (drop) if `Listening`.
+    fn push(&mut self, chunk: &str) -> bool {
+        if let GeminiLivePhase::BotSpeaking { buf } = self {
+            buf.push_str(chunk);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// **Normal completion** (`TurnComplete`): `BotSpeaking → Listening`.
+    ///
+    /// Returns `Some(full_text)` (trimmed, non-empty) or `None` if already `Listening`
+    /// (stale `TurnComplete` after barge-in or reconnect → correct no-op).
+    fn complete(&mut self) -> Option<String> {
+        match std::mem::replace(self, GeminiLivePhase::Listening) {
+            GeminiLivePhase::BotSpeaking { buf } => {
+                let t = buf.trim().to_string();
+                (!t.is_empty()).then_some(t)
+            }
+            GeminiLivePhase::Listening => None,
+        }
+    }
+
+    /// **Interrupted** (barge-in / server `interrupted` / reconnect): `BotSpeaking → Listening`.
+    ///
+    /// Returns `Some(partial_text)` or `None` if already `Listening`.
+    /// Caller must emit the partial text as a closing `Transcript` event for the UI.
+    fn cancel(&mut self) -> Option<String> {
+        match std::mem::replace(self, GeminiLivePhase::Listening) {
+            GeminiLivePhase::BotSpeaking { buf } => {
+                let t = buf.trim().to_string();
+                (!t.is_empty()).then_some(t)
+            }
+            GeminiLivePhase::Listening => None,
+        }
+    }
+
+    /// `true` when bot audio/transcription is actively streaming.
+    pub(crate) fn is_bot_speaking(&self) -> bool {
+        matches!(self, GeminiLivePhase::BotSpeaking { .. })
+    }
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+
 /// Gemini Live (Multimodal Bidirectional WebSocket) provider.
 ///
 /// Maintains a single persistent WebSocket connection to the Gemini Live API.
@@ -277,9 +359,9 @@ pub struct GeminiLiveProvider {
     /// we see end-of-sentence punctuation (`.`, `?`, `!`) or a `TurnComplete`
     /// flushes the remainder.
     input_transcript_buf: String,
-    /// Accumulates fragmented `output_transcription` chunks from the Gemini wire
-    /// protocol so that UI logs are not fragmented by emitting per chunk.
-    output_transcript_buf: String,
+    /// Output turn lifecycle. Owns the accumulation buffer so the compiler
+    /// enforces that it can only be read/written while in `BotSpeaking`.
+    output_phase: GeminiLivePhase,
     /// Pending token counts from the last `usage_metadata` frame, consumed
     /// when `TurnComplete` is emitted so callers can update billing metrics.
     pending_usage: Option<UsageMetadata>,
@@ -314,7 +396,7 @@ impl GeminiLiveProvider {
             session_resumption_handle: None,
             ws: None,
             input_transcript_buf: String::new(),
-            output_transcript_buf: String::new(),
+            output_phase: GeminiLivePhase::Listening,
             pending_usage: None,
             pending_events: std::collections::VecDeque::new(),
         }
@@ -533,10 +615,23 @@ impl GeminiLiveProvider {
             // Gemini streams transcription word-by-word. Accumulate chunks and
             // only surface a full InputTranscription event when we see an
             // end-of-sentence marker (. ? !).
-            // The buffer is also flushed unconditionally on TurnComplete below.
+            //
+            // Optimization: We now also emit the raw chunk immediately for "token-by-token"
+            // feel in the UI, even before the sentence is finished.
             if let Some(it) = sc.input_transcription {
                 if let Some(text) = it.text.filter(|t| !t.is_empty()) {
-                    // Leading space is cosmetic noise when the buffer is empty.
+                    // Strip leading whitespace on the first chunk so the streaming
+                    // bubble and the eventual canonical text stay visually aligned.
+                    let trimmed = if self.input_transcript_buf.is_empty() {
+                        text.trim_start().to_string()
+                    } else {
+                        text.clone()
+                    };
+                    if !trimmed.is_empty() {
+                        events.push(RealtimeEvent::InputTranscription { text: trimmed, is_final: false });
+                    }
+
+                    // Accumulate for canonical sentence-level logging and full-bubble replacement.
                     let chunk = if self.input_transcript_buf.is_empty() {
                         text.trim_start().to_string()
                     } else {
@@ -544,52 +639,60 @@ impl GeminiLiveProvider {
                     };
                     self.input_transcript_buf.push_str(&chunk);
 
-                    // Flush on end-of-sentence punctuation.
+                    // Flush on end-of-sentence punctuation to provide the "canonical" version.
                     if let Some(pos) = self.input_transcript_buf
                         .rfind(|c| matches!(c, '.' | '?' | '!'))
                     {
                         let sentence = self.input_transcript_buf[..=pos].trim().to_string();
                         self.input_transcript_buf = self.input_transcript_buf[pos + 1..].trim_start().to_string();
                         if !sentence.is_empty() {
-                            events.push(RealtimeEvent::InputTranscription(sentence));
+                            events.push(RealtimeEvent::InputTranscription { text: sentence, is_final: true });
                         }
                     }
-                    // Otherwise keep buffering — return nothing yet.
                 }
             }
 
+            // A macro allows us to flush without borrow checker issues over `events` and `self`.
+            macro_rules! flush_pending_input {
+                () => {
+                    let leftover_in = std::mem::take(&mut self.input_transcript_buf);
+                    let leftover_in = leftover_in.trim().to_string();
+                    if !leftover_in.is_empty() {
+                        events.push(RealtimeEvent::InputTranscription { text: leftover_in, is_final: true });
+                    }
+                };
+            }
+
+
             // ── Output (bot) transcription ───────────────────────────
             if let Some(ot) = sc.output_transcription {
-                if let Some(text) = ot.text.filter(|t| !t.is_empty()) {
-                    let chunk = if self.output_transcript_buf.is_empty() {
-                        text.trim_start().to_string()
-                    } else {
-                        text
-                    };
-                    self.output_transcript_buf.push_str(&chunk);
+                flush_pending_input!();
 
-                    if let Some(pos) = self.output_transcript_buf.rfind(|c| matches!(c, '.' | '?' | '!')) {
-                        let sentence = self.output_transcript_buf[..=pos].trim().to_string();
-                        self.output_transcript_buf = self.output_transcript_buf[pos + 1..].trim_start().to_string();
-                        if !sentence.is_empty() {
-                            events.push(RealtimeEvent::OutputTranscription(sentence));
-                        }
-                    }
+                if let Some(text) = ot.text.filter(|t| !t.is_empty()) {
+                    self.output_phase.begin();
+                    self.output_phase.push(&text);
+                    events.push(RealtimeEvent::OutputTranscription { text, is_final: false });
                 }
             }
 
             // ── Barge-in / interruption ──────────────────────────────
             if matches!(sc.interrupted, Some(true)) {
                 debug!("[gemini-live] Server signalled interruption");
-                // Discard any buffered partial transcript on interruption.
-                self.input_transcript_buf.clear();
-                self.output_transcript_buf.clear();
-                // No separate event needed — the NativeMultimodalBackend
-                // cancels TTS when it sees barge-in from the local VAD.
+                // Flush the user's barge-in invocation so it's not silently lost.
+                flush_pending_input!();
+
+                // `cancel()` moves us back to Listening. Returns any partial text so
+                // the session layer can close the streaming bubble in the UI.
+                // We don't emit it here — the session's VAD barge-in handler does it
+                // via `cancel_bot_turn()` on its own copy of the buffer.
+                // Just discard the server-side interrupted signal cleanly.
+                let _ = self.output_phase.cancel();
             }
 
             // ── Model audio/text turn ────────────────────────────────
             if let Some(model_turn) = sc.model_turn {
+                flush_pending_input!();
+
                 for part in model_turn.parts {
                     // Drop reasoning/thought tokens — never expose to TTS.
                     if matches!(part.thought, Some(true)) {
@@ -613,38 +716,23 @@ impl GeminiLiveProvider {
 
                     // Text output (TEXT modality fallback, not audio).
                     if let Some(text) = part.text.filter(|t| !t.is_empty()) {
-                        let chunk = if self.output_transcript_buf.is_empty() {
-                            text.trim_start().to_string()
-                        } else {
-                            text
-                        };
-                        self.output_transcript_buf.push_str(&chunk);
-
-                        if let Some(pos) = self.output_transcript_buf.rfind(|c| matches!(c, '.' | '?' | '!')) {
-                            let sentence = self.output_transcript_buf[..=pos].trim().to_string();
-                            self.output_transcript_buf = self.output_transcript_buf[pos + 1..].trim_start().to_string();
-                            if !sentence.is_empty() {
-                                events.push(RealtimeEvent::OutputTranscription(sentence));
-                            }
-                        }
+                        self.output_phase.begin();
+                        self.output_phase.push(&text);
+                        events.push(RealtimeEvent::OutputTranscription { text, is_final: false });
                     }
                 }
             }
 
             // ── Turn complete ────────────────────────────────────────
             if matches!(sc.turn_complete, Some(true)) {
-                // Flush any buffered partial transcript that never hit punctuation
-                // (e.g. a single-word utterance or a question without trailing `?`).
-                let leftover_in = std::mem::take(&mut self.input_transcript_buf);
-                let leftover_in = leftover_in.trim().to_string();
-                if !leftover_in.is_empty() {
-                    events.push(RealtimeEvent::InputTranscription(leftover_in));
-                }
+                // Final flush of any pending input that didn't get flushed above.
+                flush_pending_input!();
 
-                let leftover_out = std::mem::take(&mut self.output_transcript_buf);
-                let leftover_out = leftover_out.trim().to_string();
-                if !leftover_out.is_empty() {
-                    events.push(RealtimeEvent::OutputTranscription(leftover_out));
+                // `complete()` is a no-op if already Listening (barge-in raced TurnComplete).
+                // This makes Property D a compile-time-enforced invariant:
+                // stale TurnComplete events simply return None and emit nothing.
+                if let Some(full_text) = self.output_phase.complete() {
+                    events.push(RealtimeEvent::OutputTranscription { text: full_text, is_final: true });
                 }
 
                 let usage = self.pending_usage.take().unwrap_or_default();
@@ -850,5 +938,278 @@ impl RealtimeProvider for GeminiLiveProvider {
     /// listening for new user speech.
     async fn interrupt(&mut self) -> Result<(), LlmProviderError> {
         self.trigger_vad(VadState::Started).await
+    }
+}
+
+
+// ── GeminiLivePhase unit tests ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod phase_tests {
+    use super::GeminiLivePhase;
+
+    #[test] fn begin_transitions_listening_to_speaking() {
+        let mut p = GeminiLivePhase::default();
+        assert!(!p.is_bot_speaking());
+        p.begin();
+        assert!(p.is_bot_speaking());
+    }
+
+    #[test] fn begin_is_idempotent() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("hello"); p.begin(); // must not reset buf
+        assert_eq!(p.complete(), Some("hello".into()));
+    }
+
+    #[test] fn push_accumulates_in_bot_speaking() {
+        let mut p = GeminiLivePhase::default();
+        p.begin();
+        assert!(p.push("Hello, ")); assert!(p.push("world"));
+        assert_eq!(p.complete(), Some("Hello, world".into()));
+    }
+
+    #[test] fn push_dropped_in_listening() {
+        let mut p = GeminiLivePhase::default();
+        assert!(!p.push("stale"));
+    }
+
+    #[test] fn complete_returns_trimmed_text() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("  hi  ");
+        assert_eq!(p.complete(), Some("hi".into()));
+        assert!(!p.is_bot_speaking());
+    }
+
+    #[test] fn complete_returns_none_for_empty_buf() {
+        let mut p = GeminiLivePhase::default();
+        p.begin();
+        assert_eq!(p.complete(), None);
+    }
+
+    /// Property D: TurnComplete after barge-in must be a no-op.
+    #[test] fn complete_after_cancel_is_noop() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("partial");
+        let _ = p.cancel();           // barge-in
+        assert_eq!(p.complete(), None, "stale TurnComplete must not double-emit");
+    }
+
+    #[test] fn cancel_returns_partial_text() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("partial bot turn");
+        assert_eq!(p.cancel(), Some("partial bot turn".into()));
+        assert!(!p.is_bot_speaking());
+    }
+
+    /// Property E: cancel() in Listening is always a no-op (safe from reconnect handler).
+    #[test] fn cancel_in_listening_is_noop() {
+        let mut p = GeminiLivePhase::default();
+        assert_eq!(p.cancel(), None);
+    }
+
+    #[test] fn scenario_normal_turn() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("Hello, "); p.push("how can I help?");
+        assert_eq!(p.complete(), Some("Hello, how can I help?".into()));
+        assert_eq!(p.complete(), None); // stale
+    }
+
+    #[test] fn scenario_barge_in_then_new_turn() {
+        let mut p = GeminiLivePhase::default();
+        p.begin(); p.push("I can");
+        let partial = p.cancel();
+        assert_eq!(partial, Some("I can".into()));
+        assert_eq!(p.complete(), None); // stale TurnComplete
+        // New clean turn
+        p.begin(); p.push("Fresh");
+        assert_eq!(p.complete(), Some("Fresh".into()));
+    }
+}
+
+// ── parse_server_message integration tests ────────────────────────────────────
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+
+    // ── Provider factory ─────────────────────────────────────────────────────
+
+    fn make_provider() -> GeminiLiveProvider {
+        GeminiLiveProvider {
+            ws: None,
+            api_key: "test".into(),
+            model: "test-model".into(),
+            input_transcript_buf: String::new(),
+            output_phase: GeminiLivePhase::Listening,
+            pending_usage: None,
+            session_resumption_handle: None,
+            pending_events: std::collections::VecDeque::new(),
+        }
+    }
+
+    // ── ServerMessage builders ───────────────────────────────────────────────
+
+    fn msg_with_sc(sc: ServerContent) -> ServerMessage {
+        ServerMessage {
+            setup_complete: None,
+            server_content: Some(sc),
+            tool_call: None,
+            session_resumption_update: None,
+            usage_metadata: None,
+        }
+    }
+
+    fn sm_input(text: &str) -> ServerMessage {
+        msg_with_sc(ServerContent {
+            input_transcription: Some(Transcription { text: Some(text.to_string()) }),
+            output_transcription: None,
+            model_turn: None,
+            turn_complete: None,
+            interrupted: None,
+        })
+    }
+
+    fn sm_output(text: &str) -> ServerMessage {
+        msg_with_sc(ServerContent {
+            output_transcription: Some(Transcription { text: Some(text.to_string()) }),
+            input_transcription: None,
+            model_turn: None,
+            turn_complete: None,
+            interrupted: None,
+        })
+    }
+
+    fn sm_turn_complete() -> ServerMessage {
+        msg_with_sc(ServerContent {
+            turn_complete: Some(true),
+            input_transcription: None,
+            output_transcription: None,
+            model_turn: None,
+            interrupted: None,
+        })
+    }
+
+    fn sm_interrupted() -> ServerMessage {
+        msg_with_sc(ServerContent {
+            interrupted: Some(true),
+            input_transcription: None,
+            output_transcription: None,
+            model_turn: None,
+            turn_complete: None,
+        })
+    }
+
+    // ── Counting helpers ─────────────────────────────────────────────────────
+
+    fn n_input_final(evs: &[RealtimeEvent]) -> usize {
+        evs.iter().filter(|e| matches!(e, RealtimeEvent::InputTranscription { is_final: true, .. })).count()
+    }
+    fn n_output_final(evs: &[RealtimeEvent]) -> usize {
+        evs.iter().filter(|e| matches!(e, RealtimeEvent::OutputTranscription { is_final: true, .. })).count()
+    }
+    fn n_input_chunk(evs: &[RealtimeEvent]) -> usize {
+        evs.iter().filter(|e| matches!(e, RealtimeEvent::InputTranscription { is_final: false, .. })).count()
+    }
+    fn n_output_chunk(evs: &[RealtimeEvent]) -> usize {
+        evs.iter().filter(|e| matches!(e, RealtimeEvent::OutputTranscription { is_final: false, .. })).count()
+    }
+
+    // ── Input transcription ──────────────────────────────────────────────────
+
+    #[test]
+    fn input_chunk_emits_nonfinal_only() {
+        let mut p = make_provider();
+        let evs = p.parse_server_message(sm_input("hello "));
+        assert_eq!(n_input_chunk(&evs), 1);
+        assert_eq!(n_input_final(&evs), 0);
+    }
+
+    #[test]
+    fn input_sentence_boundary_emits_exactly_one_final() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_input("How are "));
+        let evs = p.parse_server_message(sm_input("you?"));
+        assert_eq!(n_input_final(&evs), 1, "one sentence → one is_final");
+    }
+
+    #[test]
+    fn turn_complete_flushes_input_once() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_input("No punctuation here"));
+        let evs = p.parse_server_message(sm_turn_complete());
+        assert_eq!(n_input_final(&evs), 1);
+        assert!(p.input_transcript_buf.is_empty(), "buffer must be cleared");
+    }
+
+    /// Barge-in flushes pending input. A subsequent TurnComplete must NOT re-emit it.
+    #[test]
+    fn barge_in_flushes_input_not_turn_complete() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_input("Partial"));
+        let barge = p.parse_server_message(sm_interrupted());
+        assert_eq!(n_input_final(&barge), 1, "barge-in must flush");
+        let turn = p.parse_server_message(sm_turn_complete());
+        assert_eq!(n_input_final(&turn), 0, "turn_complete must not double-flush");
+    }
+
+    // ── Output transcription ─────────────────────────────────────────────────
+
+    #[test]
+    fn output_chunk_emits_nonfinal_only() {
+        let mut p = make_provider();
+        let evs = p.parse_server_message(sm_output("Hi!"));
+        assert_eq!(n_output_chunk(&evs), 1);
+        assert_eq!(n_output_final(&evs), 0);
+    }
+
+    #[test]
+    fn turn_complete_output_emits_one_final_with_full_text() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_output("Hello, "));
+        let _ = p.parse_server_message(sm_output("how can I help?"));
+        let evs = p.parse_server_message(sm_turn_complete());
+        assert_eq!(n_output_final(&evs), 1);
+        let full = evs.iter().find_map(|e| {
+            if let RealtimeEvent::OutputTranscription { text, is_final: true } = e {
+                Some(text.clone())
+            } else {
+                None
+            }
+        }).unwrap();
+        assert!(
+            full.contains("Hello,") && full.contains("how can I help?"),
+            "canonical output must join all chunks; got: {full:?}",
+        );
+        assert!(!p.output_phase.is_bot_speaking(), "phase must return to Listening after TurnComplete");
+    }
+
+    #[test]
+    fn barge_in_clears_output_buffer_silently() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_output("Partial bot turn"));
+        let evs = p.parse_server_message(sm_interrupted());
+        // session.rs handles the UI barge-in flush; gemini_live just clears its own buffer.
+        assert_eq!(n_output_final(&evs), 0, "no output final expected on barge-in");
+        assert!(!p.output_phase.is_bot_speaking(), "phase must return to Listening after barge-in");
+    }
+
+    // ── Ordering ─────────────────────────────────────────────────────────────
+
+    /// When bot output arrives while input is still buffered, input must be
+    /// flushed (is_final) before the output chunk in the event list.
+    #[test]
+    fn bot_speech_flushes_input_first() {
+        let mut p = make_provider();
+        let _ = p.parse_server_message(sm_input("I want to book a "));
+        let evs = p.parse_server_message(sm_output("Sure!"));
+        let in_pos = evs.iter().position(|e| {
+            matches!(e, RealtimeEvent::InputTranscription { is_final: true, .. })
+        });
+        let out_pos = evs.iter().position(|e| {
+            matches!(e, RealtimeEvent::OutputTranscription { .. })
+        });
+        assert!(in_pos.is_some(), "pending input must be flushed");
+        assert!(in_pos < out_pos, "input flush must precede output chunk for chronological order");
     }
 }

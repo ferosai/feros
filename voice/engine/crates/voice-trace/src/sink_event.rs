@@ -196,7 +196,7 @@ pub fn from_event(event: &Event) -> Option<SinkEvent> {
             ttfb_ms: *ttfb_ms,
             text_aggregation_ms: *text_aggregation_ms,
         },
-        Event::AgentAudio { .. } | Event::Trace { .. } | Event::UserAudio { .. } => return None,
+        Event::AgentAudio { .. } | Event::Trace { .. } | Event::UserAudio { .. } | Event::TranscriptChunk { .. } => return None,
     })
 }
 

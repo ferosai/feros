@@ -304,7 +304,7 @@ mod tests {
     fn test_messages() -> Vec<ChatMessage> {
         vec![ChatMessage {
             role: "user".to_string(),
-            content: Some("hello".to_string()),
+            content: Some(serde_json::Value::String("hello".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }]

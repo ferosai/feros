@@ -657,7 +657,7 @@ mod tests {
     fn tool_result(call_id: &str, content: &str) -> ChatMessage {
         ChatMessage {
             role: "tool".to_string(),
-            content: Some(content.to_string()),
+            content: Some(serde_json::Value::String(content.to_string())),
             tool_calls: None,
             tool_call_id: Some(call_id.to_string()),
         }
@@ -749,8 +749,8 @@ mod tests {
         let result = get_messages_to_summarize(&conv, 2).unwrap();
         // Should summarize indices 1..5 (4 messages), keeping last 2
         assert_eq!(result.messages.len(), 4);
-        assert_eq!(result.messages[0].content.as_deref(), Some("Message 1"));
-        assert_eq!(result.messages[3].content.as_deref(), Some("Response 2"));
+        assert_eq!(result.messages[0].content.as_ref().and_then(|v| v.as_str()), Some("Message 1"));
+        assert_eq!(result.messages[3].content.as_ref().and_then(|v| v.as_str()), Some("Response 2"));
         assert_eq!(result.last_summarized_index, 4);
     }
 
@@ -790,7 +790,7 @@ mod tests {
         // Should only summarize index 1 (the user message before the tool call)
         assert_eq!(result.messages.len(), 1);
         assert_eq!(
-            result.messages[0].content.as_deref(),
+            result.messages[0].content.as_ref().and_then(|v| v.as_str()),
             Some("What time is it?")
         );
         assert_eq!(result.last_summarized_index, 1);
@@ -814,7 +814,7 @@ mod tests {
         assert!(result.is_some());
         let result = result.unwrap();
         assert_eq!(result.messages.len(), 1);
-        assert_eq!(result.messages[0].content.as_deref(), Some("Early message"));
+        assert_eq!(result.messages[0].content.as_ref().and_then(|v| v.as_str()), Some("Early message"));
         assert_eq!(result.last_summarized_index, 1);
     }
 
@@ -903,16 +903,18 @@ mod tests {
         assert!(conv[1]
             .content
             .as_ref()
-            .unwrap()
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
             .contains("Summary of messages 1-2"));
         assert!(conv[1]
             .content
             .as_ref()
-            .unwrap()
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
             .contains("[Context from earlier"));
         assert_eq!(conv[2].role, "assistant"); // ack
-        assert_eq!(conv[3].content.as_deref(), Some("Response 2"));
-        assert_eq!(conv[4].content.as_deref(), Some("Latest"));
+        assert_eq!(conv[3].content.as_ref().and_then(|v| v.as_str()), Some("Response 2"));
+        assert_eq!(conv[4].content.as_ref().and_then(|v| v.as_str()), Some("Latest"));
     }
 
     #[test]
