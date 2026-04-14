@@ -535,7 +535,7 @@ export function LogTab({
                           turn.stt.map((e) => (
                             <div key={`stt-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
                               <p className="text-muted-foreground">{formatMs(e.durationMs)}</p>
-                              <p className="mt-1 line-clamp-3 break-words text-foreground">
+                              <p className="mt-1 line-clamp-3 wrap-break-word text-foreground">
                                 {(asString(e.payload.transcript) ?? "").trim() || "—"}
                               </p>
                             </div>
@@ -560,7 +560,7 @@ export function LogTab({
                                   {(hasTokens || hasDuration) && " · "}
                                   {hasTokens ? `tokens ${promptTokens}/${compTokens}` : "tokens N/A"}
                                 </p>
-                                <p className="mt-1 break-words text-foreground">{asString(e.payload.model) ?? "model: —"}</p>
+                                <p className="mt-1 wrap-break-word text-foreground">{asString(e.payload.model) ?? "model: —"}</p>
                               </div>
                             );
                           })
@@ -577,7 +577,7 @@ export function LogTab({
                               <p className="text-muted-foreground">
                                 {formatMs(e.durationMs)} · chars {asNumber(e.payload.character_count) ?? 0}
                               </p>
-                              <p className="mt-1 line-clamp-3 break-words text-foreground">
+                              <p className="mt-1 line-clamp-3 wrap-break-word text-foreground">
                                 {(asString(e.payload.text) ?? "").trim() || "—"}
                               </p>
                             </div>
@@ -596,7 +596,7 @@ export function LogTab({
                                 <p className="text-muted-foreground">
                                   #{e.seq} · {new Date(e.occurredAt).toLocaleTimeString()} · {formatMs(e.durationMs)}
                                 </p>
-                                <p className="mt-1 break-words text-foreground">{e.toolName}</p>
+                                <p className="mt-1 wrap-break-word text-foreground">{e.toolName}</p>
                                 <p className="mt-0.5 text-muted-foreground">{e.status}</p>
                               </div>
                             );

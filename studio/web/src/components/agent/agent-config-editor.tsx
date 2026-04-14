@@ -90,7 +90,6 @@ function getConfigFields(config: Record<string, unknown>): {
   voice_id: string;
   tts_provider: string;
   tts_model: string;
-  gemini_live_api_key: string;
   gemini_live_model: string;
 } {
   return {
@@ -98,6 +97,7 @@ function getConfigFields(config: Record<string, unknown>): {
     timezone: (config?.timezone as string) || "",
     voice_id: (config?.voice_id as string) || "",
     tts_provider: (config?.tts_provider as string) || "",
+    tts_model: (config?.tts_model as string) || "",
     gemini_live_model: (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
   };
 }
@@ -609,7 +609,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                         onValueChange={(val) => {
                           const newModel = val === "native" ? "default" : "";
                           const payload: Record<string, string> = { gemini_live_model: newModel };
-                          
+
                           if (val === "native") {
                             if (!GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft)) {
                               payload.voice_id = GEMINI_LIVE_VOICES[0].value;
@@ -621,7 +621,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                               setVoiceIdDraft("");
                             }
                           }
-                          
+
                           patchField(payload);
                         }}
                       >
@@ -740,7 +740,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                                     <HugeiconsIcon icon={Wrench01Icon} className="size-4" />
                                   </div>
                                   <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold text-foreground tracking-tight leading-tight break-words line-clamp-2">
+                                    <span className="text-sm font-bold text-foreground tracking-tight leading-tight wrap-break-word line-clamp-2">
                                       {id}
                                     </span>
                                     <div className="flex items-center gap-1.5 mt-0.5">
