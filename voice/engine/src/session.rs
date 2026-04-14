@@ -167,8 +167,10 @@ impl SessionConfig {
             self.system_prompt = format!("{instruction}{}", self.system_prompt);
         }
 
-        // Capitalize first letter to match Gemini expectations natively
-        if !self.voice_id.is_empty() {
+        // Capitalize first letter of voice_id for Gemini Live native multimodal path only.
+        // Gemini expects e.g. "Kore" not "kore". Standard TTS providers (Cartesia, ElevenLabs,
+        // Deepgram) use their own case-sensitive voice names and must NOT be modified.
+        if self.native_multimodal.is_some() && !self.voice_id.is_empty() {
             let mut c = self.voice_id.chars();
             if let Some(f) = c.next() {
                 self.voice_id = f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str();

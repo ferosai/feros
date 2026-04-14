@@ -141,6 +141,8 @@ struct RealtimeInputPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     audio: Option<BlobPayload>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     activity_start: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     activity_end: Option<Value>,
@@ -173,11 +175,13 @@ struct FunctionResponse {
     response: Value,
 }
 
+
 // ── Inbound messages ─────────────────────────────────────────────────────────
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct ServerMessage {
+    setup_complete: Option<Value>,
     server_content: Option<ServerContent>,
     tool_call: Option<ToolCallMessage>,
     session_resumption_update: Option<SessionResumptionUpdate>,
@@ -363,12 +367,12 @@ impl GeminiLiveProvider {
                 } else {
                     continue;
                 };
-                
+
                 // Convert type enums to uppercase for Gemini Schema format
                 uppercase_schema_types(&mut func);
                 function_declarations.push(func);
             }
-            
+
             if function_declarations.is_empty() {
                 serde_json::Value::Null
             } else {
@@ -776,6 +780,29 @@ impl RealtimeProvider for GeminiLiveProvider {
                     return Err(e);
                 }
             };
+
+            // Active start (Gemini 3.x):
+            //
+            // After setupComplete, send a single-space `realtimeInput` to kick off inference.
+            // This is the minimal trigger used by pipecat for Gemini 3.x models.
+            // `clientContent` causes "Invalid argument" when concurrent mic audio is
+            // already streaming into the socket.
+            if msg.setup_complete.is_some() && self.session_resumption_handle.is_none() {
+                info!("[gemini-live] Setup complete. Sending active-start trigger.");
+
+                let realtime_trigger = RealtimeInputMessage {
+                    realtime_input: RealtimeInputPayload {
+                        text: Some(" ".to_string()),
+                        ..Default::default()
+                    },
+                };
+
+                if let Some(ws) = self.ws.as_mut() {
+                    if let Ok(json) = serde_json::to_string(&realtime_trigger) {
+                        let _ = ws.send(Message::Text(json.into())).await;
+                    }
+                }
+            }
 
             let events = self.parse_server_message(msg);
             for e in events {
