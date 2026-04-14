@@ -869,7 +869,7 @@ function TimelineEntryCard({ entry, previousEntries: _previousEntries, index: _i
             </span>
           </div>
           {entry.error_message && (
-            <p className="mt-1 text-[10px] text-destructive leading-normal max-w-[400px] break-words font-medium">
+            <p className="mt-1 text-[10px] text-destructive leading-normal max-w-[400px] wrap-break-word font-medium">
               {entry.error_message}
             </p>
           )}
