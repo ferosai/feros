@@ -7,17 +7,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { type Agent, api, WS_BASE } from "@/lib/api/client";
+import {
+  type TimelineEntry,
+  applyChunk,
+  applyTranscript,
+} from "./timeline-reducer";
 
 // ── Types ────────────────────────────────────────────────────────
 
-type TimelineEntry =
-  | { kind: "message"; role: string; text: string;
-      ttft_ms?: number | null; first_sentence_ms?: number | null;
-      total_turn_ms?: number; tokens_per_second?: number }
-  | { kind: "tool"; tool_call_id?: string; tool_name: string;
-      status: "executing" | "completed" | "error" | "interrupted" | "orphaned";
-      duration_ms?: number; timestamp: number; error_message?: string };
-
+// Re-export ToolTimelineEntry locally for the applyToolActivity helper.
 type ToolTimelineEntry = Extract<TimelineEntry, { kind: "tool" }>;
 type ToolStatus = ToolTimelineEntry["status"];
 
@@ -323,7 +321,9 @@ export default function ManualTestView({
       } else if (msg.type === "interrupt") {
         // No local audio buffer to flush — WebRTC audio is handled by the browser
       } else if (msg.type === "transcript") {
-        setVoiceTimeline((p) => [...p, { kind: "message", role: msg.role, text: msg.text }]);
+        setVoiceTimeline((p) => applyTranscript(p, { type: "transcript", role: msg.role, text: msg.text }));
+      } else if (msg.type === "transcript_chunk") {
+        setVoiceTimeline((p) => applyChunk(p, { type: "transcript_chunk", role: msg.role, text: typeof msg.text === "string" ? msg.text : "" }));
       } else if (msg.type === "tool_activity") {
         const activity = parseToolActivityPayload(msg as Record<string, unknown>);
         if (activity) {

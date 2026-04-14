@@ -140,7 +140,25 @@ pub enum Event {
 
     // ── Conversation ────────────────────────────────────
     /// A transcript from the user or assistant.
+    /// Emitted once per turn (for logging, DB, observability).
     Transcript { role: String, text: String },
+
+    /// A streaming transcript chunk from the assistant, emitted mid-turn.
+    ///
+    /// Used exclusively by the native multimodal (Gemini Live) path to stream
+    /// output transcription word-by-sentence to the UI without waiting for
+    /// `TurnComplete`. The frontend should append each non-final chunk to the
+    /// current in-progress assistant bubble rather than creating a new one.
+    ///
+    /// `is_final: true` signals that the turn has ended (or was interrupted)
+    /// and the in-progress bubble can be closed. The `text` field is empty
+    /// when used purely as a close-signal.
+    TranscriptChunk {
+        role: String,
+        text: String,
+        /// If `true`, this is the last chunk for this turn.
+        is_final: bool,
+    },
 
     // ── Agent / Tool activity ───────────────────────────
     /// A tool execution lifecycle event.
@@ -263,7 +281,7 @@ impl Event {
             | Event::StateChanged { .. }
             | Event::Interrupt
             | Event::SessionEnded => EventCategory::Session,
-            Event::Transcript { .. } => EventCategory::Transcript,
+            Event::Transcript { .. } | Event::TranscriptChunk { .. } => EventCategory::Transcript,
             Event::ToolActivity { .. } => EventCategory::Tool,
             Event::AgentEvent { .. } => EventCategory::Agent,
             Event::Error { .. } => EventCategory::Error,

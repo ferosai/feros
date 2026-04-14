@@ -491,10 +491,39 @@ async fn run_native_multimodal(
                                     warn!("[native] Interrupt failed: {}", e);
                                 }
                                 let _ = transport.audio_tx.interrupt().await;
+                                bot_speaking = false;
+
+                                // Flush any partial output transcript that accumulated before
+                                // the barge-in BEFORE calling cancel_turn(), so that:
+                                //  a) Event::Transcript lands inside the open Langfuse turn span
+                                //  b) tts_text (accumulated by append_tts_text) is still intact
+                                //     if a TtsComplete is ever emitted from the turn.
+                                // (Gemini does NOT emit TurnComplete on interruption.)
+                                let partial = std::mem::take(&mut bot_transcript_buf);
+                                let partial = partial.trim().to_string();
+                                if !partial.is_empty() {
+                                    // Emit for DB / observability sinks AND as the UI close
+                                    // signal. The transcript handler in the UI will see an
+                                    // open (_final:false) streaming bubble and replace it.
+                                    tracer.emit(Event::Transcript {
+                                        text: partial,
+                                        role: "assistant".into(),
+                                    });
+                                }
+                                // If partial is empty there is no open bubble to close —
+                                // barge-in fired before any output transcript arrived.
+
+                                // Now close the turn span. cancel_turn() emits
+                                // TurnEnded(was_interrupted=true) and clears tts_text.
+                                // Everything above was emitted while the turn was still open.
                                 tracer.cancel_turn();
                                 tracer.trace("SpeechEnded");
-                                bot_speaking = false;
-                                bot_transcript_buf.clear();
+
+                                // Notify the client that a barge-in occurred so it can
+                                // flush any audio it is playing (matches standard Reactor
+                                // behaviour). Also flip the state indicator back to listening.
+                                tracer.emit(Event::Interrupt);
+                                tracer.emit(Event::StateChanged { state: "listening".into() });
                             }
                         }
                     }
@@ -534,13 +563,17 @@ async fn run_native_multimodal(
                             bot_speaking = false;
                             
                             let bot_text = std::mem::take(&mut bot_transcript_buf);
-                            let bot_text = bot_text.trim();
-                            if !bot_text.is_empty() {
+                            let bot_text_trimmed = bot_text.trim();
+
+                            // Emit the full turn text for DB / observability sinks AND as the
+                            // UI close signal (the frontend transcript handler replaces the
+                            // open streaming bubble with this canonical text).
+                            if !bot_text_trimmed.is_empty() {
                                 tracer.emit(Event::Transcript {
-                                    text: bot_text.to_string(),
+                                    text: bot_text_trimmed.to_string(),
                                     role: "assistant".into(),
                                 });
-                                info!("[native] Agent turn complete: {}", bot_text);
+                                info!("[native] Agent turn complete: {}", bot_text_trimmed);
                             }
                             
                             let provider_name = "gemini_live";
@@ -566,28 +599,52 @@ async fn run_native_multimodal(
                             tracer.finish_turn(false, provider_name, model_name, &voice_id);
                             info!("[native] Turn complete (prompt={}, completion={})", prompt_tokens, completion_tokens);
                         }
-                        NativeAgentEvent::InputTranscript(text) => {
-                            tracer.emit(Event::Transcript {
-                                text: text.clone(),
-                                role: "user".into(),
-                            });
-                            tracer.start_turn(
-                                "gemini_live",
-                                nm_config.model.as_deref().unwrap_or("gemini_live"),
-                                &text,
-                                &language,
-                                vad_ok,
-                            );
-                            info!("[native] User: {}", text);
+                        NativeAgentEvent::InputTranscript { text, is_final } => {
+                            if is_final {
+                                // Canonical transcript: goes to DB / Langfuse AND closes the
+                                // open streaming bubble in the UI (transcript handler checks
+                                // _final and replaces rather than duplicating).
+                                tracer.emit(Event::Transcript {
+                                    text: text.clone(),
+                                    role: "user".into(),
+                                });
+                                tracer.start_turn(
+                                    "gemini_live",
+                                    nm_config.model.as_deref().unwrap_or("gemini_live"),
+                                    &text,
+                                    &language,
+                                    vad_ok,
+                                );
+                                info!("[native] User: {}", text);
+                            } else {
+                                // Non-final: stream chunk to UI only (no DB write).
+                                tracer.emit(Event::TranscriptChunk {
+                                    role: "user".into(),
+                                    text: text.clone(),
+                                    is_final: false,
+                                });
+                            }
                         }
-                        NativeAgentEvent::OutputTranscript(text) => {
-                            // Accumulate output transcript for the turn-complete bubble.
-                            let clean_text = text.trim();
-                            if !clean_text.is_empty() {
-                                if !bot_transcript_buf.is_empty() {
-                                    bot_transcript_buf.push(' ');
+                        NativeAgentEvent::OutputTranscript { text, is_final } => {
+                            if !text.is_empty() {
+                                if is_final {
+                                    // The provider has canonicalized the full turn text.
+                                    // Replace the streaming buffer so TurnComplete emits
+                                    // exactly ONE Event::Transcript — not two.
+                                    //
+                                    // Do NOT emit here. Emitting both here AND at TurnComplete
+                                    // creates two bubbles in the UI (was the double-bubble bug).
+                                    bot_transcript_buf.clear();
+                                    bot_transcript_buf.push_str(&text);
+                                } else {
+                                    // Non-final chunk: stream to UI, accumulate for turn-level log.
+                                    tracer.emit(Event::TranscriptChunk {
+                                        role: "assistant".into(),
+                                        text: text.clone(),
+                                        is_final: false,
+                                    });
+                                    bot_transcript_buf.push_str(&text);
                                 }
-                                bot_transcript_buf.push_str(clean_text);
                             }
                             // Feed text to the TTS metrics accumulator so that finish_turn()
                             // emits a TtsComplete observability event (Langfuse tts span,
