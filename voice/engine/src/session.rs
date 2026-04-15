@@ -13,7 +13,7 @@ use voice_transport::TransportHandle;
 use crate::audio_ml::denoiser::DenoiserBackend;
 use crate::providers::stt::SttProviderConfig;
 use crate::providers::tts::TtsProviderConfig;
-use crate::reactor::Reactor;
+use crate::reactor::{AgentAudioCursor, Reactor};
 use crate::settings::AgentTaskSettings;
 use agent_kit::agent_backends::SharedSecretMap;
 use agent_kit::providers::LlmProvider;
@@ -442,7 +442,9 @@ async fn run_native_multimodal(
 
     let mut ring = crate::utils::AudioRingBuffer::default();
     let mut bot_speaking = false;
-    let mut bot_offset_samples: u64 = 0;
+    // Wall-clock–accurate cursor for recording placement.
+    // Created here (not lazily) so elapsed_samples() is measured from session start.
+    let mut tts_cursor = AgentAudioCursor::new(WEBRTC_RATE);
     let mut bot_transcript_buf = String::new();
 
     // ── Main event loop ────────────────────────────────────────────
@@ -541,18 +543,24 @@ async fn run_native_multimodal(
                         NativeAgentEvent::BotAudio(samples) => {
                             if !bot_speaking {
                                 bot_speaking = true;
+                                // Snap the cursor to wall-clock on the first chunk of each
+                                // new turn. This encodes the real inter-turn gap (user speech
+                                // + STT + LLM + TTS TTFB) so recording is wall-clock accurate.
+                                tts_cursor.begin_turn();
                                 tracer.mark_tts_first_audio();
                             }
 
                             let pcm_bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
 
-                            let offset = bot_offset_samples;
-                            bot_offset_samples += samples.len() as u64;
-
                             // Resample 24kHz → 48kHz before putting on the bus.
                             // The WebRTC forwarder and recording sinks both consume
                             // AgentAudio from the bus — this is the single audio path.
                             let upsampled = out_resampler.process(&pcm_bytes);
+
+                            // stamp() takes upsampled byte count (at WEBRTC_RATE = 48kHz),
+                            // which matches the sample_rate we advertise below.
+                            let offset = tts_cursor.stamp(upsampled.len());
+
                             tracer.emit(Event::AgentAudio {
                                 pcm: Bytes::from(upsampled),
                                 sample_rate: WEBRTC_RATE,
@@ -698,8 +706,10 @@ async fn run_native_multimodal(
                             break;
                         }
                         
-                        // Reset session logic state, but DO NOT reset bot_offset_samples to 
-                        // prevent audio trace corruption!
+                        // Reset session logic state. The tts_cursor is NOT reset —
+                        // its monotonically increasing value prevents audio trace
+                        // corruption by keeping all future chunks after the
+                        // reconnection gap, not back at position 0.
                         bot_speaking = false;
                         tracer.cancel_turn();
                         

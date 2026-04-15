@@ -337,6 +337,8 @@ impl GeminiLivePhase {
     }
 
     /// `true` when bot audio/transcription is actively streaming.
+    /// Only used in tests — suppresses dead_code lint outside test builds.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn is_bot_speaking(&self) -> bool {
         matches!(self, GeminiLivePhase::BotSpeaking { .. })
     }
