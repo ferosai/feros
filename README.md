@@ -12,13 +12,13 @@
 
 We built Feros to solve the structural problems of the current voice AI ecosystem. With a Rust runtime engineered for sub-second latency, an AI-driven builder, and a Python control plane—**all in a single self-hostable monorepo**—we address these barriers head-on:
 
-| The Approach | The Barrier | The Feros Solution |
-| :--- | :--- | :--- |
-| **Managed Platforms**<br>*(Vapi, Retell)* | Per-minute costs compound at scale, with no path to self-host or satisfy strict data residency requirements. | Deploy the complete platform in your own infrastructure — no per-minute taxes, full control over data residency and compliance. |
-| **Low-Level Frameworks**<br>*(Pipecat, LiveKit)* | Weeks spent building and maintaining the voice pipeline, rather than focusing on agent quality. | A production-ready voice pipeline — VAD, STT, LLM, TTS — ships on day one. Focus on the agent, not the plumbing. |
-| **Visual Node Builders**<br>*(Legacy platforms)* | Hand-wiring agent logic, dragging nodes, and stitching call flows step-by-step becomes unmaintainable. | Describe what you want your agent to do, and the AI autonomously provisions the tools, prompts, and routing logic. |
+| The Approach                                     | The Barrier                                                                                                  | The Feros Solution                                                                                                              |
+| :----------------------------------------------- | :----------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| **Managed Platforms**<br>_(Vapi, Retell)_        | Per-minute costs compound at scale, with no path to self-host or satisfy strict data residency requirements. | Deploy the complete platform in your own infrastructure — no per-minute taxes, full control over data residency and compliance. |
+| **Low-Level Frameworks**<br>_(Pipecat, LiveKit)_ | Weeks spent building and maintaining the voice pipeline, rather than focusing on agent quality.              | A production-ready voice pipeline — VAD, STT, LLM, TTS — ships on day one. Focus on the agent, not the plumbing.                |
+| **Visual Node Builders**<br>_(Legacy platforms)_ | Hand-wiring agent logic, dragging nodes, and stitching call flows step-by-step becomes unmaintainable.       | Describe what you want your agent to do, and the AI autonomously provisions the tools, prompts, and routing logic.              |
 
-<video src="https://github.com/user-attachments/assets/aec117bf-e85d-4e6f-be14-95666a44addc" autoplay loop muted playsinline style="max-width:100%; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.1);"></video>
+<video src="https://github.com/user-attachments/assets/90964717-fec1-4218-a687-29e7967c52ec" autoplay loop muted playsinline style="max-width:100%; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.1);"></video>
 
 ## Architecture
 
@@ -36,28 +36,28 @@ flowchart LR
   VE --> TTS[TTS]
 ```
 
-| Layer | Component | Purpose |
-| :--- | :--- | :--- |
-| Dashboard | studio/web | Agent builder, call monitoring, in-browser voice testing |
-| Control Plane | studio/api | Agent config, integrations, evaluations, session provisioning |
-| Integrations | integrations | Encrypted credential vault for CRMs, calendars, etc. — third-party secrets never leave your infrastructure in plaintext |
-| Voice Runtime | voice/server | Inbound telephony and WebSocket gateway |
-| | voice/engine | High-performance VAD → STT → LLM → TTS orchestration |
-| Inference (optional) | inference | Self-hosted GPU STT/TTS — drop-in for cloud APIs |
+| Layer                | Component    | Purpose                                                                                                                 |
+| :------------------- | :----------- | :---------------------------------------------------------------------------------------------------------------------- |
+| Dashboard            | studio/web   | Agent builder, call monitoring, in-browser voice testing                                                                |
+| Control Plane        | studio/api   | Agent config, integrations, evaluations, session provisioning                                                           |
+| Integrations         | integrations | Encrypted credential vault for CRMs, calendars, etc. — third-party secrets never leave your infrastructure in plaintext |
+| Voice Runtime        | voice/server | Inbound telephony and WebSocket gateway                                                                                 |
+|                      | voice/engine | High-performance VAD → STT → LLM → TTS orchestration                                                                    |
+| Inference (optional) | inference    | Self-hosted GPU STT/TTS — drop-in for cloud APIs                                                                        |
 
 ## Repository Structure
 
 > All services live in a single repo and share a common Postgres database and config layer.
 
-| Path | Purpose |
-| :--- | :--- |
-| `studio/web` | Next.js dashboard and AI-driven agent builder |
-| `studio/api` | FastAPI control plane — agent config, integrations, evaluations, session setup |
-| `voice/server` | Rust telephony gateway and session router |
-| `voice/engine` | Rust runtime core — streaming STT/LLM/TTS orchestration at sub-second latency |
-| `integrations` | Credential encryption, secret resolution, and automatic token refresh |
-| `inference` | Optional self-hosted STT/TTS stack for cost control and data sovereignty |
-| `proto` | Shared protobuf definitions for WebSocket message payloads |
+| Path           | Purpose                                                                        |
+| :------------- | :----------------------------------------------------------------------------- |
+| `studio/web`   | Next.js dashboard and AI-driven agent builder                                  |
+| `studio/api`   | FastAPI control plane — agent config, integrations, evaluations, session setup |
+| `voice/server` | Rust telephony gateway and session router                                      |
+| `voice/engine` | Rust runtime core — streaming STT/LLM/TTS orchestration at sub-second latency  |
+| `integrations` | Credential encryption, secret resolution, and automatic token refresh          |
+| `inference`    | Optional self-hosted STT/TTS stack for cost control and data sovereignty       |
+| `proto`        | Shared protobuf definitions for WebSocket message payloads                     |
 
 ## Quickstart
 
@@ -79,10 +79,10 @@ Open `http://localhost:3000` to access the dashboard.
 
 **Local services:**
 
-| Service | URL |
-| :--- | :--- |
-| Studio Web | `http://localhost:3000` |
-| Studio API | `http://localhost:8000` |
+| Service      | URL                     |
+| :----------- | :---------------------- |
+| Studio Web   | `http://localhost:3000` |
+| Studio API   | `http://localhost:8000` |
 | Voice Server | `http://localhost:8300` |
 
 `AUTH__SECRET_KEY` and `DATABASE__URL` must be set consistently across all services in your `.env`.
