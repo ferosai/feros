@@ -731,6 +731,8 @@ export const api = {
 
   // OAuth
   oauth: {
+    getCallbackUrl: () =>
+      apiFetch<OAuthCallbackConfig>("/oauth/callback-url"),
     authorize: (skillName: string, agentId: string) =>
       apiFetch<{ authorize_url: string }>(
         `/oauth/${skillName}/authorize?agent_id=${agentId}&origin=${encodeURIComponent(window.location.origin)}`
@@ -1177,6 +1179,10 @@ export interface OAuthAppCreate {
   client_id: string;
   client_secret: string;
   enabled?: boolean;
+}
+
+export interface OAuthCallbackConfig {
+  callback_url: string;
 }
 
 // ── Integration Summary Type ─────────────────────────────────────

@@ -346,7 +346,7 @@ export default function ManualTestView({
       setVoiceTimeline([]);
       isNearBottomRef.current = true;
 
-      let latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
+      const latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
       attemptedVoiceServerUrlRef.current = latestVoiceServerUrl;
 
       if (!latestVoiceServerUrl) {
