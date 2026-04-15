@@ -47,7 +47,6 @@ pub struct AgentConfig {
     pub tts_api_key: String,
     pub tts_voice_id: String,
     // Native Multimodal (from provider_configs)
-    pub native_multimodal_provider: String,
     pub native_multimodal_model: String,
     pub native_multimodal_api_key: String,
 }
@@ -514,7 +513,6 @@ async fn agent_config_for_id(
         tts_base_url: tts.base_url.clone(),
         tts_api_key: tts.resolved_api_key(engine),
         tts_voice_id: tts.voice_id.clone(),
-        native_multimodal_provider: native_multimodal.provider.clone(),
         native_multimodal_model: native_multimodal.model.clone(),
         native_multimodal_api_key: native_multimodal.resolved_api_key(engine),
     })

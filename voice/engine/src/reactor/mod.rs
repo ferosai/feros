@@ -134,7 +134,7 @@ impl TransportControl {
 /// 2. `stamp(pcm_bytes)` — call once per chunk.
 ///    Returns the chunk's start offset and advances the cursor by the chunk's
 ///    sample count. Correct for any TTS synthesis speed.
-pub(super) struct AgentAudioCursor {
+pub(crate) struct AgentAudioCursor {
     session_start: std::time::Instant,
     sample_rate: u32,
     cursor: u64,
@@ -146,7 +146,7 @@ pub(super) struct AgentAudioCursor {
 }
 
 impl AgentAudioCursor {
-    pub fn new(sample_rate: u32) -> Self {
+    pub(crate) fn new(sample_rate: u32) -> Self {
         Self {
             session_start: std::time::Instant::now(),
             sample_rate,
@@ -160,7 +160,7 @@ impl AgentAudioCursor {
     /// Does NOT snap the cursor immediately — the snap happens in `stamp()`
     /// when the first audio chunk actually arrives. This ensures the recorded
     /// gap reflects the full inter-turn silence: VAD + STT + LLM + TTS latency.
-    pub fn begin_turn(&mut self) {
+    pub(crate) fn begin_turn(&mut self) {
         self.pending_turn_snap = true;
     }
 
@@ -177,7 +177,7 @@ impl AgentAudioCursor {
     /// sample). The reactor satisfies this because TTS providers already output
     /// at `config.output_sample_rate` — no resampling occurs between synthesis
     /// and `Event::AgentAudio` emission.
-    pub fn stamp(&mut self, pcm_bytes: usize) -> u64 {
+    pub(crate) fn stamp(&mut self, pcm_bytes: usize) -> u64 {
         if self.pending_turn_snap {
             self.pending_turn_snap = false;
             let wc = self.elapsed_samples();
@@ -197,7 +197,21 @@ impl AgentAudioCursor {
         let nanos = self.session_start.elapsed().as_nanos() as u64;
         nanos * self.sample_rate as u64 / 1_000_000_000
     }
+
+    /// Realign the wall-clock origin to now.
+    ///
+    /// Call this once after all async session setup is complete (STT connect,
+    /// TTS connect, etc.) but before any audio starts flowing. This prevents
+    /// the STT/TTS connection latency from being baked into `elapsed_samples()`
+    /// and showing up as a spurious silence gap in recordings.
+    ///
+    /// The cursor position and `pending_turn_snap` flag are NOT reset — any
+    /// in-progress greeting turn is unaffected.
+    pub(crate) fn reset_origin(&mut self) {
+        self.session_start = std::time::Instant::now();
+    }
 }
+
 
 // ── Reactor ──────────────────────────────────────────────────────
 
@@ -553,6 +567,13 @@ impl Reactor {
                 }
             }
         }
+
+        // Realign the wall-clock origin now that all async setup is done.
+        // Reactor::new() captured session_start before STT connect, TTS connect,
+        // and any ML model init — those can add 100-500ms+ of latency that would
+        // otherwise be encoded as spurious silence in the recording. Resetting
+        // here ensures elapsed_samples() measures from session-ready time.
+        self.tts_cursor.reset_origin();
 
         self.tracer.emit(Event::SessionReady);
         self.set_state(SessionState::Listening);
