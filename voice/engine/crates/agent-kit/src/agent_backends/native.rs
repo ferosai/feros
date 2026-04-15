@@ -27,7 +27,7 @@
 //!
 //! # Context management
 //!
-//! Gemini Live maintains conversation context server-side inside the WebSocket 
+//! Gemini Live maintains conversation context server-side inside the WebSocket
 //! session.  The backend stores the `session_resumption_handle` returned by the
 //! provider and passes it when reconnecting after a drop, transparently restoring
 //! context without re-uploading any history.
@@ -77,6 +77,9 @@ pub enum NativeAgentEvent {
 
     /// A tool has finished.
     ToolCallCompleted { id: String, name: String, success: bool },
+
+    /// The agent called hang_up — session should end gracefully.
+    HangUp { reason: String },
 
     /// The model finished speaking (turn boundary).
     TurnComplete {
@@ -311,6 +314,24 @@ impl NativeMultimodalBackend {
 
             RealtimeEvent::ToolCall { call_id, name, arguments } => {
                 info!("[native-backend] ToolCall: {} (id={})", name, call_id);
+
+                // Intercept synthetic runtime tools before dispatching to the script engine.
+                // This mirrors the pattern in DefaultAgentBackend::handle_streaming_phase.
+                if name == crate::swarm::HANG_UP_TOOL_NAME {
+                    let reason = serde_json::from_str::<serde_json::Value>(&arguments)
+                        .ok()
+                        .and_then(|v| v.get("reason").and_then(|r| r.as_str()).map(String::from))
+                        .unwrap_or_else(|| "agent_initiated".to_string());
+                    info!("[native-backend] hang_up intercepted (reason={})", reason);
+                    // Send a synthetic success result back to the model so it doesn't retry.
+                    let _ = self.provider.send_tool_result(
+                        &call_id,
+                        &name,
+                        serde_json::json!({"result": "Hang up initiated."}),
+                    ).await;
+                    return Some(NativeAgentEvent::HangUp { reason });
+                }
+
                 self.dispatch_tool(call_id, name, arguments).await
             }
         }
@@ -343,7 +364,15 @@ impl NativeMultimodalBackend {
                     Ok(Ok(r)) => {
                         let parsed = serde_json::from_str(&r)
                             .unwrap_or_else(|_| serde_json::json!({"result": r}));
-                        (parsed, true)
+
+                        let mut is_success = true;
+                        if let Some(err_val) = parsed.get("error") {
+                            if !matches!(err_val, serde_json::Value::Null | serde_json::Value::Bool(false)) {
+                                is_success = false;
+                            }
+                        }
+
+                        (parsed, is_success)
                     }
                     Ok(Err(e)) => (serde_json::json!({"error": format!("Tool error: {e}")}), false),
                     Err(e) => (serde_json::json!({"error": format!("Tool panicked: {e}")}), false),
@@ -422,6 +451,16 @@ impl AgentBackend for NativeMultimodalBackend {
                     error_message: None,
                 }
             }
+            NativeAgentEvent::HangUp { reason } => AgentEvent::HangUp {
+                reason,
+                // content is None here because the stub AgentBackend path does not
+                // have access to bot_transcript_buf. The run_native_multimodal loop
+                // in session.rs flushes bot_transcript_buf directly when it handles
+                // NativeAgentEvent::HangUp — callers using the native recv() path
+                // directly (the normal production path) get full transcript coverage.
+                content: None,
+            },
+
             // BotAudio, InputTranscript, OutputTranscript have no AgentEvent equivalent yet.
             // Consumers that need them should use `NativeMultimodalBackend::recv()` directly.
             _ => return None,

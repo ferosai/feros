@@ -342,6 +342,41 @@ impl GeminiLivePhase {
     pub(crate) fn is_bot_speaking(&self) -> bool {
         matches!(self, GeminiLivePhase::BotSpeaking { .. })
     }
+
+    /// Transition to `BotSpeaking` (idempotent), compute the new-suffix delta
+    /// of `text` relative to the already-accumulated buffer, push it, and return
+    /// it. Returns `None` when `text` adds no new content (replay / empty delta).
+    ///
+    /// Gemini sometimes re-sends the entire accumulated turn text on each
+    /// streaming event. This method computes only the forward delta so callers
+    /// can emit precise, non-duplicated `OutputTranscription` chunks.
+    ///
+    /// Uses `.get()` for slicing to avoid panics on multi-byte char boundaries.
+    fn push_delta(&mut self, text: &str) -> Option<String> {
+        // Snapshot the existing buffer *before* we potentially transition states
+        // or clear it. This decouples the delta logic from begin()'s internal
+        // idempotency guarantees.
+        let buf = match self {
+            GeminiLivePhase::BotSpeaking { buf } => buf.clone(),
+            _ => String::new(),
+        };
+
+        self.begin();
+
+        let delta = if text.starts_with(&buf) {
+            text.get(buf.len()..)?  // new suffix
+        } else if buf.starts_with(text) {
+            return None;            // replay of a shorter prefix
+        } else {
+            text                    // unrelated chunk — treat as pure append
+        };
+
+        if delta.is_empty() {
+            return None;
+        }
+        self.push(delta);
+        Some(delta.to_string())
+    }
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -364,6 +399,13 @@ pub struct GeminiLiveProvider {
     /// Output turn lifecycle. Owns the accumulation buffer so the compiler
     /// enforces that it can only be read/written while in `BotSpeaking`.
     output_phase: GeminiLivePhase,
+    /// Text of the most recently completed output turn.
+    ///
+    /// Gemini sometimes re-sends the full previous turn's text as a prefix when
+    /// resuming after a tool call and then starting a new turn. We store the last
+    /// finalized text here so `push_output_delta` can strip that cross-turn replay
+    /// prefix before the new content reaches the UI.
+    last_completed_output: String,
     /// Pending token counts from the last `usage_metadata` frame, consumed
     /// when `TurnComplete` is emitted so callers can update billing metrics.
     pending_usage: Option<UsageMetadata>,
@@ -399,6 +441,7 @@ impl GeminiLiveProvider {
             ws: None,
             input_transcript_buf: String::new(),
             output_phase: GeminiLivePhase::Listening,
+            last_completed_output: String::new(),
             pending_usage: None,
             pending_events: std::collections::VecDeque::new(),
         }
@@ -600,18 +643,6 @@ impl GeminiLiveProvider {
             self.pending_usage = Some(usage);
         }
 
-        // ── Tool calls ───────────────────────────────────────────────
-        if let Some(tool_call) = msg.tool_call {
-            for fc in tool_call.function_calls {
-                let call_id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-                events.push(RealtimeEvent::ToolCall {
-                    call_id,
-                    name: fc.name,
-                    arguments: serde_json::to_string(&fc.args).unwrap_or_default(),
-                });
-            }
-        }
-
         if let Some(sc) = msg.server_content {
             // ── Input (user) transcription ───────────────────────────
             // Gemini streams transcription word-by-word. Accumulate chunks and
@@ -671,9 +702,9 @@ impl GeminiLiveProvider {
                 flush_pending_input!();
 
                 if let Some(text) = ot.text.filter(|t| !t.is_empty()) {
-                    self.output_phase.begin();
-                    self.output_phase.push(&text);
-                    events.push(RealtimeEvent::OutputTranscription { text, is_final: false });
+                    if let Some(delta) = self.push_output_delta(&text) {
+                        events.push(RealtimeEvent::OutputTranscription { text: delta, is_final: false });
+                    }
                 }
             }
 
@@ -689,11 +720,29 @@ impl GeminiLiveProvider {
                 // via `cancel_bot_turn()` on its own copy of the buffer.
                 // Just discard the server-side interrupted signal cleanly.
                 let _ = self.output_phase.cancel();
+                // Barge-in resets turn context; the cross-turn baseline is stale.
+                self.last_completed_output.clear();
             }
 
             // ── Model audio/text turn ────────────────────────────────
             if let Some(model_turn) = sc.model_turn {
                 flush_pending_input!();
+
+                let mut full_text_parts = String::new();
+                for part in &model_turn.parts {
+                    if matches!(part.thought, Some(true)) {
+                        continue;
+                    }
+                    if let Some(text) = part.text.as_ref().filter(|t| !t.is_empty()) {
+                        full_text_parts.push_str(text);
+                    }
+                }
+
+                if !full_text_parts.is_empty() {
+                    if let Some(delta) = self.push_output_delta(&full_text_parts) {
+                        events.push(RealtimeEvent::OutputTranscription { text: delta, is_final: false });
+                    }
+                }
 
                 for part in model_turn.parts {
                     // Drop reasoning/thought tokens — never expose to TTS.
@@ -715,13 +764,6 @@ impl GeminiLiveProvider {
                             }
                         }
                     }
-
-                    // Text output (TEXT modality fallback, not audio).
-                    if let Some(text) = part.text.filter(|t| !t.is_empty()) {
-                        self.output_phase.begin();
-                        self.output_phase.push(&text);
-                        events.push(RealtimeEvent::OutputTranscription { text, is_final: false });
-                    }
                 }
             }
 
@@ -734,6 +776,8 @@ impl GeminiLiveProvider {
                 // This makes Property D a compile-time-enforced invariant:
                 // stale TurnComplete events simply return None and emit nothing.
                 if let Some(full_text) = self.output_phase.complete() {
+                    // Store for cross-turn replay detection in the next turn.
+                    self.last_completed_output = full_text.clone();
                     events.push(RealtimeEvent::OutputTranscription { text: full_text, is_final: true });
                 }
 
@@ -745,7 +789,63 @@ impl GeminiLiveProvider {
             }
         }
 
+        // ── Tool calls ───────────────────────────────────────────────
+        if let Some(tool_call) = msg.tool_call {
+            for fc in tool_call.function_calls {
+                let call_id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                events.push(RealtimeEvent::ToolCall {
+                    call_id,
+                    name: fc.name,
+                    arguments: serde_json::to_string(&fc.args).unwrap_or_default(),
+                });
+            }
+        }
+
         events
+    }
+
+    /// Emit a new output transcription delta, applying cross-turn prefix stripping
+    /// when necessary.
+    ///
+    /// Gemini sometimes re-sends the entire previous turn's text as the start of a
+    /// new `model_turn` or `output_transcription` chunk after a tool call completes.
+    /// When `output_phase` is `Listening` (i.e. a new turn is starting) and the
+    /// incoming text begins with `last_completed_output`, we strip that prefix so
+    /// only genuinely new content reaches the UI and `bot_transcript_buf` in
+    /// session.rs. This prevents duplicate chat bubbles.
+    ///
+    /// After the first non-empty delta is pushed, the phase transitions to
+    /// `BotSpeaking` and within-turn deduplication is handled by `push_delta`
+    /// alone; `last_completed_output` is cleared at that point.
+    fn push_output_delta(&mut self, text: &str) -> Option<String> {
+        // Cross-turn replay guard: only active at the start of a new turn
+        // (output_phase is Listening) when the provider has stored a baseline.
+        let effective: &str =
+            if matches!(self.output_phase, GeminiLivePhase::Listening)
+                && !self.last_completed_output.is_empty()
+                && text.trim_start().starts_with(self.last_completed_output.trim_start())
+            {
+                // Strip the replayed prefix, normalizing leading whitespace.
+                // Gemini sometimes adds a leading space/newline to the replay chunk
+                // causing an exact starts_with to fail even though the content is identical.
+                let trimmed_text = text.trim_start();
+                let trimmed_last = self.last_completed_output.trim_start();
+                trimmed_text[trimmed_last.len()..].trim_start_matches(' ')
+            } else {
+                text
+            };
+
+        if effective.is_empty() {
+            return None;
+        }
+
+        let result = self.output_phase.push_delta(effective);
+        // Once we've successfully opened a new BotSpeaking turn, the cross-turn
+        // baseline is no longer needed — clear it to avoid false matches later.
+        if matches!(self.output_phase, GeminiLivePhase::BotSpeaking { .. }) {
+            self.last_completed_output.clear();
+        }
+        result
     }
 }
 
@@ -1044,6 +1144,7 @@ mod tests {
             model: "test-model".into(),
             input_transcript_buf: String::new(),
             output_phase: GeminiLivePhase::Listening,
+            last_completed_output: String::new(),
             pending_usage: None,
             session_resumption_handle: None,
             pending_events: std::collections::VecDeque::new(),
@@ -1163,6 +1264,32 @@ mod tests {
         let evs = p.parse_server_message(sm_output("Hi!"));
         assert_eq!(n_output_chunk(&evs), 1);
         assert_eq!(n_output_final(&evs), 0);
+    }
+
+    #[test]
+    fn test_phase_push_delta() {
+        let mut phase = super::GeminiLivePhase::Listening;
+
+        // First chunk -> completely new
+        let d = phase.push_delta("Hello");
+        assert_eq!(d, Some("Hello".into()));
+        assert!(phase.is_bot_speaking());
+
+        // Replayed chunk -> None
+        let d = phase.push_delta("Hello");
+        assert_eq!(d, None);
+
+        // Replayed prefix with new suffix -> new suffix
+        let d = phase.push_delta("Hello there");
+        assert_eq!(d, Some(" there".into()));
+
+        // Unrelated chunk appended due to buffering quirk -> directly appended
+        let d = phase.push_delta(" sir");
+        assert_eq!(d, Some(" sir".into()));
+
+        // Full replay of the entire state -> None
+        let d = phase.push_delta("Hello there sir");
+        assert_eq!(d, None);
     }
 
     #[test]

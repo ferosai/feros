@@ -396,6 +396,7 @@ async fn run_native_multimodal(
     // own session_start (which is set at subscriber spawn, also before setup),
     // preventing bot audio from being placed too early in the recording.
     let mut tts_cursor = AgentAudioCursor::new(WEBRTC_RATE);
+    let mut playback = crate::utils::PlaybackTracker::new(WEBRTC_RATE);
 
     let provider = Box::new(GeminiLiveProvider::new(api_key, nm_config.model.clone()));
     let mut backend = NativeMultimodalBackend::new(
@@ -451,10 +452,41 @@ async fn run_native_multimodal(
     let mut ring = crate::utils::AudioRingBuffer::default();
     let mut bot_speaking = false;
     let mut bot_transcript_buf = String::new();
+    let mut hangup_target: Option<tokio::time::Instant> = None;
+    let mut hangup_max_target: Option<tokio::time::Instant> = None;
+
 
     // ── Main event loop ────────────────────────────────────────────
     loop {
         tokio::select! {
+            _ = async {
+                if let Some(target) = hangup_target {
+                    tokio::time::sleep_until(target).await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            } => {
+                info!("[native] Hangup delay elapsed. Terminating session.");
+
+                // Fallback: flush any transcript that arrived during the drain window
+                // but for which TurnComplete never came (Gemini omits it after tool calls).
+                let bot_text = std::mem::take(&mut bot_transcript_buf);
+                let bot_text_trimmed = bot_text.trim();
+                if !bot_text_trimmed.is_empty() {
+                    tracer.emit(Event::Transcript {
+                        text: bot_text_trimmed.to_string(),
+                        role: "assistant".into(),
+                    });
+                }
+
+                let provider_name = "gemini_live";
+                let model_name = nm_config.model.as_deref().unwrap_or("gemini_live");
+                tracer.finish_turn(false, provider_name, model_name, &voice_id);
+
+                let _ = transport.control_tx.send(voice_transport::TransportCommand::Close);
+                break;
+            }
+
             // Mic audio: resample → push to Gemini; also run VAD for barge-in.
             raw = mic_rx.recv() => {
                 match raw {
@@ -499,6 +531,7 @@ async fn run_native_multimodal(
                                 }
                                 let _ = transport.audio_tx.interrupt().await;
                                 bot_speaking = false;
+                                playback.reset();
 
                                 // Flush any partial output transcript that accumulated before
                                 // the barge-in BEFORE calling cancel_turn(), so that:
@@ -553,6 +586,7 @@ async fn run_native_multimodal(
                                 // + STT + LLM + TTS TTFB) so recording is wall-clock accurate.
                                 tts_cursor.begin_turn();
                                 tracer.mark_tts_first_audio();
+                                playback.reset();
                             }
 
                             let pcm_bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
@@ -561,6 +595,20 @@ async fn run_native_multimodal(
                             // The WebRTC forwarder and recording sinks both consume
                             // AgentAudio from the bus — this is the single audio path.
                             let upsampled = out_resampler.process(&pcm_bytes);
+
+                            // Track bytes sent so remaining_playback() is accurate at hang_up.
+                            playback.record(upsampled.len());
+
+                            if hangup_target.is_some() {
+                                let new_target = tokio::time::Instant::now() + playback.remaining_playback();
+                                hangup_target = match hangup_max_target {
+                                    Some(max_target) if new_target > max_target => {
+                                        info!("[native] Playback extension exceeds 10s hard timeout. Clamping drain duration.");
+                                        Some(max_target)
+                                    },
+                                    _ => Some(new_target),
+                                };
+                            }
 
                             // stamp() takes upsampled byte count (at WEBRTC_RATE = 48kHz),
                             // which matches the sample_rate we advertise below.
@@ -682,6 +730,27 @@ async fn run_native_multimodal(
                                 error_message: None,
                             });
                         }
+                        NativeAgentEvent::HangUp { reason } => {
+                            if hangup_target.is_none() {
+                                let delay = playback.remaining_playback();
+                                let max_delay = std::time::Duration::from_secs(15);
+                                let actual_delay = std::cmp::min(delay, max_delay);
+
+                                info!("[native] Agent hang_up (reason={}) intercepted. Commencing {:?} (max 15s) drain sequence before termination.", reason, actual_delay);
+
+                                let now = tokio::time::Instant::now();
+                                hangup_target = Some(now + actual_delay);
+                                hangup_max_target = Some(now + max_delay);
+
+                                tracer.emit(Event::ToolActivity {
+                                    tool_call_id: None,
+                                    tool_name: "hang_up".into(),
+                                    status: "completed".into(),
+                                    error_message: None,
+                                });
+                            }
+                        }
+
                         NativeAgentEvent::Error(msg) => {
                             warn!("[native] Provider error: {}", msg);
                             tracer.emit(Event::Error {

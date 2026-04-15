@@ -556,6 +556,19 @@ async fn forward_ws_events(
     let tx_session_id = session_id.clone();
     let forward_task = tokio::spawn(async move {
         while let Some(event) = ws_events.recv().await {
+            // SessionEnded is the canonical signal that the session is fully
+            // complete. Break immediately *after* forwarding it so the client
+            // sees the event, then we send the Close frame below.
+            //
+            // This is necessary because the HybridSession DashMap entry holds
+            // a live clone of the broadcast::Sender, which keeps the channel
+            // open even after the tracer drops. Without this guard the loop
+            // would only exit once the DashMap entry is removed (several
+            // seconds later), leaving the client connected long after hang_up.
+            //
+            // Safe for both Reactor and native paths — both unconditionally
+            // emit SessionEnded at the end of their event loops.
+            let is_session_ended = matches!(event, voice_trace::Event::SessionEnded);
             match serde_json::to_string(&event) {
                 Ok(json) => {
                     if ws_tx.send(Message::Text(json.into())).await.is_err() {
@@ -566,7 +579,16 @@ async fn forward_ws_events(
                     warn!("Failed to serialize event: {}", e);
                 }
             }
+            if is_session_ended {
+                break;
+            }
         }
+        // SessionEnded was forwarded (or the channel closed). Send a WebSocket
+        // Close frame so the client socket tears down immediately rather than
+        // waiting for the client to disconnect on its own. This causes
+        // ws_rx.next() in the receive loop below to return None, which lets
+        // the cleanup code run and properly updates the UI state.
+        let _ = ws_tx.send(Message::Close(None)).await;
         info!("WS event forwarder ended for {}", tx_session_id);
     });
 
