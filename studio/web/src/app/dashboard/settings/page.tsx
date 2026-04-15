@@ -1,7 +1,32 @@
 "use client";
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { Alert01Icon, AlertCircleIcon, ArrowRight01Icon, ArrowDown01Icon, ArrowUp01Icon, Call02Icon, CheckmarkCircle02Icon, CloudIcon, FlashIcon, SettingDone02Icon, LinkSquare01Icon, SquareLock01Icon, Mic01Icon, ServerStack01Icon, Settings01Icon, ViewIcon, ViewOffIcon, VolumeHighIcon, AiVoiceIcon, Analytics01Icon, AiCloudIcon, AiProgrammingIcon, AiMicIcon, LiveStreaming02Icon } from "@hugeicons/core-free-icons";
+import {
+  Alert01Icon,
+  AlertCircleIcon,
+  ArrowRight01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  Call02Icon,
+  CheckmarkCircle02Icon,
+  CloudIcon,
+  FlashIcon,
+  SettingDone02Icon,
+  LinkSquare01Icon,
+  SquareLock01Icon,
+  Mic01Icon,
+  ServerStack01Icon,
+  Settings01Icon,
+  ViewIcon,
+  ViewOffIcon,
+  VolumeHighIcon,
+  AiVoiceIcon,
+  Analytics01Icon,
+  AiCloudIcon,
+  AiProgrammingIcon,
+  AiMicIcon,
+  LiveStreaming02Icon,
+} from "@hugeicons/core-free-icons";
 import { useState, useEffect, useCallback, useRef, type ClipboardEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -113,7 +138,8 @@ const PROVIDER_HELP: Record<string, { models: string[]; docs: string; placeholde
   "gemini-live": {
     models: ["models/gemini-3.1-flash-live-preview"],
     docs: "https://ai.google.dev/api/live",
-    placeholder: "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+    placeholder:
+      "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
   },
   "openai-realtime": {
     models: ["gpt-4o-realtime-preview"],
@@ -192,9 +218,6 @@ function LLMCard({
   const orRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setSelectedIndex(0); }, [orQuery]);
-
   useEffect(() => {
     if (provider !== "openrouter" || orModels.length > 0) return;
     let cancelled = false;
@@ -205,13 +228,20 @@ function LLMCard({
       .then((data) => {
         if (cancelled) return;
         const models: OpenRouterModel[] = (data.data || [])
-          .map((m: { id: string; name: string }) => ({ id: m.id, name: m.name }))
+          .map((m: { id: string; name: string }) => ({
+            id: m.id,
+            name: m.name,
+          }))
           .sort((a: OpenRouterModel, b: OpenRouterModel) => a.id.localeCompare(b.id));
         setOrModels(models);
       })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setOrLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => {
+        if (!cancelled) setOrLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [provider, orModels.length]);
 
   useEffect(() => {
@@ -251,12 +281,18 @@ function LLMCard({
         {llm && (
           <Badge
             className={`${
-              llm.all_credentials?.[provider] || (llm.provider === provider && llm.has_api_key) || apiKey || provider === "ollama"
+              llm.all_credentials?.[provider] ||
+              (llm.provider === provider && llm.has_api_key) ||
+              apiKey ||
+              provider === "ollama"
                 ? "bg-primary/10 text-primary border-primary/20"
                 : "bg-destructive/10 text-destructive border-destructive/20"
             } border shadow-none text-[10px] font-medium rounded-full`}
           >
-            {llm.all_credentials?.[provider] || (llm.provider === provider && llm.has_api_key) || apiKey || provider === "ollama"
+            {llm.all_credentials?.[provider] ||
+            (llm.provider === provider && llm.has_api_key) ||
+            apiKey ||
+            provider === "ollama"
               ? "Configured"
               : "Needs API Key"}
           </Badge>
@@ -297,7 +333,8 @@ function LLMCard({
                 >
                   <div className="flex items-center justify-between w-full">
                     <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      {(llm?.all_credentials?.[p.value] || (llm?.provider === p.value && llm?.has_api_key)) && (
+                      {(llm?.all_credentials?.[p.value] ||
+                        (llm?.provider === p.value && llm?.has_api_key)) && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -312,7 +349,9 @@ function LLMCard({
                       {p.label}
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground leading-tight">{p.description}</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">
+                    {p.description}
+                  </span>
                 </button>
               ))}
             </div>
@@ -330,6 +369,7 @@ function LLMCard({
                       onChange={(e) => {
                         setOrQuery(e.target.value);
                         setModel(e.target.value);
+                        setSelectedIndex(0);
                         if (!orOpen) setOrOpen(true);
                       }}
                       onFocus={() => {
@@ -342,14 +382,18 @@ function LLMCard({
                           e.preventDefault();
                           setSelectedIndex((prev) => {
                             const next = prev < filteredOrModels.length - 1 ? prev + 1 : prev;
-                            document.getElementById(`or-model-${next}`)?.scrollIntoView({ block: "nearest" });
+                            document
+                              .getElementById(`or-model-${next}`)
+                              ?.scrollIntoView({ block: "nearest" });
                             return next;
                           });
                         } else if (e.key === "ArrowUp") {
                           e.preventDefault();
                           setSelectedIndex((prev) => {
                             const next = prev > 0 ? prev - 1 : 0;
-                            document.getElementById(`or-model-${next}`)?.scrollIntoView({ block: "nearest" });
+                            document
+                              .getElementById(`or-model-${next}`)
+                              ?.scrollIntoView({ block: "nearest" });
                             return next;
                           });
                         } else if (e.key === "Enter") {
@@ -391,7 +435,9 @@ function LLMCard({
                         >
                           <span className="text-xs font-mono font-medium">{m.id}</span>
                           {m.name !== m.id && (
-                            <span className="text-[10px] text-muted-foreground truncate w-full mt-0.5">{m.name}</span>
+                            <span className="text-[10px] text-muted-foreground truncate w-full mt-0.5">
+                              {m.name}
+                            </span>
                           )}
                         </button>
                       ))}
@@ -442,7 +488,8 @@ function LLMCard({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-muted-foreground">
-                    API Key {llm?.has_api_key && !apiKey && <span className="text-success">(saved)</span>}
+                    API Key{" "}
+                    {llm?.has_api_key && !apiKey && <span className="text-success">(saved)</span>}
                   </label>
                   {help.docs && (
                     <a
@@ -467,11 +514,16 @@ function LLMCard({
                     onClick={() => setShowApiKey(!showApiKey)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showApiKey ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                    {showApiKey ? (
+                      <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                    ) : (
+                      <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                    )}
                   </button>
                 </div>
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest · never sent to AI
+                  <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest ·
+                  never sent to AI
                 </p>
               </div>
             )}
@@ -513,16 +565,26 @@ function LLMCard({
           {/* Quick Start Hint */}
           {quickStartHint && provider === "openrouter" && !llm?.has_api_key && !apiKey && (
             <div className="flex items-start gap-3 p-3.5 rounded-xl bg-primary/5 border border-primary/10">
-              <HugeiconsIcon icon={ArrowRight01Icon} className="size-4 text-primary mt-0.5 shrink-0" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                className="size-4 text-primary mt-0.5 shrink-0"
+              />
               <div className="space-y-1">
                 <p className="text-xs font-medium text-foreground">Quick Start with OpenRouter</p>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
                   1. Go to{" "}
-                  <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
                     openrouter.ai/keys
                   </a>{" "}
-                  and create an API key<br />
-                  2. Paste it in the API Key field above<br />
+                  and create an API key
+                  <br />
+                  2. Paste it in the API Key field above
+                  <br />
                   3. Click Save — you can start building agents immediately
                 </p>
               </div>
@@ -540,20 +602,23 @@ function ProviderCategoryBadge({ category }: { category: "self-hosted" | "ws" | 
   if (category === "self-hosted") {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-foreground/5 px-1.5 py-0.5 rounded-full">
-        <HugeiconsIcon icon={ServerStack01Icon} className="size-3" />Self-hosted
+        <HugeiconsIcon icon={ServerStack01Icon} className="size-3" />
+        Self-hosted
       </span>
     );
   }
   if (category === "ws") {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-foreground/5 px-1.5 py-0.5 rounded-full">
-        <HugeiconsIcon icon={LiveStreaming02Icon} className="size-3" />WebSocket
+        <HugeiconsIcon icon={LiveStreaming02Icon} className="size-3" />
+        WebSocket
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-foreground/5 px-1.5 py-0.5 rounded-full">
-      <HugeiconsIcon icon={CloudIcon} className="size-3" />HTTP
+      <HugeiconsIcon icon={CloudIcon} className="size-3" />
+      HTTP
     </span>
   );
 }
@@ -561,15 +626,12 @@ function ProviderCategoryBadge({ category }: { category: "self-hosted" | "ws" | 
 // STT providers that use WebSocket despite not having a "-ws" suffix.
 // (In TTS, 'cartesia' and 'deepgram' are HTTP — only 'cartesia-ws' / 'deepgram-ws' are WS.)
 const STT_WS_PROVIDERS = new Set([
-  "deepgram",        // STT — Deepgram nova-3 WS
-  "cartesia",        // STT — Cartesia Ink Whisper WS
+  "deepgram", // STT — Deepgram nova-3 WS
+  "cartesia", // STT — Cartesia Ink Whisper WS
   "openai-realtime", // STT — GPT-4o Realtime WS
 ]);
 
-function getProviderCategory(
-  value: string,
-  type: "stt" | "tts",
-): "self-hosted" | "ws" | "http" {
+function getProviderCategory(value: string, type: "stt" | "tts"): "self-hosted" | "ws" | "http" {
   if (value === "faster-whisper" || value === "fish-speech") return "self-hosted";
   if (value.endsWith("-ws")) return "ws";
   if (type === "stt" && STT_WS_PROVIDERS.has(value)) return "ws";
@@ -632,14 +694,17 @@ function VoiceProviderCard({
 
   // Exclude voice_id (lives on Agent Config page) and model (handled by Select below)
   const regularFields: VoiceProviderField[] = (selectedProvider?.fields || []).filter(
-    (f) => !f.is_secret && f.key !== "voice_id" && f.key !== "model",
+    (f) => !f.is_secret && f.key !== "voice_id" && f.key !== "model"
   );
-  const secretFields: VoiceProviderField[] = (selectedProvider?.fields || []).filter((f) => f.is_secret);
+  const secretFields: VoiceProviderField[] = (selectedProvider?.fields || []).filter(
+    (f) => f.is_secret
+  );
   const isSelfHosted = category === "self-hosted";
 
   // Fetch language label map from Rust SUPPORTED_LANGUAGES via GET /api/agents/languages
   useEffect(() => {
-    api.agents.getLanguages()
+    api.agents
+      .getLanguages()
       .then((langs) => {
         const map: Record<string, string> = {};
         for (const l of langs) map[l.code] = l.label;
@@ -657,9 +722,10 @@ function VoiceProviderCard({
         return;
       }
       try {
-        const fetchFn = type === "tts"
-          ? () => api.settings.getTtsCatalog(provider)
-          : () => api.settings.getSttCatalog(provider);
+        const fetchFn =
+          type === "tts"
+            ? () => api.settings.getTtsCatalog(provider)
+            : () => api.settings.getSttCatalog(provider);
         const res = await fetchFn();
         if (active) setModelCatalog(res);
       } catch {
@@ -667,7 +733,9 @@ function VoiceProviderCard({
       }
     };
     fetchCatalog();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [provider, type]);
 
   const selectedModelSpec = modelCatalog.find((m) => m.model_id === config.model);
@@ -685,9 +753,7 @@ function VoiceProviderCard({
         {settings && (
           <Badge
             className={`${
-              isConfigured
-                ? "bg-primary/10 text-primary"
-                : "bg-destructive/10 text-destructive"
+              isConfigured ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
             } border-none shadow-none text-[10px] font-medium rounded-full`}
           >
             {isConfigured ? "Configured" : "Needs API Key"}
@@ -738,7 +804,9 @@ function VoiceProviderCard({
                         <ProviderCategoryBadge category={cat} />
                       </div>
                     </div>
-                    <span className="text-[10px] text-muted-foreground leading-tight">{p.description}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
+                      {p.description}
+                    </span>
                   </button>
                 );
               })}
@@ -790,19 +858,36 @@ function VoiceProviderCard({
                         <Input
                           type={isShown ? "text" : "password"}
                           value={config[field.key] || ""}
-                          onChange={(e) => onConfigChange({ ...config, [field.key]: e.target.value })}
-                          placeholder={hasSaved ? "••••••••  (unchanged)" : field.placeholder || "sk-..."}
+                          onChange={(e) =>
+                            onConfigChange({
+                              ...config,
+                              [field.key]: e.target.value,
+                            })
+                          }
+                          placeholder={
+                            hasSaved ? "••••••••  (unchanged)" : field.placeholder || "sk-..."
+                          }
                           className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs pr-9"
                         />
                         <button
-                          onClick={() => setShowSecrets((prev) => ({ ...prev, [field.key]: !isShown }))}
+                          onClick={() =>
+                            setShowSecrets((prev) => ({
+                              ...prev,
+                              [field.key]: !isShown,
+                            }))
+                          }
                           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         >
-                          {isShown ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                          {isShown ? (
+                            <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                          ) : (
+                            <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                          )}
                         </button>
                       </div>
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest
+                        <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at
+                        rest
                       </p>
                     </div>
                   );
@@ -836,7 +921,9 @@ function VoiceProviderCard({
                     {/* Language badges — labels from Rust SUPPORTED_LANGUAGES via /api/agents/languages */}
                     {selectedModelSpec && selectedModelSpec.supported_languages.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
-                        <span className="text-[10px] text-muted-foreground self-center mr-0.5">Supports:</span>
+                        <span className="text-[10px] text-muted-foreground self-center mr-0.5">
+                          Supports:
+                        </span>
                         {selectedModelSpec.supported_languages.map((lang) => (
                           <LangBadge key={lang} code={lang} languageMap={languageMap} />
                         ))}
@@ -847,7 +934,10 @@ function VoiceProviderCard({
                   <Input
                     value={config.model || ""}
                     onChange={(e) => onConfigChange({ ...config, model: e.target.value })}
-                    placeholder={selectedProvider?.fields?.find((f) => f.key === "model")?.placeholder || "model-id"}
+                    placeholder={
+                      selectedProvider?.fields?.find((f) => f.key === "model")?.placeholder ||
+                      "model-id"
+                    }
                     className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
                   />
                 )}
@@ -856,13 +946,22 @@ function VoiceProviderCard({
 
             {/* Remaining regular fields (not model, not voice_id) */}
             {regularFields.length > 0 && (
-              <div className={`grid gap-3 ${regularFields.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+              <div
+                className={`grid gap-3 ${regularFields.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
+              >
                 {regularFields.map((field) => (
                   <div key={field.key} className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">{field.label}</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {field.label}
+                    </label>
                     <Input
                       value={config[field.key] || ""}
-                      onChange={(e) => onConfigChange({ ...config, [field.key]: e.target.value })}
+                      onChange={(e) =>
+                        onConfigChange({
+                          ...config,
+                          [field.key]: e.target.value,
+                        })
+                      }
                       placeholder={field.placeholder}
                       className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
                     />
@@ -875,7 +974,9 @@ function VoiceProviderCard({
             {category === "ws" && (
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-success/5 border border-success/10 text-success text-[10px]">
                 <HugeiconsIcon icon={LiveStreaming02Icon} className="size-3 shrink-0" />
-                <span>WebSocket mode — persistent connection, lowest latency (~50–200 ms saved per turn)</span>
+                <span>
+                  WebSocket mode — persistent connection, lowest latency (~50–200 ms saved per turn)
+                </span>
               </div>
             )}
           </div>
@@ -922,7 +1023,7 @@ function SettingsPageContent() {
       params.set("tab", tab);
       router.replace(`?${params.toString()}`, { scroll: false });
     },
-    [router, searchParams],
+    [router, searchParams]
   );
 
   const voicePipelineParam = searchParams.get("voice_pipeline");
@@ -935,7 +1036,7 @@ function SettingsPageContent() {
       params.set("voice_pipeline", tab);
       router.replace(`?${params.toString()}`, { scroll: false });
     },
-    [router, searchParams],
+    [router, searchParams]
   );
 
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
@@ -962,10 +1063,16 @@ function SettingsPageContent() {
 
   // Native Multimodal state
   const [nativeMultimodal, setNativeMultimodal] = useState<LLMSettings | null>(null);
-  const [nativeMultimodalProviders, setNativeMultimodalProviders] = useState<LLMProviderOption[]>([]);
+  const [nativeMultimodalProviders, setNativeMultimodalProviders] = useState<LLMProviderOption[]>(
+    []
+  );
   const [nativeMultimodalProvider, setNativeMultimodalProvider] = useState("gemini-live");
-  const [nativeMultimodalModel, setNativeMultimodalModel] = useState("models/gemini-3.1-flash-live-preview");
-  const [nativeMultimodalBaseUrl, setNativeMultimodalBaseUrl] = useState("wss://generativelanguage.googleapis.com");
+  const [nativeMultimodalModel, setNativeMultimodalModel] = useState(
+    "models/gemini-3.1-flash-live-preview"
+  );
+  const [nativeMultimodalBaseUrl, setNativeMultimodalBaseUrl] = useState(
+    "wss://generativelanguage.googleapis.com"
+  );
   const [nativeMultimodalApiKey, setNativeMultimodalApiKey] = useState("");
   const [nativeMultimodalTemperature, setNativeMultimodalTemperature] = useState(0.7);
   const [nativeMultimodalShowApiKey, setNativeMultimodalShowApiKey] = useState(false);
@@ -1001,38 +1108,37 @@ function SettingsPageContent() {
   const [queueSize, setQueueSize] = useState(OBS_DEFAULTS.queue_size);
   const [batchSize, setBatchSize] = useState(OBS_DEFAULTS.batch_size);
   const [flushIntervalMs, setFlushIntervalMs] = useState(OBS_DEFAULTS.flush_interval_ms);
-  const [shutdownFlushTimeoutMs, setShutdownFlushTimeoutMs] = useState(OBS_DEFAULTS.shutdown_flush_timeout_ms);
+  const [shutdownFlushTimeoutMs, setShutdownFlushTimeoutMs] = useState(
+    OBS_DEFAULTS.shutdown_flush_timeout_ms
+  );
   const [dropPolicy, setDropPolicy] = useState(OBS_DEFAULTS.drop_policy);
   const [showAdvancedDb, setShowAdvancedDb] = useState(false);
 
-  const handleLangfuseEnvPaste = useCallback(
-    (e: ClipboardEvent<HTMLInputElement>) => {
-      const text = e.clipboardData.getData("text");
-      if (!text) return;
+  const handleLangfuseEnvPaste = useCallback((e: ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData("text");
+    if (!text) return;
 
-      const parsed: Record<string, string> = {};
-      const linePattern =
-        /(?:^|\n)\s*(LANGFUSE_SECRET_KEY|LANGFUSE_PUBLIC_KEY|LANGFUSE_BASE_URL)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\n#]+))/g;
-      let match: RegExpExecArray | null = null;
-      while ((match = linePattern.exec(text)) !== null) {
-        const key = match[1];
-        const value = (match[2] ?? match[3] ?? match[4] ?? "").trim();
-        if (key && value) parsed[key] = value;
-      }
+    const parsed: Record<string, string> = {};
+    const linePattern =
+      /(?:^|\n)\s*(LANGFUSE_SECRET_KEY|LANGFUSE_PUBLIC_KEY|LANGFUSE_BASE_URL)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\n#]+))/g;
+    let match: RegExpExecArray | null = null;
+    while ((match = linePattern.exec(text)) !== null) {
+      const key = match[1];
+      const value = (match[2] ?? match[3] ?? match[4] ?? "").trim();
+      if (key && value) parsed[key] = value;
+    }
 
-      const hasAny =
-        Boolean(parsed.LANGFUSE_BASE_URL) ||
-        Boolean(parsed.LANGFUSE_PUBLIC_KEY) ||
-        Boolean(parsed.LANGFUSE_SECRET_KEY);
-      if (!hasAny) return;
+    const hasAny =
+      Boolean(parsed.LANGFUSE_BASE_URL) ||
+      Boolean(parsed.LANGFUSE_PUBLIC_KEY) ||
+      Boolean(parsed.LANGFUSE_SECRET_KEY);
+    if (!hasAny) return;
 
-      e.preventDefault();
-      if (parsed.LANGFUSE_BASE_URL) setLangfuseBaseUrl(parsed.LANGFUSE_BASE_URL);
-      if (parsed.LANGFUSE_PUBLIC_KEY) setLangfusePublicKey(parsed.LANGFUSE_PUBLIC_KEY);
-      if (parsed.LANGFUSE_SECRET_KEY) setLangfuseSecretKey(parsed.LANGFUSE_SECRET_KEY);
-    },
-    []
-  );
+    e.preventDefault();
+    if (parsed.LANGFUSE_BASE_URL) setLangfuseBaseUrl(parsed.LANGFUSE_BASE_URL);
+    if (parsed.LANGFUSE_PUBLIC_KEY) setLangfusePublicKey(parsed.LANGFUSE_PUBLIC_KEY);
+    if (parsed.LANGFUSE_SECRET_KEY) setLangfuseSecretKey(parsed.LANGFUSE_SECRET_KEY);
+  }, []);
 
   // General state
   const [loading, setLoading] = useState(true);
@@ -1042,23 +1148,22 @@ function SettingsPageContent() {
 
   const langfuseMissingRequiredKeys =
     langfuseEnabled &&
-    (
-      (!langfusePublicKey && !(observability?.langfuse_has_public_key ?? false)) ||
-      (!langfuseSecretKey && !(observability?.langfuse_has_secret_key ?? false))
-    );
+    ((!langfusePublicKey && !(observability?.langfuse_has_public_key ?? false)) ||
+      (!langfuseSecretKey && !(observability?.langfuse_has_secret_key ?? false)));
 
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
-      const [llmRes, voiceLlmRes, nmRes, sttRes, ttsRes, telephonyRes, observabilityRes] = await Promise.all([
-        api.settings.getLLM(),
-        api.settings.getVoiceLLM(),
-        api.settings.getNativeMultimodal(),
-        api.settings.getSTT(),
-        api.settings.getTTS(),
-        api.settings.getTelephony(),
-        api.settings.getObservability(),
-      ]);
+      const [llmRes, voiceLlmRes, nmRes, sttRes, ttsRes, telephonyRes, observabilityRes] =
+        await Promise.all([
+          api.settings.getLLM(),
+          api.settings.getVoiceLLM(),
+          api.settings.getNativeMultimodal(),
+          api.settings.getSTT(),
+          api.settings.getTTS(),
+          api.settings.getTelephony(),
+          api.settings.getObservability(),
+        ]);
 
       // Builder LLM
       setBuilderLlm(llmRes);
@@ -1117,7 +1222,9 @@ function SettingsPageContent() {
       setQueueSize(observabilityRes.queue_size ?? OBS_DEFAULTS.queue_size);
       setBatchSize(observabilityRes.batch_size ?? OBS_DEFAULTS.batch_size);
       setFlushIntervalMs(observabilityRes.flush_interval_ms ?? OBS_DEFAULTS.flush_interval_ms);
-      setShutdownFlushTimeoutMs(observabilityRes.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms);
+      setShutdownFlushTimeoutMs(
+        observabilityRes.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms
+      );
       setDropPolicy(observabilityRes.drop_policy ?? OBS_DEFAULTS.drop_policy);
     } catch {
       setError("Could not load settings. Is the backend running?");
@@ -1126,7 +1233,9 @@ function SettingsPageContent() {
     }
   }, []);
 
-  useEffect(() => { loadSettings(); }, [loadSettings]);
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     const headerNode = headerRef.current;
@@ -1232,7 +1341,15 @@ function SettingsPageContent() {
       if (langfusePublicKey) observabilityUpdate.langfuse_public_key = langfusePublicKey;
       if (langfuseSecretKey) observabilityUpdate.langfuse_secret_key = langfuseSecretKey;
 
-      const [llmResult, voiceLlmResult, nativeMultimodalResult, sttResult, ttsResult, telephonyResult, observabilityResult] = await Promise.all([
+      const [
+        llmResult,
+        voiceLlmResult,
+        nativeMultimodalResult,
+        sttResult,
+        ttsResult,
+        telephonyResult,
+        observabilityResult,
+      ] = await Promise.all([
         api.settings.updateLLM(builderUpdate),
         api.settings.updateVoiceLLM(voiceUpdate),
         api.settings.updateNativeMultimodal(nativeMultimodalUpdate),
@@ -1282,12 +1399,15 @@ function SettingsPageContent() {
       setQueueSize(observabilityResult.queue_size ?? OBS_DEFAULTS.queue_size);
       setBatchSize(observabilityResult.batch_size ?? OBS_DEFAULTS.batch_size);
       setFlushIntervalMs(observabilityResult.flush_interval_ms ?? OBS_DEFAULTS.flush_interval_ms);
-      setShutdownFlushTimeoutMs(observabilityResult.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms);
+      setShutdownFlushTimeoutMs(
+        observabilityResult.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms
+      );
       setDropPolicy(observabilityResult.drop_policy ?? OBS_DEFAULTS.drop_policy);
 
       // voice-server loads observability settings once at startup — any change
       // requires a restart to take effect on active and future calls.
-      const obsChanged = !prevObs || (
+      const obsChanged =
+        !prevObs ||
         prevObs.db_events_enabled !== observabilityResult.db_events_enabled ||
         prevObs.langfuse_enabled !== observabilityResult.langfuse_enabled ||
         prevObs.langfuse_base_url !== observabilityResult.langfuse_base_url ||
@@ -1299,8 +1419,7 @@ function SettingsPageContent() {
         prevObs.drop_policy !== observabilityResult.drop_policy ||
         // treat key presence changes as a change (actual key values are redacted)
         prevObs.langfuse_has_public_key !== observabilityResult.langfuse_has_public_key ||
-        prevObs.langfuse_has_secret_key !== observabilityResult.langfuse_has_secret_key
-      );
+        prevObs.langfuse_has_secret_key !== observabilityResult.langfuse_has_secret_key;
       if (obsChanged) {
         toast.warning("Restart voice-server", {
           description:
@@ -1318,7 +1437,9 @@ function SettingsPageContent() {
         setQueueSize(observability.queue_size ?? OBS_DEFAULTS.queue_size);
         setBatchSize(observability.batch_size ?? OBS_DEFAULTS.batch_size);
         setFlushIntervalMs(observability.flush_interval_ms ?? OBS_DEFAULTS.flush_interval_ms);
-        setShutdownFlushTimeoutMs(observability.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms);
+        setShutdownFlushTimeoutMs(
+          observability.shutdown_flush_timeout_ms ?? OBS_DEFAULTS.shutdown_flush_timeout_ms
+        );
         setDropPolicy(observability.drop_policy ?? OBS_DEFAULTS.drop_policy);
       }
     } finally {
@@ -1347,9 +1468,13 @@ function SettingsPageContent() {
             className="h-8 px-5 text-xs font-medium gap-1.5"
           >
             {saving ? (
-              <><Spinner className="size-3.5" /> Saving...</>
+              <>
+                <Spinner className="size-3.5" /> Saving...
+              </>
             ) : (
-              <><HugeiconsIcon icon={SettingDone02Icon} className="size-3.5" /> Save Changes</>
+              <>
+                <HugeiconsIcon icon={SettingDone02Icon} className="size-3.5" /> Save Changes
+              </>
             )}
           </Button>
         </div>
@@ -1386,477 +1511,520 @@ function SettingsPageContent() {
 
       {/* ═══ SECTION 1: AI Models ═══ */}
       {activeTab === "ai-models" && (
-      <div className="space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
-            <HugeiconsIcon icon={AiCloudIcon} className="size-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">AI Models</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Configure the LLMs that power your builder and voice agents</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <LLMCard
-            title="Builder LLM"
-            subtitle="The AI model that powers the agent builder chat"
-            icon={AiProgrammingIcon}
-            llm={builderLlm}
-            providers={builderProviders}
-            provider={builderProvider}
-            setProvider={(val) => {
-              setBuilderProvider(val);
-              const saved = builderLlm?.all_configs?.[val];
-              if (saved) {
-                if (saved.model) setBuilderModel(saved.model);
-                if (saved.base_url) setBuilderBaseUrl(saved.base_url);
-                if (saved.temperature) setBuilderTemperature(parseFloat(saved.temperature));
-              }
-            }}
-            model={builderModel}
-            setModel={setBuilderModel}
-            baseUrl={builderBaseUrl}
-            setBaseUrl={setBuilderBaseUrl}
-            apiKey={builderApiKey}
-            setApiKey={setBuilderApiKey}
-            temperature={builderTemperature}
-            setTemperature={setBuilderTemperature}
-            showApiKey={builderShowApiKey}
-            setShowApiKey={setBuilderShowApiKey}
-            loading={loading}
-            quickStartHint
-          />
-
-          <div className="flat-card p-6 bg-transparent border-0 shadow-none ring-1 ring-border/50">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Voice Pipeline LLM</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Toggle between standard mode or native multimodal architectures</p>
-              </div>
-              <div className="flex p-1 bg-secondary/50 rounded-lg shrink-0">
-                <button
-                  type="button"
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                    voicePipelineTab === "standard" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-                  }`}
-                  onClick={() => setVoicePipelineTab("standard")}
-                >
-                  Standard Voice LLM
-                </button>
-                <button
-                  type="button"
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                    voicePipelineTab === "native" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-                  }`}
-                  onClick={() => setVoicePipelineTab("native")}
-                >
-                  Native Multimodal
-                </button>
-              </div>
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
+              <HugeiconsIcon icon={AiCloudIcon} className="size-5 text-primary" />
             </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">AI Models</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Configure the LLMs that power your builder and voice agents
+              </p>
+            </div>
+          </div>
 
-            {voicePipelineTab === "standard" && (
-              <LLMCard
-                title="Voice Agent LLM"
-                subtitle="The AI model used during live voice calls — optimise for speed"
-                icon={AiMicIcon}
-                llm={voiceLlm}
-                providers={voiceProviders}
-                provider={voiceProvider}
-                setProvider={(val) => {
-                  setVoiceProvider(val);
-                  const saved = voiceLlm?.all_configs?.[val];
-                  if (saved) {
-                    if (saved.model) setVoiceModel(saved.model);
-                    if (saved.base_url) setVoiceBaseUrl(saved.base_url);
-                    if (saved.temperature) setVoiceTemperature(parseFloat(saved.temperature));
-                  }
-                }}
-                model={voiceModel}
-                setModel={setVoiceModel}
-                baseUrl={voiceBaseUrl}
-                setBaseUrl={setVoiceBaseUrl}
-                apiKey={voiceApiKey}
-                setApiKey={setVoiceApiKey}
-                temperature={voiceTemperature}
-                setTemperature={setVoiceTemperature}
-                showApiKey={voiceShowApiKey}
-                setShowApiKey={setVoiceShowApiKey}
-                loading={loading}
-              />
-            )}
+          <div className="space-y-4">
+            <LLMCard
+              title="Builder LLM"
+              subtitle="The AI model that powers the agent builder chat"
+              icon={AiProgrammingIcon}
+              llm={builderLlm}
+              providers={builderProviders}
+              provider={builderProvider}
+              setProvider={(val) => {
+                setBuilderProvider(val);
+                const saved = builderLlm?.all_configs?.[val];
+                if (saved) {
+                  if (saved.model) setBuilderModel(saved.model);
+                  if (saved.base_url) setBuilderBaseUrl(saved.base_url);
+                  if (saved.temperature) setBuilderTemperature(parseFloat(saved.temperature));
+                }
+              }}
+              model={builderModel}
+              setModel={setBuilderModel}
+              baseUrl={builderBaseUrl}
+              setBaseUrl={setBuilderBaseUrl}
+              apiKey={builderApiKey}
+              setApiKey={setBuilderApiKey}
+              temperature={builderTemperature}
+              setTemperature={setBuilderTemperature}
+              showApiKey={builderShowApiKey}
+              setShowApiKey={setBuilderShowApiKey}
+              loading={loading}
+              quickStartHint
+            />
 
-            {voicePipelineTab === "native" && (
-              <LLMCard
-                title="Native Multimodal"
-                subtitle="The AI model that powers the agent in native multimodal mode (e.g., Gemini Live)"
-                icon={LiveStreaming02Icon}
-                llm={nativeMultimodal}
-                providers={nativeMultimodalProviders}
-                provider={nativeMultimodalProvider}
-                setProvider={(val) => {
-                  setNativeMultimodalProvider(val);
-                  const saved = nativeMultimodal?.all_configs?.[val];
-                  if (saved) {
-                    if (saved.model) setNativeMultimodalModel(saved.model);
-                    if (saved.base_url) setNativeMultimodalBaseUrl(saved.base_url);
-                    if (saved.temperature) setNativeMultimodalTemperature(parseFloat(saved.temperature));
-                  }
-                }}
-                model={nativeMultimodalModel}
-                setModel={setNativeMultimodalModel}
-                baseUrl={nativeMultimodalBaseUrl}
-                setBaseUrl={setNativeMultimodalBaseUrl}
-                apiKey={nativeMultimodalApiKey}
-                setApiKey={setNativeMultimodalApiKey}
-                temperature={nativeMultimodalTemperature}
-                setTemperature={setNativeMultimodalTemperature}
-                showApiKey={nativeMultimodalShowApiKey}
-                setShowApiKey={setNativeMultimodalShowApiKey}
-                loading={loading}
-              />
-            )}
+            <div className="flat-card p-6 bg-transparent border-0 shadow-none ring-1 ring-border/50">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Voice Pipeline LLM</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Toggle between standard mode or native multimodal architectures
+                  </p>
+                </div>
+                <div className="flex p-1 bg-secondary/50 rounded-lg shrink-0">
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      voicePipelineTab === "standard"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                    }`}
+                    onClick={() => setVoicePipelineTab("standard")}
+                  >
+                    Standard Voice LLM
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      voicePipelineTab === "native"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                    }`}
+                    onClick={() => setVoicePipelineTab("native")}
+                  >
+                    Native Multimodal
+                  </button>
+                </div>
+              </div>
+
+              {voicePipelineTab === "standard" && (
+                <LLMCard
+                  title="Voice Agent LLM"
+                  subtitle="The AI model used during live voice calls — optimise for speed"
+                  icon={AiMicIcon}
+                  llm={voiceLlm}
+                  providers={voiceProviders}
+                  provider={voiceProvider}
+                  setProvider={(val) => {
+                    setVoiceProvider(val);
+                    const saved = voiceLlm?.all_configs?.[val];
+                    if (saved) {
+                      if (saved.model) setVoiceModel(saved.model);
+                      if (saved.base_url) setVoiceBaseUrl(saved.base_url);
+                      if (saved.temperature) setVoiceTemperature(parseFloat(saved.temperature));
+                    }
+                  }}
+                  model={voiceModel}
+                  setModel={setVoiceModel}
+                  baseUrl={voiceBaseUrl}
+                  setBaseUrl={setVoiceBaseUrl}
+                  apiKey={voiceApiKey}
+                  setApiKey={setVoiceApiKey}
+                  temperature={voiceTemperature}
+                  setTemperature={setVoiceTemperature}
+                  showApiKey={voiceShowApiKey}
+                  setShowApiKey={setVoiceShowApiKey}
+                  loading={loading}
+                />
+              )}
+
+              {voicePipelineTab === "native" && (
+                <LLMCard
+                  title="Native Multimodal"
+                  subtitle="The AI model that powers the agent in native multimodal mode (e.g., Gemini Live)"
+                  icon={LiveStreaming02Icon}
+                  llm={nativeMultimodal}
+                  providers={nativeMultimodalProviders}
+                  provider={nativeMultimodalProvider}
+                  setProvider={(val) => {
+                    setNativeMultimodalProvider(val);
+                    const saved = nativeMultimodal?.all_configs?.[val];
+                    if (saved) {
+                      if (saved.model) setNativeMultimodalModel(saved.model);
+                      if (saved.base_url) setNativeMultimodalBaseUrl(saved.base_url);
+                      if (saved.temperature)
+                        setNativeMultimodalTemperature(parseFloat(saved.temperature));
+                    }
+                  }}
+                  model={nativeMultimodalModel}
+                  setModel={setNativeMultimodalModel}
+                  baseUrl={nativeMultimodalBaseUrl}
+                  setBaseUrl={setNativeMultimodalBaseUrl}
+                  apiKey={nativeMultimodalApiKey}
+                  setApiKey={setNativeMultimodalApiKey}
+                  temperature={nativeMultimodalTemperature}
+                  setTemperature={setNativeMultimodalTemperature}
+                  showApiKey={nativeMultimodalShowApiKey}
+                  setShowApiKey={setNativeMultimodalShowApiKey}
+                  loading={loading}
+                />
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* ═══ SECTION 2: Voice Infrastructure ═══ */}
       {activeTab === "voice-infrastructure" && (
-      <div className="space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
-            <HugeiconsIcon icon={AiVoiceIcon} className="size-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Voice Infrastructure</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Speech services and voice infrastructure for live calls</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {/* STT Card */}
-          <VoiceProviderCard
-            icon={Mic01Icon}
-            title="Transcription (STT)"
-            subtitle="Speech-to-text — converts caller audio into text for the AI"
-            settings={stt}
-            providers={sttProviders}
-            provider={sttProvider}
-            onProviderChange={(val, opt) => {
-              setSTTProvider(val);
-              const savedConfig = stt?.all_configs?.[val];
-              if (savedConfig) {
-                const { base_url, ...rest } = savedConfig;
-                if (base_url) setSTTBaseUrl(base_url);
-                setSTTConfig(rest);
-                return;
-              }
-              if (opt?.default_base_url) setSTTBaseUrl(opt.default_base_url);
-              const defaults: Record<string, string> = {};
-              for (const f of opt?.fields || []) {
-                if (!f.is_secret) defaults[f.key] = "";
-              }
-              setSTTConfig(defaults);
-            }}
-            baseUrl={sttBaseUrl}
-            onBaseUrlChange={setSTTBaseUrl}
-            config={sttConfig}
-            onConfigChange={setSTTConfig}
-            loading={loading}
-            type="stt"
-          />
-
-          {/* TTS Card */}
-          <VoiceProviderCard
-            icon={VolumeHighIcon}
-            title="Synthesis (TTS)"
-            subtitle="Text-to-speech — converts AI responses into natural-sounding audio"
-            settings={tts}
-            providers={ttsProviders}
-            provider={ttsProvider}
-            onProviderChange={(val, opt) => {
-              setTTSProvider(val);
-              const savedConfig = tts?.all_configs?.[val];
-              if (savedConfig) {
-                const { base_url, ...rest } = savedConfig;
-                if (base_url) setTTSBaseUrl(base_url);
-                setTTSConfig(rest);
-                return;
-              }
-              if (opt?.default_base_url) setTTSBaseUrl(opt.default_base_url);
-              const defaults: Record<string, string> = {};
-              for (const f of opt?.fields || []) {
-                if (!f.is_secret) defaults[f.key] = "";
-              }
-              setTTSConfig(defaults);
-            }}
-            baseUrl={ttsBaseUrl}
-            onBaseUrlChange={setTTSBaseUrl}
-            config={ttsConfig}
-            onConfigChange={setTTSConfig}
-            loading={loading}
-            type="tts"
-          />
-
-          {/* Voice Server Card */}
-          <section className="flat-card p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="size-9 rounded-xl bg-secondary flex items-center justify-center">
-                <HugeiconsIcon icon={Call02Icon} className="size-4 text-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-foreground">Voice Server</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Voice server URL for webhook configuration</p>
-              </div>
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
+              <HugeiconsIcon icon={AiVoiceIcon} className="size-5 text-primary" />
             </div>
-
-            {/* Voice Server URL */}
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <HugeiconsIcon icon={FlashIcon} className="size-3" /> Voice Server URL
-              </label>
-              <Input
-                value={voiceServerUrl}
-                onChange={(e) => setVoiceServerUrl(e.target.value)}
-                placeholder={DEFAULT_VOICE_SERVER_URL}
-                className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-              />
-              <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                Used by the browser for voice test calls, and by Twilio/Telnyx for webhook URLs.<br />
-                Local dev default: <span className="font-mono text-foreground/70">{DEFAULT_VOICE_SERVER_URL}</span>.<br />
-                For Twilio/Telnyx webhooks, this must be a public HTTPS URL — use ngrok or deploy voice-server publicly.
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Voice Infrastructure</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Speech services and voice infrastructure for live calls
               </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-500/80 text-[10px] leading-relaxed mt-6">
-              <HugeiconsIcon icon={AlertCircleIcon} className="size-3.5 shrink-0" />
-              <span>
-                Provider credentials (Twilio/Telnyx) are now entered when importing numbers and stored per-number.
-                Manage them in <a href="/dashboard/phone-numbers" className="font-medium underline">Phone Numbers</a>.
-              </span>
-            </div>
-          </section>
+          <div className="space-y-4">
+            {/* STT Card */}
+            <VoiceProviderCard
+              icon={Mic01Icon}
+              title="Transcription (STT)"
+              subtitle="Speech-to-text — converts caller audio into text for the AI"
+              settings={stt}
+              providers={sttProviders}
+              provider={sttProvider}
+              onProviderChange={(val, opt) => {
+                setSTTProvider(val);
+                const savedConfig = stt?.all_configs?.[val];
+                if (savedConfig) {
+                  const { base_url, ...rest } = savedConfig;
+                  if (base_url) setSTTBaseUrl(base_url);
+                  setSTTConfig(rest);
+                  return;
+                }
+                if (opt?.default_base_url) setSTTBaseUrl(opt.default_base_url);
+                const defaults: Record<string, string> = {};
+                for (const f of opt?.fields || []) {
+                  if (!f.is_secret) defaults[f.key] = "";
+                }
+                setSTTConfig(defaults);
+              }}
+              baseUrl={sttBaseUrl}
+              onBaseUrlChange={setSTTBaseUrl}
+              config={sttConfig}
+              onConfigChange={setSTTConfig}
+              loading={loading}
+              type="stt"
+            />
+
+            {/* TTS Card */}
+            <VoiceProviderCard
+              icon={VolumeHighIcon}
+              title="Synthesis (TTS)"
+              subtitle="Text-to-speech — converts AI responses into natural-sounding audio"
+              settings={tts}
+              providers={ttsProviders}
+              provider={ttsProvider}
+              onProviderChange={(val, opt) => {
+                setTTSProvider(val);
+                const savedConfig = tts?.all_configs?.[val];
+                if (savedConfig) {
+                  const { base_url, ...rest } = savedConfig;
+                  if (base_url) setTTSBaseUrl(base_url);
+                  setTTSConfig(rest);
+                  return;
+                }
+                if (opt?.default_base_url) setTTSBaseUrl(opt.default_base_url);
+                const defaults: Record<string, string> = {};
+                for (const f of opt?.fields || []) {
+                  if (!f.is_secret) defaults[f.key] = "";
+                }
+                setTTSConfig(defaults);
+              }}
+              baseUrl={ttsBaseUrl}
+              onBaseUrlChange={setTTSBaseUrl}
+              config={ttsConfig}
+              onConfigChange={setTTSConfig}
+              loading={loading}
+              type="tts"
+            />
+
+            {/* Voice Server Card */}
+            <section className="flat-card p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="size-9 rounded-xl bg-secondary flex items-center justify-center">
+                  <HugeiconsIcon icon={Call02Icon} className="size-4 text-foreground" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-foreground">Voice Server</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Voice server URL for webhook configuration
+                  </p>
+                </div>
+              </div>
+
+              {/* Voice Server URL */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <HugeiconsIcon icon={FlashIcon} className="size-3" /> Voice Server URL
+                </label>
+                <Input
+                  value={voiceServerUrl}
+                  onChange={(e) => setVoiceServerUrl(e.target.value)}
+                  placeholder={DEFAULT_VOICE_SERVER_URL}
+                  className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                  Used by the browser for voice test calls, and by Twilio/Telnyx for webhook URLs.
+                  <br />
+                  Local dev default:{" "}
+                  <span className="font-mono text-foreground/70">{DEFAULT_VOICE_SERVER_URL}</span>
+                  .<br />
+                  For Twilio/Telnyx webhooks, this must be a public HTTPS URL — use ngrok or deploy
+                  voice-server publicly.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-500/80 text-[10px] leading-relaxed mt-6">
+                <HugeiconsIcon icon={AlertCircleIcon} className="size-3.5 shrink-0" />
+                <span>
+                  Provider credentials (Twilio/Telnyx) are now entered when importing numbers and
+                  stored per-number. Manage them in{" "}
+                  <a href="/dashboard/phone-numbers" className="font-medium underline">
+                    Phone Numbers
+                  </a>
+                  .
+                </span>
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
       )}
 
       {/* ═══ SECTION 3: Observability ═══ */}
       {activeTab === "observability" && (
-      <div className="space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
-            <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Observability</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Control internal call events and Langfuse integration
-            </p>
-          </div>
-        </div>
-
-        <section className="flat-card p-6 space-y-5">
-          <div className="flex items-center justify-between">
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-primary/5 flex items-center justify-center">
+              <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
+            </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Internal DB Call Events</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Store call observability events in database for Log tab rendering
+              <h3 className="text-sm font-semibold text-foreground">Observability</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Control internal call events and Langfuse integration
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-foreground">
-              <span>Enabled</span>
-              <Switch
-                checked={dbEventsEnabled}
-                onCheckedChange={setDbEventsEnabled}
-                aria-label="Enable DB call events"
-              />
-            </div>
           </div>
 
-          <div className="pt-2">
-            <button
-              onClick={() => setShowAdvancedDb(!showAdvancedDb)}
-              className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <HugeiconsIcon icon={showAdvancedDb ? ArrowUp01Icon : ArrowDown01Icon} className="size-3" />
-              {showAdvancedDb ? "Hide Advanced Tuning" : "Advanced Event Tuning"}
-            </button>
-          </div>
-
-          {showAdvancedDb && (
-            <div className="border border-border/50 bg-secondary/20 rounded-xl p-4 grid grid-cols-2 gap-4 mt-3">
-              <div className="space-y-2 col-span-2">
-                <p className="text-[10px] text-muted-foreground">
-                  Low-level DB pipeline adjustments for high-throughput deployments
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Queue Size (events)</label>
-                <Input
-                  type="number"
-                  value={queueSize}
-                  onChange={(e) => { const v = Number(e.target.value); if (!isNaN(v) && v >= 1) setQueueSize(v); }}
-                  min={1}
-                  max={1_000_000}
-                  className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Batch Size</label>
-                <Input
-                  type="number"
-                  value={batchSize}
-                  onChange={(e) => { const v = Number(e.target.value); if (!isNaN(v) && v >= 1) setBatchSize(v); }}
-                  min={1}
-                  max={10_000}
-                  className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Flush Interval (ms)</label>
-                <Input
-                  type="number"
-                  value={flushIntervalMs}
-                  onChange={(e) => { const v = Number(e.target.value); if (!isNaN(v) && v >= 50) setFlushIntervalMs(v); }}
-                  min={50}
-                  max={60_000}
-                  className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Shutdown Timeout (ms)</label>
-                <Input
-                  type="number"
-                  value={shutdownFlushTimeoutMs}
-                  onChange={(e) => { const v = Number(e.target.value); if (!isNaN(v) && v >= 50) setShutdownFlushTimeoutMs(v); }}
-                  min={50}
-                  max={60_000}
-                  className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <label className="text-xs text-muted-foreground">Drop Policy</label>
-                <Select value={dropPolicy} onValueChange={setDropPolicy}>
-                  <SelectTrigger className="h-9 rounded-lg bg-secondary/50 border-border text-xs font-mono">
-                    <SelectValue placeholder="drop_oldest" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="drop_oldest" className="text-xs">drop_oldest</SelectItem>
-                    <SelectItem value="drop_newest" className="text-xs">drop_newest</SelectItem>
-                    <SelectItem value="block" className="text-xs">block</SelectItem>
-                    <SelectItem value="ignore" className="text-xs">ignore</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="border-t border-border/50 pt-5 space-y-4">
+          <section className="flat-card p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-foreground">Langfuse Adapter</p>
+                <p className="text-sm font-medium text-foreground">Internal DB Call Events</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Send observability traces to Langfuse and show external link in call detail
+                  Store call observability events in database for Log tab rendering
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-foreground">
-                {langfuseMissingRequiredKeys ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HugeiconsIcon icon={Alert01Icon} className="size-3.5 text-orange-500" />
-                      </TooltipTrigger>
-                      <TooltipContent sideOffset={6}>
-                        Langfuse is enabled, but required key(s) are missing.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : null}
                 <span>Enabled</span>
                 <Switch
-                  checked={langfuseEnabled}
-                  onCheckedChange={setLangfuseEnabled}
-                  aria-label="Enable Langfuse adapter"
+                  checked={dbEventsEnabled}
+                  onCheckedChange={setDbEventsEnabled}
+                  aria-label="Enable DB call events"
                 />
               </div>
             </div>
 
-            {langfuseEnabled ? (
-              <>
+            <div className="pt-2">
+              <button
+                onClick={() => setShowAdvancedDb(!showAdvancedDb)}
+                className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <HugeiconsIcon
+                  icon={showAdvancedDb ? ArrowUp01Icon : ArrowDown01Icon}
+                  className="size-3"
+                />
+                {showAdvancedDb ? "Hide Advanced Tuning" : "Advanced Event Tuning"}
+              </button>
+            </div>
+
+            {showAdvancedDb && (
+              <div className="border border-border/50 bg-secondary/20 rounded-xl p-4 grid grid-cols-2 gap-4 mt-3">
+                <div className="space-y-2 col-span-2">
+                  <p className="text-[10px] text-muted-foreground">
+                    Low-level DB pipeline adjustments for high-throughput deployments
+                  </p>
+                </div>
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Langfuse Base URL</label>
+                  <label className="text-xs text-muted-foreground">Queue Size (events)</label>
                   <Input
-                    value={langfuseBaseUrl}
-                    onChange={(e) => setLangfuseBaseUrl(e.target.value)}
-                    onPaste={handleLangfuseEnvPaste}
-                    placeholder="https://cloud.langfuse.com"
+                    type="number"
+                    value={queueSize}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && v >= 1) setQueueSize(v);
+                    }}
+                    min={1}
+                    max={1_000_000}
                     className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
                   />
                 </div>
-
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      Public Key{" "}
-                      {(observability?.langfuse_has_public_key && !langfusePublicKey) ? (
-                        <span className="text-success">(saved)</span>
-                      ) : null}
-                    </label>
-                    <Input
-                      type="password"
-                      value={langfusePublicKey}
-                      onChange={(e) => setLangfusePublicKey(e.target.value)}
-                      onPaste={handleLangfuseEnvPaste}
-                      placeholder={
-                        observability?.langfuse_has_public_key
-                          ? "•••••••• (unchanged)"
-                          : "pk-lf-..."
-                      }
-                      className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      Secret Key{" "}
-                      {(observability?.langfuse_has_secret_key && !langfuseSecretKey) ? (
-                        <span className="text-success">(saved)</span>
-                      ) : null}
-                    </label>
-                    <Input
-                      type="password"
-                      value={langfuseSecretKey}
-                      onChange={(e) => setLangfuseSecretKey(e.target.value)}
-                      onPaste={handleLangfuseEnvPaste}
-                      placeholder={
-                        observability?.langfuse_has_secret_key
-                          ? "•••••••• (unchanged)"
-                          : "sk-lf-..."
-                      }
-                      className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border border-border/50 bg-secondary/20 rounded-xl p-4 mt-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Make Traces Public</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Allow viewing observability traces without a Langfuse login
-                    </p>
-                  </div>
-                  <Switch
-                    checked={langfuseTracePublic}
-                    onCheckedChange={setLangfuseTracePublic}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Batch Size</label>
+                  <Input
+                    type="number"
+                    value={batchSize}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && v >= 1) setBatchSize(v);
+                    }}
+                    min={1}
+                    max={10_000}
+                    className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
                   />
                 </div>
-              </>
-            ) : null}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Flush Interval (ms)</label>
+                  <Input
+                    type="number"
+                    value={flushIntervalMs}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && v >= 50) setFlushIntervalMs(v);
+                    }}
+                    min={50}
+                    max={60_000}
+                    className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Shutdown Timeout (ms)</label>
+                  <Input
+                    type="number"
+                    value={shutdownFlushTimeoutMs}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && v >= 50) setShutdownFlushTimeoutMs(v);
+                    }}
+                    min={50}
+                    max={60_000}
+                    className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-xs text-muted-foreground">Drop Policy</label>
+                  <Select value={dropPolicy} onValueChange={setDropPolicy}>
+                    <SelectTrigger className="h-9 rounded-lg bg-secondary/50 border-border text-xs font-mono">
+                      <SelectValue placeholder="drop_oldest" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="drop_oldest" className="text-xs">
+                        drop_oldest
+                      </SelectItem>
+                      <SelectItem value="drop_newest" className="text-xs">
+                        drop_newest
+                      </SelectItem>
+                      <SelectItem value="block" className="text-xs">
+                        block
+                      </SelectItem>
+                      <SelectItem value="ignore" className="text-xs">
+                        ignore
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
-          </div>
-        </section>
-      </div>
+            <div className="border-t border-border/50 pt-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Langfuse Adapter</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Send observability traces to Langfuse and show external link in call detail
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-foreground">
+                  {langfuseMissingRequiredKeys ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HugeiconsIcon icon={Alert01Icon} className="size-3.5 text-orange-500" />
+                        </TooltipTrigger>
+                        <TooltipContent sideOffset={6}>
+                          Langfuse is enabled, but required key(s) are missing.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : null}
+                  <span>Enabled</span>
+                  <Switch
+                    checked={langfuseEnabled}
+                    onCheckedChange={setLangfuseEnabled}
+                    aria-label="Enable Langfuse adapter"
+                  />
+                </div>
+              </div>
+
+              {langfuseEnabled ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Langfuse Base URL</label>
+                    <Input
+                      value={langfuseBaseUrl}
+                      onChange={(e) => setLangfuseBaseUrl(e.target.value)}
+                      onPaste={handleLangfuseEnvPaste}
+                      placeholder="https://cloud.langfuse.com"
+                      className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        Public Key{" "}
+                        {observability?.langfuse_has_public_key && !langfusePublicKey ? (
+                          <span className="text-success">(saved)</span>
+                        ) : null}
+                      </label>
+                      <Input
+                        type="password"
+                        value={langfusePublicKey}
+                        onChange={(e) => setLangfusePublicKey(e.target.value)}
+                        onPaste={handleLangfuseEnvPaste}
+                        placeholder={
+                          observability?.langfuse_has_public_key
+                            ? "•••••••• (unchanged)"
+                            : "pk-lf-..."
+                        }
+                        className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        Secret Key{" "}
+                        {observability?.langfuse_has_secret_key && !langfuseSecretKey ? (
+                          <span className="text-success">(saved)</span>
+                        ) : null}
+                      </label>
+                      <Input
+                        type="password"
+                        value={langfuseSecretKey}
+                        onChange={(e) => setLangfuseSecretKey(e.target.value)}
+                        onPaste={handleLangfuseEnvPaste}
+                        placeholder={
+                          observability?.langfuse_has_secret_key
+                            ? "•••••••• (unchanged)"
+                            : "sk-lf-..."
+                        }
+                        className="h-9 rounded-lg bg-secondary/50 border-border font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border border-border/50 bg-secondary/20 rounded-xl p-4 mt-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Make Traces Public</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Allow viewing observability traces without a Langfuse login
+                      </p>
+                    </div>
+                    <Switch
+                      checked={langfuseTracePublic}
+                      onCheckedChange={setLangfuseTracePublic}
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </section>
+        </div>
       )}
 
       {!isHeaderVisible && (
@@ -1873,9 +2041,13 @@ function SettingsPageContent() {
               className="h-8 px-5 text-xs font-medium gap-1.5"
             >
               {saving ? (
-                <><Spinner className="size-3.5" /> Saving...</>
+                <>
+                  <Spinner className="size-3.5" /> Saving...
+                </>
               ) : (
-                <><HugeiconsIcon icon={SettingDone02Icon} className="size-3.5" /> Save Changes</>
+                <>
+                  <HugeiconsIcon icon={SettingDone02Icon} className="size-3.5" /> Save Changes
+                </>
               )}
             </Button>
           </div>
@@ -1887,7 +2059,13 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center p-4 text-sm text-muted-foreground"><Spinner className="size-5 mr-2" /> Loading settings...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center p-4 text-sm text-muted-foreground">
+          <Spinner className="size-5 mr-2" /> Loading settings...
+        </div>
+      }
+    >
       <SettingsPageContent />
     </Suspense>
   );

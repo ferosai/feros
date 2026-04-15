@@ -108,7 +108,9 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 
   h1,
@@ -171,8 +173,15 @@
   }
 
   @keyframes wave {
-    0%, 100% { height: 4px; opacity: 0.3; }
-    50% { height: 100%; opacity: 1; }
+    0%,
+    100% {
+      height: 4px;
+      opacity: 0.3;
+    }
+    50% {
+      height: 100%;
+      opacity: 1;
+    }
   }
 
   .animate-wave {

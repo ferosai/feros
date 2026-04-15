@@ -111,7 +111,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("output_sample_rate", &self.output_sample_rate)
             .field("greeting", &self.greeting.as_deref().map(|_| "<set>"))
             .field("agent_graph", &self.agent_graph.as_ref().map(|_| "<set>"))
-            .field("native_multimodal", &self.native_multimodal.as_ref().map(|_| "<set>"))
+            .field(
+                "native_multimodal",
+                &self.native_multimodal.as_ref().map(|_| "<set>"),
+            )
             .finish()
     }
 }
@@ -173,7 +176,8 @@ impl SessionConfig {
         if self.native_multimodal.is_some() && !self.voice_id.is_empty() {
             let mut c = self.voice_id.chars();
             if let Some(f) = c.next() {
-                self.voice_id = f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str();
+                self.voice_id =
+                    f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str();
             }
         }
 
@@ -375,7 +379,6 @@ async fn run_native_multimodal(
     // ── Build provider and backend ─────────────────────────────────
     let api_key = nm_config.api_key.clone();
 
-
     if api_key.is_empty() || api_key.trim().is_empty() {
         tracing::error!("[native] No Gemini API key found in the Native Multimodal configuration block. Terminating session.");
         tracer.emit(Event::Error {
@@ -394,10 +397,7 @@ async fn run_native_multimodal(
     // preventing bot audio from being placed too early in the recording.
     let mut tts_cursor = AgentAudioCursor::new(WEBRTC_RATE);
 
-    let provider = Box::new(GeminiLiveProvider::new(
-        api_key,
-        nm_config.model.clone(),
-    ));
+    let provider = Box::new(GeminiLiveProvider::new(api_key, nm_config.model.clone()));
     let mut backend = NativeMultimodalBackend::new(
         provider,
         agent_graph.as_ref(), // No tools support yet? Graph is passed.
@@ -574,7 +574,7 @@ async fn run_native_multimodal(
                         }
                         NativeAgentEvent::TurnComplete { prompt_tokens, completion_tokens } => {
                             bot_speaking = false;
-                            
+
                             let bot_text = std::mem::take(&mut bot_transcript_buf);
                             let bot_text_trimmed = bot_text.trim();
 
@@ -588,10 +588,10 @@ async fn run_native_multimodal(
                                 });
                                 info!("[native] Agent turn complete: {}", bot_text_trimmed);
                             }
-                            
+
                             let provider_name = "gemini_live";
                             let model_name = nm_config.model.as_deref().unwrap_or("gemini_live");
-                            
+
                             use voice_trace::event::LlmCompletionData;
                             tracer.emit(Event::LlmComplete(LlmCompletionData {
                                 provider: provider_name.to_string(),
@@ -705,19 +705,19 @@ async fn run_native_multimodal(
                                 break;
                             }
                         }
-                        
+
                         if !connected {
                             error!("[native] Reconnect failed completely — ending session");
                             break;
                         }
-                        
+
                         // Reset session logic state. The tts_cursor is NOT reset —
                         // its monotonically increasing value prevents audio trace
                         // corruption by keeping all future chunks after the
                         // reconnection gap, not back at position 0.
                         bot_speaking = false;
                         tracer.cancel_turn();
-                        
+
                         info!("[native] Reconnected to Gemini Live");
                     }
                 }

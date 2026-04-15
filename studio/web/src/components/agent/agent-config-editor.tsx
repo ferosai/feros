@@ -1,10 +1,40 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AiVoiceGeneratorIcon, Alert02Icon, ArrowDown01Icon, Cancel01Icon, ChatBotIcon, CodeIcon, Copy01Icon, HierarchyIcon, LanguageCircleIcon, LinkSquare01Icon, PlayIcon, Search01Icon, Settings03Icon, Tick01Icon, TimeZoneIcon, ToolsIcon, Wrench01Icon } from "@hugeicons/core-free-icons";
+import {
+  AiVoiceGeneratorIcon,
+  Alert02Icon,
+  ArrowDown01Icon,
+  Cancel01Icon,
+  ChatBotIcon,
+  CodeIcon,
+  Copy01Icon,
+  HierarchyIcon,
+  LanguageCircleIcon,
+  LinkSquare01Icon,
+  PlayIcon,
+  Search01Icon,
+  Settings03Icon,
+  Tick01Icon,
+  TimeZoneIcon,
+  ToolsIcon,
+  Wrench01Icon,
+} from "@hugeicons/core-free-icons";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { api, type Agent, type VoiceProviderSettings, type VoiceOption, type TtsModelSpec } from "@/lib/api/client";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  api,
+  type Agent,
+  type VoiceProviderSettings,
+  type VoiceOption,
+  type TtsModelSpec,
+} from "@/lib/api/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -98,7 +128,8 @@ function getConfigFields(config: Record<string, unknown>): {
     voice_id: (config?.voice_id as string) || "",
     tts_provider: (config?.tts_provider as string) || "",
     tts_model: (config?.tts_model as string) || "",
-    gemini_live_model: (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
+    gemini_live_model:
+      (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
   };
 }
 
@@ -152,7 +183,12 @@ interface AgentConfigEditorProps {
   lastDiff?: string | null;
 }
 
-export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }: AgentConfigEditorProps) {
+export default function AgentConfigEditor({
+  agentId,
+  agent,
+  onUpdate,
+  lastDiff,
+}: AgentConfigEditorProps) {
   const config = agent?.current_config as Record<string, unknown> | null;
   const fields = config ? getConfigFields(config) : null;
 
@@ -173,36 +209,47 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
   const [copied, setCopied] = useState(false);
   const fullConfig = (config || {}) as FullConfig;
   const nodeIds = useMemo(() => Object.keys(fullConfig.nodes || {}), [fullConfig.nodes]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(fullConfig.entry || nodeIds[0] || "");
+  const [selectedNodeId, setSelectedNodeId] = useState<string>(
+    fullConfig.entry || nodeIds[0] || ""
+  );
   const [nativeMultimodalEnabled, setNativeMultimodalEnabled] = useState(false);
   const globalSyncToastId = `agent-config-sync-${agentId}`;
 
   // Fetch voice catalog — called on mount and whenever language changes.
   // For non-English languages, the backend hits /v1/shared-voices with
   // required_languages so the list is filtered to voices that support that language.
-  const fetchVoices = useCallback((lang: string) => {
-    const f = config ? getConfigFields(config) : null;
-    setVoicesLoading(true);
-    api.settings
-      .getTtsVoices(lang, f?.tts_provider || undefined)
-      .then(setVoices)
-      .catch(() => setVoices([]))
-      .finally(() => setVoicesLoading(false));
-  }, [config]);
-
+  const fetchVoices = useCallback(
+    (lang: string) => {
+      const f = config ? getConfigFields(config) : null;
+      setVoicesLoading(true);
+      api.settings
+        .getTtsVoices(lang, f?.tts_provider || undefined)
+        .then(setVoices)
+        .catch(() => setVoices([]))
+        .finally(() => setVoicesLoading(false));
+    },
+    [config]
+  );
 
   // Load TTS provider settings + language list + voice catalog once
   useEffect(() => {
-    api.settings.getTTS().then(setTts).catch(() => {});
-    api.settings.getNativeMultimodal()
-      .then(res => setNativeMultimodalEnabled(res.has_api_key))
+    api.settings
+      .getTTS()
+      .then(setTts)
+      .catch(() => {});
+    api.settings
+      .getNativeMultimodal()
+      .then((res) => setNativeMultimodalEnabled(res.has_api_key))
       .catch(() => {});
     api.agents
       .getLanguages()
       .then((langs) => setLanguageOptions(langs.map((l) => ({ value: l.code, label: l.label }))))
       .catch(() => {}); // keep fallback list on error
     // Fetch TTS model catalog for language→voice suggestions
-    api.agents.getTtsModels().then(setTtsModels).catch(() => {});
+    api.agents
+      .getTtsModels()
+      .then(setTtsModels)
+      .catch(() => {});
   }, []);
 
   // Initial voice fetch (once we know the agent language from config)
@@ -214,7 +261,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
     if (voicesFetchedForLang === f.language) return;
     setVoicesFetchedForLang(f.language);
     fetchVoices(f.language);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
   // Sync draft states when fields change from outside (e.g., initial load or full sync)
@@ -223,90 +270,107 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
     setLanguage(fields.language);
     setTimezone(fields.timezone);
     setVoiceIdDraft(fields.voice_id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model]);
 
-  const patchField = useCallback(async (payload: Record<string, string | boolean | null>) => {
-    const primaryField = Object.keys(payload).find((k) => k !== "regenerate_greeting");
-    if (!primaryField && !payload.regenerate_greeting) return;
-    const trackField = primaryField ?? "language";
-    const showGlobalSyncToast = !["voice_id", "language", "timezone"].includes(trackField);
+  const patchField = useCallback(
+    async (payload: Record<string, string | boolean | null>) => {
+      const primaryField = Object.keys(payload).find((k) => k !== "regenerate_greeting");
+      if (!primaryField && !payload.regenerate_greeting) return;
+      const trackField = primaryField ?? "language";
+      const showGlobalSyncToast = !["voice_id", "language", "timezone"].includes(trackField);
 
-    setSaving(trackField);
-    setSaved(null);
-    if (showGlobalSyncToast) {
-      toast.loading("Syncing configuration...", { id: globalSyncToastId });
-    }
-    try {
-      const updated = await api.agents.patchConfig(agentId, payload);
-      onUpdate(updated);
-      setSaved(trackField);
-      setTimeout(() => setSaved(null), 1500);
-      if (updated.greeting_updated && updated.greeting) {
-        toast.success("Greeting synced", {
-          description: updated.greeting,
-        });
-      }
-      if (updated.model_warning) {
-        toast.warning("Voice model warning", {
-          description: updated.model_warning,
-        });
-      }
-    } catch {
-      toast.error("Failed to update configuration");
-    } finally {
-      setSaving(null);
+      setSaving(trackField);
+      setSaved(null);
       if (showGlobalSyncToast) {
-        toast.dismiss(globalSyncToastId);
+        toast.loading("Syncing configuration...", { id: globalSyncToastId });
       }
-    }
-  }, [agentId, globalSyncToastId, onUpdate]);
-
-  // Debounced save for voice_id text input
-  const handleVoiceIdChange = useCallback((value: string) => {
-    setVoiceIdDraft(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const payload: Record<string, string> = { voice_id: value };
-
-      // Use the agent's current provider if set, otherwise fallback to global
-      const f = config ? getConfigFields(config) : null;
-      const activeProvider = f?.tts_provider || tts?.provider;
-      const activeModel = f?.tts_model || (activeProvider === tts?.provider ? tts?.config?.model : "");
-
-      if (activeProvider) {
-        payload.tts_provider = activeProvider;
-        if (activeModel) {
-          payload.tts_model = activeModel as string;
+      try {
+        const updated = await api.agents.patchConfig(agentId, payload);
+        onUpdate(updated);
+        setSaved(trackField);
+        setTimeout(() => setSaved(null), 1500);
+        if (updated.greeting_updated && updated.greeting) {
+          toast.success("Greeting synced", {
+            description: updated.greeting,
+          });
+        }
+        if (updated.model_warning) {
+          toast.warning("Voice model warning", {
+            description: updated.model_warning,
+          });
+        }
+      } catch {
+        toast.error("Failed to update configuration");
+      } finally {
+        setSaving(null);
+        if (showGlobalSyncToast) {
+          toast.dismiss(globalSyncToastId);
         }
       }
-      patchField(payload);
-    }, 600);
-  }, [patchField, tts, config]);
+    },
+    [agentId, globalSyncToastId, onUpdate]
+  );
+
+  // Debounced save for voice_id text input
+  const handleVoiceIdChange = useCallback(
+    (value: string) => {
+      setVoiceIdDraft(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const payload: Record<string, string> = { voice_id: value };
+
+        // Use the agent's current provider if set, otherwise fallback to global
+        const f = config ? getConfigFields(config) : null;
+        const activeProvider = f?.tts_provider || tts?.provider;
+        const activeModel =
+          f?.tts_model || (activeProvider === tts?.provider ? tts?.config?.model : "");
+
+        if (activeProvider) {
+          payload.tts_provider = activeProvider;
+          if (activeModel) {
+            payload.tts_model = activeModel as string;
+          }
+        }
+        patchField(payload);
+      }, 600);
+    },
+    [patchField, tts, config]
+  );
 
   // Debounced save for Gemini Voice, avoids clobbering TTS provider/model
-  const handleGeminiVoiceIdChange = useCallback((value: string) => {
-    setVoiceIdDraft(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      patchField({ voice_id: value });
-    }, 600);
-  }, [patchField]);
-
-
+  const handleGeminiVoiceIdChange = useCallback(
+    (value: string) => {
+      setVoiceIdDraft(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        patchField({ voice_id: value });
+      }, 600);
+    },
+    [patchField]
+  );
 
   // Switch the agent's TTS provider — saves provider + model, clears voice, re-fetches voices
-  const handleProviderChange = useCallback(async (newProvider: string) => {
-    if (!tts) return;
-    const savedConfig = tts.all_configs?.[newProvider] || {};
-    const defaultModel = savedConfig.model || "";
-    // Clear the voice — user should pick from the new provider's list
-    setVoiceIdDraft("");
-    const payload: Record<string, string> = { tts_provider: newProvider, voice_id: "", tts_model: defaultModel || "" };
-    await patchField(payload);
-    api.settings.getTtsVoices(language, newProvider).then(setVoices).catch(() => setVoices([]));
-  }, [tts, patchField, language]);
-
+  const handleProviderChange = useCallback(
+    async (newProvider: string) => {
+      if (!tts) return;
+      const savedConfig = tts.all_configs?.[newProvider] || {};
+      const defaultModel = savedConfig.model || "";
+      // Clear the voice — user should pick from the new provider's list
+      setVoiceIdDraft("");
+      const payload: Record<string, string> = {
+        tts_provider: newProvider,
+        voice_id: "",
+        tts_model: defaultModel || "",
+      };
+      await patchField(payload);
+      api.settings
+        .getTtsVoices(language, newProvider)
+        .then(setVoices)
+        .catch(() => setVoices([]));
+    },
+    [tts, patchField, language]
+  );
 
   if (!config) return null;
 
@@ -368,7 +432,10 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
             onClick={handleCopy}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all active:scale-95 border border-transparent hover:border-primary/10"
           >
-            <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} className={cn("size-4", copied && "text-emerald-500")} />
+            <HugeiconsIcon
+              icon={copied ? Tick01Icon : Copy01Icon}
+              className={cn("size-4", copied && "text-emerald-500")}
+            />
             {copied ? "Copied" : "Copy JSON"}
           </button>
         )}
@@ -377,10 +444,14 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
       {lastDiff && <ConfigDiff description={lastDiff} />}
 
       <div className="relative">
-        <div className={cn(
-          "transition-all duration-500",
-          view === "agent" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none absolute w-full"
-        )}>
+        <div
+          className={cn(
+            "transition-all duration-500",
+            view === "agent"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-4 pointer-events-none absolute w-full"
+          )}
+        >
           {view === "agent" && (
             <div className="space-y-6">
               <div className="relative group/container">
@@ -404,7 +475,7 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                           patchField({
                             language: v,
                             voice_id: "",
-                            regenerate_greeting: true
+                            regenerate_greeting: true,
                           });
 
                           fetchVoices(v);
@@ -442,27 +513,43 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                       >
                         <div className="flex items-center gap-2">
                           <Select
-                            value={GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft) ? voiceIdDraft : GEMINI_LIVE_VOICES[0].value}
+                            value={
+                              GEMINI_LIVE_VOICES.some((v) => v.value === voiceIdDraft)
+                                ? voiceIdDraft
+                                : GEMINI_LIVE_VOICES[0].value
+                            }
                             onValueChange={(v) => handleGeminiVoiceIdChange(v)}
                             disabled={saving === "voice_id"}
                           >
                             <SelectTrigger className="h-9 w-auto min-w-36 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
                               <SelectValue>
-                                {GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft) ? voiceIdDraft : GEMINI_LIVE_VOICES[0].value}
+                                {GEMINI_LIVE_VOICES.some((v) => v.value === voiceIdDraft)
+                                  ? voiceIdDraft
+                                  : GEMINI_LIVE_VOICES[0].value}
                               </SelectValue>
-
                             </SelectTrigger>
                             <SelectContent>
                               {GEMINI_LIVE_VOICES.map((v) => (
-                                <SelectItem key={v.value} value={v.value} className="text-xs font-semibold">
+                                <SelectItem
+                                  key={v.value}
+                                  value={v.value}
+                                  className="text-xs font-semibold"
+                                >
                                   {v.value}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                           <div className="flex items-center w-6 justify-center">
-                            {saving === "voice_id" && <Spinner className="size-3.5 text-primary animate-spin" />}
-                            {saved === "voice_id" && <HugeiconsIcon icon={Tick01Icon} className="size-4 text-emerald-500" />}
+                            {saving === "voice_id" && (
+                              <Spinner className="size-3.5 text-primary animate-spin" />
+                            )}
+                            {saved === "voice_id" && (
+                              <HugeiconsIcon
+                                icon={Tick01Icon}
+                                className="size-4 text-emerald-500"
+                              />
+                            )}
                           </div>
                         </div>
                       </SettingRow>
@@ -476,76 +563,96 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                       >
                         <div className="flex w-full items-center gap-3 pl-12 flex-wrap">
                           <div className="flex items-center gap-2">
-                            {tts && (() => {
-                              const configuredProviders = tts.supported_providers.filter(
-                                (p) => tts.all_credentials?.[p.value]
-                              );
-                              if (configuredProviders.length > 1) {
-                                return (
-                                  <Select
-                                    value={f.tts_provider || tts.provider}
-                                    onValueChange={handleProviderChange}
-                                    disabled={saving === "tts_provider"}
-                                  >
-                                    <SelectTrigger className="h-9 w-auto min-w-32 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
-                                      <SelectValue>{providerName}</SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {configuredProviders.map((p) => (
-                                        <SelectItem key={p.value} value={p.value} className="text-xs font-semibold">
-                                          {p.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                            {tts &&
+                              (() => {
+                                const configuredProviders = tts.supported_providers.filter(
+                                  (p) => tts.all_credentials?.[p.value]
                                 );
-                              }
-                              return (
-                                <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-accent/50 border border-border/50 text-muted-foreground uppercase tracking-wider">
-                                  {providerName}
-                                  {docsUrl && (
-                                    <a href={docsUrl} target="_blank" rel="noopener noreferrer"
-                                      className="text-muted-foreground hover:text-primary transition-colors"
-                                      onClick={(e) => e.stopPropagation()}
+                                if (configuredProviders.length > 1) {
+                                  return (
+                                    <Select
+                                      value={f.tts_provider || tts.provider}
+                                      onValueChange={handleProviderChange}
+                                      disabled={saving === "tts_provider"}
                                     >
-                                      <HugeiconsIcon icon={LinkSquare01Icon} className="size-3" />
-                                    </a>
-                                  )}
-                                </span>
-                              );
-                            })()}
-
-                            {ttsModels && tts && (() => {
-                              const activeProvider = f.tts_provider || tts.provider;
-                              const providerModels = ttsModels.filter(m => m.provider === activeProvider);
-                              if (providerModels.length > 0) {
-                                let activeModel = f.tts_model || (activeProvider === tts.provider ? tts.config?.model : "") || providerModels[0].model_id;
-                                if (!providerModels.some(m => m.model_id === activeModel)) {
-                                  activeModel = providerModels[0].model_id;
+                                      <SelectTrigger className="h-9 w-auto min-w-32 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                                        <SelectValue>{providerName}</SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {configuredProviders.map((p) => (
+                                          <SelectItem
+                                            key={p.value}
+                                            value={p.value}
+                                            className="text-xs font-semibold"
+                                          >
+                                            {p.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  );
                                 }
                                 return (
-                                  <Select
-                                    value={activeModel}
-                                    onValueChange={(m) => patchField({ tts_model: m })}
-                                    disabled={saving === "tts_model"}
-                                  >
-                                    <SelectTrigger className="h-9 w-auto min-w-28 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
-                                      <SelectValue>
-                                        {providerModels.find(m => m.model_id === activeModel)?.label ?? activeModel}
-                                      </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {providerModels.map((m) => (
-                                        <SelectItem key={m.model_id} value={m.model_id} className="text-xs font-semibold">
-                                          {m.label || m.model_id}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-accent/50 border border-border/50 text-muted-foreground uppercase tracking-wider">
+                                    {providerName}
+                                    {docsUrl && (
+                                      <a
+                                        href={docsUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-muted-foreground hover:text-primary transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <HugeiconsIcon icon={LinkSquare01Icon} className="size-3" />
+                                      </a>
+                                    )}
+                                  </span>
                                 );
-                              }
-                              return null;
-                            })()}
+                              })()}
+
+                            {ttsModels &&
+                              tts &&
+                              (() => {
+                                const activeProvider = f.tts_provider || tts.provider;
+                                const providerModels = ttsModels.filter(
+                                  (m) => m.provider === activeProvider
+                                );
+                                if (providerModels.length > 0) {
+                                  let activeModel =
+                                    f.tts_model ||
+                                    (activeProvider === tts.provider ? tts.config?.model : "") ||
+                                    providerModels[0].model_id;
+                                  if (!providerModels.some((m) => m.model_id === activeModel)) {
+                                    activeModel = providerModels[0].model_id;
+                                  }
+                                  return (
+                                    <Select
+                                      value={activeModel}
+                                      onValueChange={(m) => patchField({ tts_model: m })}
+                                      disabled={saving === "tts_model"}
+                                    >
+                                      <SelectTrigger className="h-9 w-auto min-w-28 text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
+                                        <SelectValue>
+                                          {providerModels.find((m) => m.model_id === activeModel)
+                                            ?.label ?? activeModel}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {providerModels.map((m) => (
+                                          <SelectItem
+                                            key={m.model_id}
+                                            value={m.model_id}
+                                            className="text-xs font-semibold"
+                                          >
+                                            {m.label || m.model_id}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                }
+                                return null;
+                              })()}
                           </div>
 
                           <div className="flex items-center gap-3">
@@ -557,7 +664,9 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                               <VoicePicker
                                 voices={voices}
                                 value={voiceIdDraft}
-                                onChange={(id) => { handleVoiceIdChange(id); }}
+                                onChange={(id) => {
+                                  handleVoiceIdChange(id);
+                                }}
                                 disabled={saving === "voice_id"}
                               />
                             ) : (
@@ -566,7 +675,11 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                                   type="text"
                                   value={voiceIdDraft}
                                   onChange={(e) => handleVoiceIdChange(e.target.value)}
-                                  placeholder={defaultVoiceId ? `default (${truncate(defaultVoiceId, 16)})` : "custom-voice-id"}
+                                  placeholder={
+                                    defaultVoiceId
+                                      ? `default (${truncate(defaultVoiceId, 16)})`
+                                      : "custom-voice-id"
+                                  }
                                   disabled={saving === "voice_id"}
                                   className="h-9 w-full rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all font-mono"
                                 />
@@ -584,12 +697,22 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                                   title="Copy Voice ID"
                                   className="p-2 rounded-lg hover:bg-accent/60 text-muted-foreground hover:text-primary transition-all active:scale-95"
                                 >
-                                  <HugeiconsIcon icon={saved === "voice_id_copy" ? Tick01Icon : Copy01Icon} className={`size-4 ${saved === "voice_id_copy" ? "text-emerald-500" : ""}`} />
+                                  <HugeiconsIcon
+                                    icon={saved === "voice_id_copy" ? Tick01Icon : Copy01Icon}
+                                    className={`size-4 ${saved === "voice_id_copy" ? "text-emerald-500" : ""}`}
+                                  />
                                 </button>
                               )}
                               <div className="flex items-center w-6 justify-center">
-                                {saving === "voice_id" && <Spinner className="size-3.5 text-primary animate-spin" />}
-                                {saved === "voice_id" && <HugeiconsIcon icon={Tick01Icon} className="size-4 text-emerald-500" />}
+                                {saving === "voice_id" && (
+                                  <Spinner className="size-3.5 text-primary animate-spin" />
+                                )}
+                                {saved === "voice_id" && (
+                                  <HugeiconsIcon
+                                    icon={Tick01Icon}
+                                    className="size-4 text-emerald-500"
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>
@@ -608,15 +731,17 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                         value={isGeminiLive ? "native" : "standard"}
                         onValueChange={(val) => {
                           const newModel = val === "native" ? "default" : "";
-                          const payload: Record<string, string> = { gemini_live_model: newModel };
+                          const payload: Record<string, string> = {
+                            gemini_live_model: newModel,
+                          };
 
                           if (val === "native") {
-                            if (!GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft)) {
+                            if (!GEMINI_LIVE_VOICES.some((v) => v.value === voiceIdDraft)) {
                               payload.voice_id = GEMINI_LIVE_VOICES[0].value;
                               setVoiceIdDraft(GEMINI_LIVE_VOICES[0].value);
                             }
                           } else {
-                            if (GEMINI_LIVE_VOICES.some(v => v.value === voiceIdDraft)) {
+                            if (GEMINI_LIVE_VOICES.some((v) => v.value === voiceIdDraft)) {
                               payload.voice_id = "";
                               setVoiceIdDraft("");
                             }
@@ -627,13 +752,19 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                       >
                         <SelectTrigger className="h-9 w-[280px] text-xs font-bold px-3 border-border/60 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors">
                           <SelectValue>
-                            {isGeminiLive ? "Native Multimodal (Gemini Live)" : "Standard Pipeline (STT + LLM + TTS)"}
+                            {isGeminiLive
+                              ? "Native Multimodal (Gemini Live)"
+                              : "Standard Pipeline (STT + LLM + TTS)"}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="standard" className="text-xs font-semibold">Standard Pipeline (STT + LLM + TTS)</SelectItem>
+                          <SelectItem value="standard" className="text-xs font-semibold">
+                            Standard Pipeline (STT + LLM + TTS)
+                          </SelectItem>
                           {(isGeminiLive || nativeMultimodalEnabled) && (
-                            <SelectItem value="native" className="text-xs font-semibold">Native Multimodal (Gemini Live)</SelectItem>
+                            <SelectItem value="native" className="text-xs font-semibold">
+                              Native Multimodal (Gemini Live)
+                            </SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -652,7 +783,9 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                         <HugeiconsIcon icon={ChatBotIcon} className="size-4" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-xs font-bold tracking-tight text-foreground">Persona</h3>
+                        <h3 className="text-xs font-bold tracking-tight text-foreground">
+                          Persona
+                        </h3>
                         <p className="text-[10px] font-medium text-muted-foreground leading-snug">
                           Prompt and greeting configuration for the selected node.
                         </p>
@@ -662,7 +795,10 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                     {nodeIds.length >= 1 && (
                       <Select value={activeNodeId} onValueChange={setSelectedNodeId}>
                         <SelectTrigger className="h-9 w-full md:w-auto md:min-w-[220px] max-w-[320px] gap-2 bg-accent/20 border-border/60 text-[10px] font-bold uppercase tracking-widest">
-                          <HugeiconsIcon icon={HierarchyIcon} className="size-3.5 opacity-60 shrink-0" />
+                          <HugeiconsIcon
+                            icon={HierarchyIcon}
+                            className="size-3.5 opacity-60 shrink-0"
+                          />
                           <SelectValue>{activeNodeId.replaceAll("_", " ")}</SelectValue>
                         </SelectTrigger>
                         <SelectContent className="rounded-xl shadow-2xl">
@@ -700,8 +836,13 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                       </div>
                     ) : (
                       <div className="py-20 flex flex-col items-center justify-center text-center opacity-50">
-                        <HugeiconsIcon icon={Alert02Icon} className="size-10 mb-4 text-muted-foreground" />
-                        <p className="text-sm font-medium">No persona prompt defined for entry node.</p>
+                        <HugeiconsIcon
+                          icon={Alert02Icon}
+                          className="size-10 mb-4 text-muted-foreground"
+                        />
+                        <p className="text-sm font-medium">
+                          No persona prompt defined for entry node.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -747,7 +888,12 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                                       <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/50 leading-none">
                                         {tool.side_effect ? "Write" : "Read"}
                                       </span>
-                                      <div className={cn("size-1.5 rounded-full", tool.side_effect ? "bg-amber-400" : "bg-emerald-400")} />
+                                      <div
+                                        className={cn(
+                                          "size-1.5 rounded-full",
+                                          tool.side_effect ? "bg-amber-400" : "bg-emerald-400"
+                                        )}
+                                      />
                                     </div>
                                   </div>
                                 </div>
@@ -770,13 +916,18 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                                   <HugeiconsIcon icon={CodeIcon} className="size-4" />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
-                                  <span className="text-sm font-bold tracking-tight break-all">{id}</span>
+                                  <span className="text-sm font-bold tracking-tight break-all">
+                                    {id}
+                                  </span>
                                 </div>
                               </div>
                             </div>
                             <div className="p-0 bg-[#ffffff] overflow-auto max-h-[70vh]">
                               <ShikiCodeBlock
-                                code={tool.script?.replace(/\\n/g, "\n") || "// No implementation provided"}
+                                code={
+                                  tool.script?.replace(/\\n/g, "\n") ||
+                                  "// No implementation provided"
+                                }
                                 lang="javascript"
                                 className="max-h-[70vh]"
                               />
@@ -787,7 +938,10 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
                     </div>
                   ) : (
                     <div className="py-12 flex flex-col items-center justify-center text-center opacity-50">
-                      <HugeiconsIcon icon={Alert02Icon} className="size-10 mb-4 text-muted-foreground" />
+                      <HugeiconsIcon
+                        icon={Alert02Icon}
+                        className="size-10 mb-4 text-muted-foreground"
+                      />
                       <p className="text-sm font-medium">No tools configured.</p>
                     </div>
                   )}
@@ -797,13 +951,15 @@ export default function AgentConfigEditor({ agentId, agent, onUpdate, lastDiff }
           )}
         </div>
 
-        <div className={cn(
-          "transition-all duration-500",
-          view === "raw" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none absolute top-0 left-0 w-full"
-        )}>
-          {view === "raw" && (
-            <ConfigViewer config={configData} />
+        <div
+          className={cn(
+            "transition-all duration-500",
+            view === "raw"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-4 pointer-events-none absolute top-0 left-0 w-full"
           )}
+        >
+          {view === "raw" && <ConfigViewer config={configData} />}
         </div>
       </div>
     </div>
@@ -832,17 +988,21 @@ function SettingRow({
   childrenClassName?: string;
 }) {
   return (
-    <div className={cn(
-      "flex items-center justify-between px-5 py-4 bg-transparent transition-all hover:bg-accent/2 group/row first:rounded-t-2xl last:rounded-b-2xl",
-      className
-    )}>
+    <div
+      className={cn(
+        "flex items-center justify-between px-5 py-4 bg-transparent transition-all hover:bg-accent/2 group/row first:rounded-t-2xl last:rounded-b-2xl",
+        className
+      )}
+    >
       <div className="flex items-center gap-4 min-w-0 flex-1 w-full">
         <div className="size-8 rounded-lg bg-accent/30 flex items-center justify-center text-muted-foreground shrink-0 group-hover/row:bg-primary/10 group-hover/row:text-primary transition-all duration-300">
           {icon}
         </div>
         <div className="min-w-0 flex flex-col gap-0.5">
           <div className="text-xs font-bold tracking-tight text-foreground">{label}</div>
-          <div className="text-[10px] text-muted-foreground leading-snug font-medium">{description}</div>
+          <div className="text-[10px] text-muted-foreground leading-snug font-medium">
+            {description}
+          </div>
         </div>
       </div>
       <div className={cn("shrink-0 ml-4", childrenClassName)}>{children}</div>
@@ -871,11 +1031,13 @@ function SelectField({
             <SelectValue>{options.find((o) => o.value === value)?.label ?? value}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {options.filter((o) => o.value !== "").map((o) => (
-              <SelectItem key={o.value} value={o.value} className="text-xs font-semibold">
-                {o.label}
-              </SelectItem>
-            ))}
+            {options
+              .filter((o) => o.value !== "")
+              .map((o) => (
+                <SelectItem key={o.value} value={o.value} className="text-xs font-semibold">
+                  {o.label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
@@ -914,7 +1076,9 @@ function VoicePicker({
   // Close on outside click / Escape
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     const onDown = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -962,7 +1126,10 @@ function VoicePicker({
     <button
       key={v.voice_id}
       type="button"
-      onClick={() => { onChange(v.voice_id); setOpen(false); }}
+      onClick={() => {
+        onChange(v.voice_id);
+        setOpen(false);
+      }}
       className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[10px] hover:bg-accent transition-colors ${
         v.voice_id === value ? "bg-primary/5 text-primary" : "text-foreground"
       }`}
@@ -1016,7 +1183,10 @@ function VoicePicker({
               {selected.language.slice(0, 2)}
             </span>
           )}
-          <HugeiconsIcon icon={ArrowDown01Icon} className={`size-3 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            className={`size-3 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
         </div>
       </button>
 
@@ -1035,7 +1205,10 @@ function VoicePicker({
               className="flex-1 bg-transparent text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
             />
             {query && (
-              <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setQuery("")}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
               </button>
             )}

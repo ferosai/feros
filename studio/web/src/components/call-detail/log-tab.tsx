@@ -103,7 +103,8 @@ function toolTimingsForTurn(turn: TurnView): ToolTiming[] {
     const at = parseTimeMs(event.occurred_at);
 
     let durationMs = asNumber(payload.duration_ms) ?? 0;
-    const looksStart = status === "started" || status === "start" || status === "running" || status === "executing";
+    const looksStart =
+      status === "started" || status === "start" || status === "running" || status === "executing";
     const looksEnd =
       status === "completed" ||
       status === "success" ||
@@ -297,7 +298,10 @@ function normalizeStageDurations(
   toolDurationByTurn: Record<string, number>,
   totalDurationSec?: number | null
 ): Record<string, { stt: number; llm: number; tts: number; tool: number; total: number }> {
-  const rawByTurn: Record<string, { stt: number; llm: number; tts: number; tool: number; total: number }> = {};
+  const rawByTurn: Record<
+    string,
+    { stt: number; llm: number; tts: number; tool: number; total: number }
+  > = {};
   let rawTotal = 0;
   for (const turn of turns) {
     const stt = stageDuration(turn, "stt");
@@ -308,11 +312,15 @@ function normalizeStageDurations(
     rawByTurn[turn.key] = { stt, llm, tts, tool, total };
     rawTotal += total;
   }
-  const targetTotalMs = (totalDurationSec ?? 0) > 0 ? (totalDurationSec as number) * 1000 : rawTotal;
+  const targetTotalMs =
+    (totalDurationSec ?? 0) > 0 ? (totalDurationSec as number) * 1000 : rawTotal;
   if (targetTotalMs <= 0 || rawTotal <= 0) return rawByTurn;
 
   const scale = targetTotalMs / rawTotal;
-  const out: Record<string, { stt: number; llm: number; tts: number; tool: number; total: number }> = {};
+  const out: Record<
+    string,
+    { stt: number; llm: number; tts: number; tool: number; total: number }
+  > = {};
   for (const turn of turns) {
     const raw = rawByTurn[turn.key];
     const stt = raw.stt * scale;
@@ -348,7 +356,10 @@ export function LogTab({
   const toolDurationByTurn = useMemo(() => {
     const out: Record<string, number> = {};
     for (const turn of turns) {
-      out[turn.key] = (toolTimingsByTurn[turn.key] ?? []).reduce((acc, item) => acc + item.durationMs, 0);
+      out[turn.key] = (toolTimingsByTurn[turn.key] ?? []).reduce(
+        (acc, item) => acc + item.durationMs,
+        0
+      );
     }
     return out;
   }, [turns, toolTimingsByTurn]);
@@ -391,9 +402,7 @@ export function LogTab({
   if (!hasInternalLogs && externalLinks.length > 0) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          This call has no internal event logs.
-        </p>
+        <p className="text-sm text-muted-foreground">This call has no internal event logs.</p>
       </div>
     );
   }
@@ -423,14 +432,18 @@ export function LogTab({
           <div className="rounded-lg border border-border/60 p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium text-foreground">Turn Timeline</p>
-              <p className="text-[10px] text-muted-foreground">
-                Total {formatMs(timelineTotalMs)}
-              </p>
+              <p className="text-[10px] text-muted-foreground">Total {formatMs(timelineTotalMs)}</p>
             </div>
             <div className="h-3 w-full overflow-hidden rounded-full bg-secondary/40">
               <div className="flex h-full w-full">
                 {visibleTurns.map((turn) => {
-                  const normalized = normalizedByTurn[turn.key] ?? { stt: 0, llm: 0, tts: 0, tool: 0, total: 1 };
+                  const normalized = normalizedByTurn[turn.key] ?? {
+                    stt: 0,
+                    llm: 0,
+                    tts: 0,
+                    tool: 0,
+                    total: 1,
+                  };
                   const total = Math.max(1, normalized.total);
                   const widthPct = Math.max(4, (total / timelineTotalMs) * 100);
                   const sttMs = normalized.stt;
@@ -441,22 +454,39 @@ export function LogTab({
                   const muted = selectedTurnKey != null && !selected;
                   const TOOL_SEGMENT_MIN_MS = 1000;
                   const showToolInTimeline = toolMs >= TOOL_SEGMENT_MIN_MS;
-                  const totalStage = Math.max(1, sttMs + llmMs + ttsMs + (showToolInTimeline ? toolMs : 0));
+                  const totalStage = Math.max(
+                    1,
+                    sttMs + llmMs + ttsMs + (showToolInTimeline ? toolMs : 0)
+                  );
                   return (
                     <button
                       key={turn.key}
                       type="button"
                       title={`Turn ${turn.turnNumber}`}
-                      onClick={() => setSelectedTurnKey((cur) => (cur === turn.key ? null : turn.key))}
+                      onClick={() =>
+                        setSelectedTurnKey((cur) => (cur === turn.key ? null : turn.key))
+                      }
                       className={`h-full ${muted ? "opacity-35" : "opacity-100"} transition-opacity`}
                       style={{ width: `${widthPct}%` }}
                     >
                       <div className="flex h-full w-full">
-                        <div className={`${stageColor("stt")} h-full`} style={{ width: `${(sttMs / totalStage) * 100}%` }} />
-                        <div className={`${stageColor("llm")} h-full`} style={{ width: `${(llmMs / totalStage) * 100}%` }} />
-                        <div className={`${stageColor("tts")} h-full`} style={{ width: `${(ttsMs / totalStage) * 100}%` }} />
+                        <div
+                          className={`${stageColor("stt")} h-full`}
+                          style={{ width: `${(sttMs / totalStage) * 100}%` }}
+                        />
+                        <div
+                          className={`${stageColor("llm")} h-full`}
+                          style={{ width: `${(llmMs / totalStage) * 100}%` }}
+                        />
+                        <div
+                          className={`${stageColor("tts")} h-full`}
+                          style={{ width: `${(ttsMs / totalStage) * 100}%` }}
+                        />
                         {showToolInTimeline ? (
-                          <div className={`${toolColor()} h-full`} style={{ width: `${(toolMs / totalStage) * 100}%` }} />
+                          <div
+                            className={`${toolColor()} h-full`}
+                            style={{ width: `${(toolMs / totalStage) * 100}%` }}
+                          />
                         ) : null}
                       </div>
                     </button>
@@ -481,7 +511,13 @@ export function LogTab({
           </div>
 
           {visibleTurns.map((turn) => {
-            const normalized = normalizedByTurn[turn.key] ?? { stt: 0, llm: 0, tts: 0, tool: 0, total: 0 };
+            const normalized = normalizedByTurn[turn.key] ?? {
+              stt: 0,
+              llm: 0,
+              tts: 0,
+              tool: 0,
+              total: 0,
+            };
             const sttMs = normalized.stt;
             const llmMs = normalized.llm;
             const ttsMs = normalized.tts;
@@ -496,31 +532,36 @@ export function LogTab({
                   onClick={() => setSelectedTurnKey((cur) => (cur === turn.key ? null : turn.key))}
                   className={`w-full px-3 py-2 text-left ${expanded ? "bg-secondary/25" : "hover:bg-secondary/20"}`}
                 >
-	                  <div className="flex flex-wrap items-center justify-between gap-2">
-	                    <div className="flex items-center gap-2">
-	                      <span className="text-sm font-medium text-foreground">
-	                        {turn.turnNumber > 0
-	                          ? `Turn ${turn.turnNumber}`
-	                          : turn.turnNumber === 0
-	                            ? "Turn 0 (Greeting)"
-	                            : "Unlabeled Turn"}
-	                      </span>
-                        {turn.turnNumber === 0 ? (
-                          <Badge variant="outline" className="h-5 px-1.5 text-[10px] uppercase tracking-wide">
-                            Greeting
-                          </Badge>
-                        ) : null}
-	                      <span className="text-[10px] text-muted-foreground">
-	                        #{turn.startSeq} - #{turn.endSeq}
-	                      </span>
-	                    </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {turn.turnNumber > 0
+                          ? `Turn ${turn.turnNumber}`
+                          : turn.turnNumber === 0
+                            ? "Turn 0 (Greeting)"
+                            : "Unlabeled Turn"}
+                      </span>
+                      {turn.turnNumber === 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="h-5 px-1.5 text-[10px] uppercase tracking-wide"
+                        >
+                          Greeting
+                        </Badge>
+                      ) : null}
+                      <span className="text-[10px] text-muted-foreground">
+                        #{turn.startSeq} - #{turn.endSeq}
+                      </span>
+                    </div>
                     <span className="text-xs text-foreground">{formatMs(total)}</span>
                   </div>
                   <div className="mt-1 grid grid-cols-4 gap-2 text-[10px] text-muted-foreground">
                     <div>STT: {formatMs(sttMs)}</div>
                     <div>LLM: {llmMs > 0 ? formatMs(llmMs) : "N/A"}</div>
                     <div>TTS: {ttsMs > 0 || turn.tts.length > 0 ? formatMs(ttsMs) : "N/A"}</div>
-                    <div>Tool: {formatMs(toolMs)} ({turn.tools.length})</div>
+                    <div>
+                      Tool: {formatMs(toolMs)} ({turn.tools.length})
+                    </div>
                   </div>
                 </button>
 
@@ -533,7 +574,10 @@ export function LogTab({
                           <p className="text-muted-foreground">No STT event</p>
                         ) : (
                           turn.stt.map((e) => (
-                            <div key={`stt-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
+                            <div
+                              key={`stt-${e.seq}`}
+                              className="rounded border border-border/50 p-2 text-[10px]"
+                            >
                               <p className="text-muted-foreground">{formatMs(e.durationMs)}</p>
                               <p className="mt-1 line-clamp-3 wrap-break-word text-foreground">
                                 {(asString(e.payload.transcript) ?? "").trim() || "—"}
@@ -554,13 +598,20 @@ export function LogTab({
                             const hasTokens = promptTokens > 0 || compTokens > 0;
                             const hasDuration = e.durationMs > 0;
                             return (
-                              <div key={`llm-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
+                              <div
+                                key={`llm-${e.seq}`}
+                                className="rounded border border-border/50 p-2 text-[10px]"
+                              >
                                 <p className="text-muted-foreground">
                                   {hasDuration ? formatMs(e.durationMs) : "Duration N/A"}
                                   {(hasTokens || hasDuration) && " · "}
-                                  {hasTokens ? `tokens ${promptTokens}/${compTokens}` : "tokens N/A"}
+                                  {hasTokens
+                                    ? `tokens ${promptTokens}/${compTokens}`
+                                    : "tokens N/A"}
                                 </p>
-                                <p className="mt-1 wrap-break-word text-foreground">{asString(e.payload.model) ?? "model: —"}</p>
+                                <p className="mt-1 wrap-break-word text-foreground">
+                                  {asString(e.payload.model) ?? "model: —"}
+                                </p>
                               </div>
                             );
                           })
@@ -573,9 +624,13 @@ export function LogTab({
                           <p className="text-muted-foreground">No TTS event</p>
                         ) : (
                           turn.tts.map((e) => (
-                            <div key={`tts-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
+                            <div
+                              key={`tts-${e.seq}`}
+                              className="rounded border border-border/50 p-2 text-[10px]"
+                            >
                               <p className="text-muted-foreground">
-                                {formatMs(e.durationMs)} · chars {asNumber(e.payload.character_count) ?? 0}
+                                {formatMs(e.durationMs)} · chars{" "}
+                                {asNumber(e.payload.character_count) ?? 0}
                               </p>
                               <p className="mt-1 line-clamp-3 wrap-break-word text-foreground">
                                 {(asString(e.payload.text) ?? "").trim() || "—"}
@@ -592,9 +647,13 @@ export function LogTab({
                         ) : (
                           toolTimings.map((e) => {
                             return (
-                              <div key={`tool-${e.seq}`} className="rounded border border-border/50 p-2 text-[10px]">
+                              <div
+                                key={`tool-${e.seq}`}
+                                className="rounded border border-border/50 p-2 text-[10px]"
+                              >
                                 <p className="text-muted-foreground">
-                                  #{e.seq} · {new Date(e.occurredAt).toLocaleTimeString()} · {formatMs(e.durationMs)}
+                                  #{e.seq} · {new Date(e.occurredAt).toLocaleTimeString()} ·{" "}
+                                  {formatMs(e.durationMs)}
                                 </p>
                                 <p className="mt-1 wrap-break-word text-foreground">{e.toolName}</p>
                                 <p className="mt-0.5 text-muted-foreground">{e.status}</p>

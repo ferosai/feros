@@ -64,9 +64,7 @@ export interface NodeDef {
   edges: string[];
   model?: string | undefined;
   temperature?: number | undefined;
-  max_tokens?:
-    | number
-    | undefined;
+  max_tokens?: number | undefined;
   /** TTS voice override */
   voice_id?: string | undefined;
   greeting?: string | undefined;
@@ -81,29 +79,17 @@ export interface AgentGraphDef {
   /** All tool definitions keyed by tool name */
   tools: { [key: string]: ToolDef };
   /** -- Agent-wide settings -- */
-  language?:
-    | string
-    | undefined;
+  language?: string | undefined;
   /** IANA timezone */
-  timezone?:
-    | string
-    | undefined;
+  timezone?: string | undefined;
   /** Default TTS voice ID */
-  voice_id?:
-    | string
-    | undefined;
+  voice_id?: string | undefined;
   /** e.g. "elevenlabs" */
-  tts_provider?:
-    | string
-    | undefined;
+  tts_provider?: string | undefined;
   /** e.g. "eleven_turbo_v2" */
-  tts_model?:
-    | string
-    | undefined;
+  tts_model?: string | undefined;
   /** Session recording configuration */
-  recording?:
-    | RecordingConfig
-    | undefined;
+  recording?: RecordingConfig | undefined;
   /** Envelope field for versions (e.g. "v3_graph") */
   config_schema_version?: string | undefined;
   gemini_live_api_key?: string | undefined;

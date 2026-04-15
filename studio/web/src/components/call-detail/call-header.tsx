@@ -1,5 +1,14 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Calendar01Icon, Call02Icon, Copy01Icon, HashtagIcon, InformationCircleIcon, Robot01Icon, Tick01Icon, Timer01Icon } from "@hugeicons/core-free-icons";
+import {
+  Calendar01Icon,
+  Call02Icon,
+  Copy01Icon,
+  HashtagIcon,
+  InformationCircleIcon,
+  Robot01Icon,
+  Tick01Icon,
+  Timer01Icon,
+} from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -37,7 +46,11 @@ export function CallHeader({ call }: { call: CallLog }) {
               title={copied ? "Copied" : "Copy call ID"}
               aria-label={copied ? "Copied" : "Copy call ID"}
             >
-              {copied ? <HugeiconsIcon icon={Tick01Icon} className="size-3" /> : <HugeiconsIcon icon={Copy01Icon} className="size-3" />}
+              {copied ? (
+                <HugeiconsIcon icon={Tick01Icon} className="size-3" />
+              ) : (
+                <HugeiconsIcon icon={Copy01Icon} className="size-3" />
+              )}
             </button>
           </p>
         </div>
@@ -112,9 +125,7 @@ function InfoItem({
         {icon}
         {label}
       </p>
-      <p className={`mt-1 text-sm text-foreground ${mono ? "font-mono" : ""}`}>
-        {value}
-      </p>
+      <p className={`mt-1 text-sm text-foreground ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }

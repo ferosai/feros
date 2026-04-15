@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // BACKEND_API_URL is the docker-internal bridge URL (http://studio-api:8000).
 // NEXT_PUBLIC_API_URL is the browser-facing URL (http://localhost:8000).
-const BACKEND = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BACKEND =
+  process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**
  * Proxy the OAuth callback from Google (or any provider) to the backend.

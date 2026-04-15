@@ -13,7 +13,7 @@ export function middleware(req: NextRequest) {
   // ── Basic Auth Gate ────────────────────────────────────────────
   let authenticated = false;
   const basicAuth = req.headers.get("authorization");
-  
+
   if (basicAuth && basicAuth.startsWith("Basic ")) {
     const decoded = atob(basicAuth.split(" ")[1]);
     const colonIdx = decoded.indexOf(":");
@@ -33,18 +33,15 @@ export function middleware(req: NextRequest) {
 
   // ── Backend API Proxy ──────────────────────────────────────────
   // Rewrites /api-proxy/* → BACKEND_API_URL/* and injects X-API-Key.
-  if (req.nextUrl.pathname.startsWith('/api-proxy/')) {
+  if (req.nextUrl.pathname.startsWith("/api-proxy/")) {
     const backendUrlString = process.env.BACKEND_API_URL || "https://feros-studio-api.fly.dev";
-    
-    const targetUrl = new URL(
-      req.nextUrl.pathname.replace(/^\/api-proxy/, ''),
-      backendUrlString
-    );
+
+    const targetUrl = new URL(req.nextUrl.pathname.replace(/^\/api-proxy/, ""), backendUrlString);
     targetUrl.search = req.nextUrl.search;
-    
+
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("X-API-Key", apiKey);
-    
+
     return NextResponse.rewrite(targetUrl, {
       request: {
         headers: requestHeaders,
@@ -64,6 +61,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      */
-    '/((?!api\/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+    "/((?!api\/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
   ],
 };

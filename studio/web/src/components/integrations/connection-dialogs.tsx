@@ -23,9 +23,22 @@ import {
   type OAuthApp,
 } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { IntegrationIcon } from "@/components/ui/integration-icon";
 
@@ -37,8 +50,10 @@ interface ExistingConnectionLike {
   auth_type: string;
 }
 
-
-function chooseDefaultConnectionType(schema: CredentialSchema, oauthReady: boolean): ConnectionType {
+function chooseDefaultConnectionType(
+  schema: CredentialSchema,
+  oauthReady: boolean
+): ConnectionType {
   const supportsOAuth = schema.auth_type === "oauth2";
   const hasByok = (schema.fields?.length ?? 0) > 0;
 
@@ -127,9 +142,7 @@ export function OAuthAppRegistrationDialog({
           enabled: true,
         });
       }
-      toast.success(
-        `${integration.display_name} OAuth app ${existing ? "updated" : "registered"}`
-      );
+      toast.success(`${integration.display_name} OAuth app ${existing ? "updated" : "registered"}`);
       await onSaved?.();
       onOpenChange(false);
     } catch (err) {
@@ -144,7 +157,10 @@ export function OAuthAppRegistrationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] rounded-2xl border-border" id="register-oauth-dialog">
+      <DialogContent
+        className="sm:max-w-[480px] rounded-2xl border-border"
+        id="register-oauth-dialog"
+      >
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold">
             {isEdit ? "Update" : "Register"} {integration.display_name} OAuth App
@@ -158,9 +174,13 @@ export function OAuthAppRegistrationDialog({
 
         <div className="space-y-5 py-2">
           <div className="flex items-start gap-3 p-3.5 rounded-xl bg-primary/5 border border-primary/10">
-            <HugeiconsIcon icon={AlertCircleIcon} className="size-3.5 text-primary mt-0.5 shrink-0" />
+            <HugeiconsIcon
+              icon={AlertCircleIcon}
+              className="size-3.5 text-primary mt-0.5 shrink-0"
+            />
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Create an OAuth app in your <span className="font-medium text-foreground">{integration.display_name}</span>{" "}
+              Create an OAuth app in your{" "}
+              <span className="font-medium text-foreground">{integration.display_name}</span>{" "}
               developer portal, set the callback or redirect URL to{" "}
               <span className="font-mono text-foreground">{callbackUrl}</span>, then paste the{" "}
               <span className="font-medium text-foreground">Client ID</span> and{" "}
@@ -182,7 +202,11 @@ export function OAuthAppRegistrationDialog({
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
               Client Secret
-              {isEdit && <span className="ml-1 text-muted-foreground/60">(leave blank to keep existing)</span>}
+              {isEdit && (
+                <span className="ml-1 text-muted-foreground/60">
+                  (leave blank to keep existing)
+                </span>
+              )}
             </label>
             <div className="relative">
               <Input
@@ -198,17 +222,27 @@ export function OAuthAppRegistrationDialog({
                 onClick={() => setShowSecret(!showSecret)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                {showSecret ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                {showSecret ? (
+                  <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                ) : (
+                  <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                )}
               </button>
             </div>
             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest with AES-256-GCM · never exposed via API
+              <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest with
+              AES-256-GCM · never exposed via API
             </p>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving} className="text-sm">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+            className="text-sm"
+          >
             Cancel
           </Button>
           <Button
@@ -307,9 +341,10 @@ export function IntegrationConnectionDialog({
     }
     setOAuthConnecting(true);
     try {
-      const { authorize_url } = mode === "override"
-        ? await api.oauth.authorize(integration.name, agentId as string)
-        : await api.oauth.authorizeDefault(integration.name);
+      const { authorize_url } =
+        mode === "override"
+          ? await api.oauth.authorize(integration.name, agentId as string)
+          : await api.oauth.authorizeDefault(integration.name);
       const popup = window.open(authorize_url, "oauth_popup", "width=600,height=700");
       if (!popup) {
         toast.error("Popup blocked — please allow popups and try again");
@@ -362,7 +397,9 @@ export function IntegrationConnectionDialog({
       if (mode === "override") {
         const authType = supportsOAuth ? "api_key" : integration.auth_type;
         if (editingExistingByok && existing?.id) {
-          await api.credentials.update(agentId as string, existing.id, { data });
+          await api.credentials.update(agentId as string, existing.id, {
+            data,
+          });
         } else {
           await api.credentials.create(agentId as string, {
             name: `${integration.display_name} Connection`,
@@ -371,13 +408,17 @@ export function IntegrationConnectionDialog({
             data,
           });
         }
-        toast.success(`${integration.display_name} override ${editingExistingByok ? "updated" : "configured"}`);
+        toast.success(
+          `${integration.display_name} override ${editingExistingByok ? "updated" : "configured"}`
+        );
       } else {
         await api.integrations.upsertDefaultConnection(integration.name, {
           auth_type: supportsOAuth ? "api_key" : integration.auth_type,
           data,
         });
-        toast.success(`${integration.display_name} default connection ${existing ? "updated" : "configured"}`);
+        toast.success(
+          `${integration.display_name} default connection ${existing ? "updated" : "configured"}`
+        );
       }
 
       onSaved?.();
@@ -396,21 +437,25 @@ export function IntegrationConnectionDialog({
 
   if (!integration) return null;
 
-  const title = mode === "override"
-    ? `Override ${integration.display_name} Connection`
-    : `Connect To ${integration.display_name}`;
+  const title =
+    mode === "override"
+      ? `Override ${integration.display_name} Connection`
+      : `Connect To ${integration.display_name}`;
 
-  const description = mode === "override"
-    ? "Agent-specific override · this agent will use this connection instead of platform default."
-    : "Platform-wide · all agents inherit this connection by default.";
+  const description =
+    mode === "override"
+      ? "Agent-specific override · this agent will use this connection instead of platform default."
+      : "Platform-wide · all agents inherit this connection by default.";
 
-  const oauthBody = mode === "override"
-    ? `Continue with OAuth to create an agent-specific override for ${integration.display_name}.`
-    : `Continue with OAuth to create a platform-wide default connection for ${integration.display_name}.`;
+  const oauthBody =
+    mode === "override"
+      ? `Continue with OAuth to create an agent-specific override for ${integration.display_name}.`
+      : `Continue with OAuth to create a platform-wide default connection for ${integration.display_name}.`;
 
-  const oauthMissingBody = mode === "override"
-    ? `No OAuth app is registered for ${integration.display_name}. Configure OAuth app first before creating this override.`
-    : `No OAuth app is registered for ${integration.display_name}. Configure OAuth app first before connecting.`;
+  const oauthMissingBody =
+    mode === "override"
+      ? `No OAuth app is registered for ${integration.display_name}. Configure OAuth app first before creating this override.`
+      : `No OAuth app is registered for ${integration.display_name}. Configure OAuth app first before connecting.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -443,7 +488,9 @@ export function IntegrationConnectionDialog({
             <>
               {hasModeSelector && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Connection Type</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Connection Type
+                  </label>
                   <Select value={type} onValueChange={(v: ConnectionType) => setType(v)}>
                     <SelectTrigger className="h-10 rounded-lg bg-secondary/50 border-border text-xs">
                       <SelectValue>
@@ -451,7 +498,11 @@ export function IntegrationConnectionDialog({
                           <span className="inline-flex items-center gap-1.5">
                             OAuth
                             {!oauthReady && (
-                              <HugeiconsIcon icon={Alert01Icon} className="size-3.5 text-amber-500" aria-hidden />
+                              <HugeiconsIcon
+                                icon={Alert01Icon}
+                                className="size-3.5 text-amber-500"
+                                aria-hidden
+                              />
                             )}
                           </span>
                         ) : (
@@ -464,7 +515,11 @@ export function IntegrationConnectionDialog({
                         <span className="inline-flex items-center gap-1.5">
                           OAuth
                           {!oauthReady && (
-                            <HugeiconsIcon icon={Alert01Icon} className="size-3.5 text-amber-500" aria-hidden />
+                            <HugeiconsIcon
+                              icon={Alert01Icon}
+                              className="size-3.5 text-amber-500"
+                              aria-hidden
+                            />
                           )}
                         </span>
                       </SelectItem>
@@ -477,7 +532,10 @@ export function IntegrationConnectionDialog({
               {supportsOAuth && type === "oauth" && !oauthReady && (
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15">
-                    <HugeiconsIcon icon={AlertCircleIcon} className="size-3.5 text-amber-600 mt-0.5 shrink-0" />
+                    <HugeiconsIcon
+                      icon={AlertCircleIcon}
+                      className="size-3.5 text-amber-600 mt-0.5 shrink-0"
+                    />
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                       {oauthMissingBody}
                     </p>
@@ -497,7 +555,10 @@ export function IntegrationConnectionDialog({
               {supportsOAuth && type === "oauth" && oauthReady && (
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10">
-                    <HugeiconsIcon icon={InformationCircleIcon} className="size-3.5 text-primary mt-0.5 shrink-0" />
+                    <HugeiconsIcon
+                      icon={InformationCircleIcon}
+                      className="size-3.5 text-primary mt-0.5 shrink-0"
+                    />
                     <p className="text-[10px] text-muted-foreground leading-relaxed">{oauthBody}</p>
                   </div>
                   <Button
@@ -543,9 +604,16 @@ export function IntegrationConnectionDialog({
                         <div className="relative">
                           <Input
                             id={`${mode}-conn-${field.key}`}
-                            type={field.type === "password" && !shown[field.key] ? "password" : "text"}
+                            type={
+                              field.type === "password" && !shown[field.key] ? "password" : "text"
+                            }
                             value={fields[field.key] ?? ""}
-                            onChange={(e) => setFields((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                            onChange={(e) =>
+                              setFields((prev) => ({
+                                ...prev,
+                                [field.key]: e.target.value,
+                              }))
+                            }
                             placeholder={
                               existing && field.type === "password"
                                 ? "••••••••  (leave blank to keep)"
@@ -556,10 +624,19 @@ export function IntegrationConnectionDialog({
                           {field.type === "password" && (
                             <button
                               type="button"
-                              onClick={() => setShown((prev) => ({ ...prev, [field.key]: !prev[field.key] }))}
+                              onClick={() =>
+                                setShown((prev) => ({
+                                  ...prev,
+                                  [field.key]: !prev[field.key],
+                                }))
+                              }
                               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                             >
-                              {shown[field.key] ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                              {shown[field.key] ? (
+                                <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                              ) : (
+                                <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                              )}
                             </button>
                           )}
                         </div>
@@ -584,7 +661,8 @@ export function IntegrationConnectionDialog({
                       </div>
                     ))}
                     <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at rest with AES-256-GCM · never exposed via API
+                      <HugeiconsIcon icon={SquareLock01Icon} className="size-2.5" /> Encrypted at
+                      rest with AES-256-GCM · never exposed via API
                     </p>
                   </div>
                 </div>
@@ -594,7 +672,12 @@ export function IntegrationConnectionDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-sm" disabled={saving || oauthConnecting}>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-sm"
+            disabled={saving || oauthConnecting}
+          >
             Cancel
           </Button>
           {((!supportsOAuth && hasByokFields) || (type === "byok" && hasByokFields)) && (

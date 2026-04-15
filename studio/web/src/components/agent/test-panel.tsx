@@ -5,12 +5,7 @@ import { type Agent } from "@/lib/api/client";
 import ManualTestView from "@/components/agent/manual-test-view";
 import AutoTestView from "@/components/agent/auto-test-view";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { 
-  KeyboardIcon, 
-  VoiceIcon, 
-  Settings02Icon, 
-  Clock01Icon
-} from "@hugeicons/core-free-icons";
+import { KeyboardIcon, VoiceIcon, Settings02Icon, Clock01Icon } from "@hugeicons/core-free-icons";
 
 type PrimaryTab = "manual" | "auto";
 type ManualSubTab = "voice" | "text";
@@ -109,27 +104,26 @@ export default function TestPanel({ agentId, agent, onGoToConfig }: TestPanelPro
           </div>
         )}
       </div>
-
     </header>
   );
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-background/20">
       {header}
-      
+
       <div className="relative flex-1 overflow-hidden">
         {primaryTab === "manual" ? (
-          <ManualTestView 
-            agentId={agentId} 
-            agent={agent} 
-            activeMode={manualSubTab} 
+          <ManualTestView
+            agentId={agentId}
+            agent={agent}
+            activeMode={manualSubTab}
             onModeChange={setManualSubTab}
             onGoToConfig={onGoToConfig}
           />
         ) : (
-          <AutoTestView 
-            agentId={agentId} 
-            agent={agent} 
+          <AutoTestView
+            agentId={agentId}
+            agent={agent}
             activeTab={autoSubTab}
             onTabChange={setAutoSubTab}
           />

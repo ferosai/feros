@@ -1,7 +1,15 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, Alert01Icon, ShieldUserIcon, ConnectIcon, Settings01Icon, Unlink01Icon, LockKeyIcon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Alert01Icon,
+  ShieldUserIcon,
+  ConnectIcon,
+  Settings01Icon,
+  Unlink01Icon,
+  LockKeyIcon,
+} from "@hugeicons/core-free-icons";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   api,
@@ -25,13 +33,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { IntegrationConnectionDialog, OAuthAppRegistrationDialog } from "@/components/integrations/connection-dialogs";
+  IntegrationConnectionDialog,
+  OAuthAppRegistrationDialog,
+} from "@/components/integrations/connection-dialogs";
 
 function getCategoryColor(category: string) {
   switch (category) {
@@ -90,7 +96,9 @@ function IntegrationCard({
       }`}
     >
       <div className="flex items-center gap-3">
-        <div className={`relative size-10 rounded-xl flex items-center justify-center shrink-0 ${isConnected ? "bg-primary/10" : "bg-secondary"}`}>
+        <div
+          className={`relative size-10 rounded-xl flex items-center justify-center shrink-0 ${isConnected ? "bg-primary/10" : "bg-secondary"}`}
+        >
           <IntegrationIcon
             name={integration.name}
             iconHint={integration.icon}
@@ -101,7 +109,9 @@ function IntegrationCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-foreground truncate">{integration.display_name}</h3>
+            <h3 className="text-sm font-semibold text-foreground truncate">
+              {integration.display_name}
+            </h3>
             <div className="flex items-center gap-1.5 shrink-0">
               {supportsOAuth && (
                 <TooltipProvider>
@@ -115,10 +125,17 @@ function IntegrationCard({
                       >
                         <Badge className="h-6 inline-flex items-center bg-background text-muted-foreground border border-border/60 shadow-none text-[10px] font-medium rounded-full px-2.5 cursor-pointer hover:bg-muted/40 leading-none">
                           {!oauthReady ? (
-                            <HugeiconsIcon icon={Alert01Icon} className="size-2.5 text-amber-500 mr-0.5" aria-hidden />
+                            <HugeiconsIcon
+                              icon={Alert01Icon}
+                              className="size-2.5 text-amber-500 mr-0.5"
+                              aria-hidden
+                            />
                           ) : (
                             <span className="inline-flex items-center overflow-hidden transition-all group-hover:mr-0.5 group-hover:w-3.5 w-0">
-                              <HugeiconsIcon icon={Settings01Icon} className="size-3 text-emerald-600 opacity-0 transition-opacity group-hover:opacity-100" />
+                              <HugeiconsIcon
+                                icon={Settings01Icon}
+                                className="size-3 text-emerald-600 opacity-0 transition-opacity group-hover:opacity-100"
+                              />
                             </span>
                           )}
                           OAuth
@@ -142,7 +159,9 @@ function IntegrationCard({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{integration.description}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+        {integration.description}
+      </p>
       <div className="flex flex-wrap gap-1">
         {integration.categories.map((cat) => (
           <span
@@ -157,7 +176,11 @@ function IntegrationCard({
       {isConnected ? (
         <div className="py-3 px-4 rounded-lg bg-muted/50 flex items-center justify-between gap-3">
           <p className="text-[10px] font-medium text-foreground uppercase tracking-wider flex items-center gap-2 min-w-0">
-            {connection.auth_type === "oauth2" ? <HugeiconsIcon icon={ShieldUserIcon} className="size-4 shrink-0" /> : <HugeiconsIcon icon={LockKeyIcon} className="size-4 shrink-0" />}
+            {connection.auth_type === "oauth2" ? (
+              <HugeiconsIcon icon={ShieldUserIcon} className="size-4 shrink-0" />
+            ) : (
+              <HugeiconsIcon icon={LockKeyIcon} className="size-4 shrink-0" />
+            )}
             <span className="truncate">Connected / {prettyAuthType(connection.auth_type)}</span>
           </p>
           <Button
@@ -275,7 +298,10 @@ export default function IntegrationsPage() {
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === "oauth_complete") {
-        api.integrations.listDefaultConnections().then(setDefaultConns).catch(() => {});
+        api.integrations
+          .listDefaultConnections()
+          .then(setDefaultConns)
+          .catch(() => {});
       }
     };
     window.addEventListener("message", handleMessage);
@@ -283,11 +309,11 @@ export default function IntegrationsPage() {
   }, []);
 
   const existingOAuthApp = selectedIntegration
-    ? oauthApps.find((a) => a.integration_name === selectedIntegration.name) ?? null
+    ? (oauthApps.find((a) => a.integration_name === selectedIntegration.name) ?? null)
     : null;
 
   const existingDefault = selectedIntegration
-    ? defaultConns.find((c) => c.provider === selectedIntegration.name) ?? null
+    ? (defaultConns.find((c) => c.provider === selectedIntegration.name) ?? null)
     : null;
 
   const filtered = integrations.filter(
@@ -325,7 +351,10 @@ export default function IntegrationsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-64 h-9 rounded-lg bg-secondary/60 border border-border pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground transition-all"
           />
-          <HugeiconsIcon icon={ConnectIcon} className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <HugeiconsIcon
+            icon={ConnectIcon}
+            className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
+          />
         </div>
       </div>
 
@@ -341,7 +370,12 @@ export default function IntegrationsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        <div
+          className="grid gap-4"
+          style={{
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          }}
+        >
           {sorted.map((integration) => {
             const connection = defaultConns.find((c) => c.provider === integration.name);
             const oauthReady = oauthApps.some((a) => a.integration_name === integration.name);
@@ -423,7 +457,11 @@ export default function IntegrationsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm font-semibold">Disconnect app?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
-              Disconnecting <span className="font-medium text-foreground">{integrations.find((i) => i.name === deleteDefaultTarget)?.display_name ?? deleteDefaultTarget}</span>{" "}
+              Disconnecting{" "}
+              <span className="font-medium text-foreground">
+                {integrations.find((i) => i.name === deleteDefaultTarget)?.display_name ??
+                  deleteDefaultTarget}
+              </span>{" "}
               removes its platform default connection.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -17,21 +17,15 @@ export const WS_BASE =
 
 // ── Config Types (v3_graph) ──────────────────────────────────────
 // Auto-generated via agent.proto
-import type { 
-  AgentGraphDef as AgentGraphConfig, 
-  NodeDef as AgentNode, 
-  ToolDef as AgentTool, 
-  ParamDef as AgentToolParam, 
-  RecordingConfig 
-} from './agent';
+import type {
+  AgentGraphDef as AgentGraphConfig,
+  NodeDef as AgentNode,
+  ToolDef as AgentTool,
+  ParamDef as AgentToolParam,
+  RecordingConfig,
+} from "./agent";
 
-export type {
-  AgentGraphConfig,
-  AgentNode,
-  AgentTool,
-  AgentToolParam,
-  RecordingConfig
-};
+export type { AgentGraphConfig, AgentNode, AgentTool, AgentToolParam, RecordingConfig };
 
 export interface Agent {
   id: string;
@@ -55,7 +49,11 @@ export interface TtsModelSpec {
   model_id: string;
   label: string;
   supported_languages: string[];
-  language_voices: { language_code: string; voice_id: string; voice_label: string }[];
+  language_voices: {
+    language_code: string;
+    voice_id: string;
+    voice_label: string;
+  }[];
 }
 
 export interface SttModelSpec {
@@ -69,8 +67,8 @@ export interface VoiceOption {
   voice_id: string;
   name: string;
   description: string;
-  gender: string;    // "male" | "female" | ""
-  language: string;  // ISO 639-1 hint
+  gender: string; // "male" | "female" | ""
+  language: string; // ISO 639-1 hint
   preview_url: string;
 }
 
@@ -84,18 +82,8 @@ export interface AgentVersion {
 }
 
 export type EvaluationConfigStatus = "active" | "archived";
-export type EvaluationRunStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
-export type PersonaPreset =
-  | "cooperative"
-  | "confused"
-  | "impatient"
-  | "adversarial"
-  | "silent";
+export type EvaluationRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type PersonaPreset = "cooperative" | "confused" | "impatient" | "adversarial" | "silent";
 export type ScenarioProfile = "balanced" | "happy_path" | "failure_heavy";
 
 export interface GoalTarget {
@@ -264,7 +252,6 @@ export interface ActionCard {
   help_url: string | null;
 }
 
-
 // Structured streaming event from the builder LLM
 export interface StreamPart {
   kind: "part_start" | "part_delta" | "tool_return";
@@ -397,10 +384,7 @@ export class ApiError extends Error {
   code?: string;
   detail: unknown;
 
-  constructor(
-    message: string,
-    options: { status: number; code?: string; detail?: unknown }
-  ) {
+  constructor(message: string, options: { status: number; code?: string; detail?: unknown }) {
     super(message);
     this.name = "ApiError";
     this.status = options.status;
@@ -492,10 +476,7 @@ export function getErrorMessage(error: unknown, fallbackMessage: string): string
   return fallbackMessage;
 }
 
-async function buildApiError(
-  res: Response,
-  fallbackMessage: string
-): Promise<ApiError> {
+async function buildApiError(res: Response, fallbackMessage: string): Promise<ApiError> {
   const payload = await res.json().catch(() => ({ detail: res.statusText }));
   const parsed = parseApiError(payload, fallbackMessage);
   return new ApiError(parsed.message, {
@@ -505,10 +486,7 @@ async function buildApiError(
   });
 }
 
-async function apiFetch<T>(
-  path: string,
-  options?: RequestInit
-): Promise<T> {
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
     headers: {
@@ -536,8 +514,7 @@ export const api = {
           ...(query ? { q: query } : {}),
         }).toString()}`
       ),
-    get: (id: string) =>
-      apiFetch<Agent>(`/agents/${id}`),
+    get: (id: string) => apiFetch<Agent>(`/agents/${id}`),
     create: (data: { name: string; description?: string }) =>
       apiFetch<Agent>("/agents", {
         method: "POST",
@@ -548,10 +525,8 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    delete: (id: string) =>
-      apiFetch<void>(`/agents/${id}`, { method: "DELETE" }),
-    versions: (id: string) =>
-      apiFetch<AgentVersion[]>(`/agents/${id}/versions`),
+    delete: (id: string) => apiFetch<void>(`/agents/${id}`, { method: "DELETE" }),
+    versions: (id: string) => apiFetch<AgentVersion[]>(`/agents/${id}/versions`),
     deploy: (id: string, version: number) =>
       apiFetch<Agent>(`/agents/${id}/deploy/${version}`, {
         method: "POST",
@@ -560,13 +535,22 @@ export const api = {
       apiFetch<AgentVersion>(`/agents/${id}/revert/${version}`, {
         method: "POST",
       }),
-    patchConfig: (id: string, data: { language?: string; timezone?: string; voice_id?: string; tts_provider?: string; tts_model?: string; regenerate_greeting?: boolean }) =>
+    patchConfig: (
+      id: string,
+      data: {
+        language?: string;
+        timezone?: string;
+        voice_id?: string;
+        tts_provider?: string;
+        tts_model?: string;
+        regenerate_greeting?: boolean;
+      }
+    ) =>
       apiFetch<Agent>(`/agents/${id}/config`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    getLanguages: () =>
-      apiFetch<{ code: string; label: string }[]>("/agents/languages"),
+    getLanguages: () => apiFetch<{ code: string; label: string }[]>("/agents/languages"),
     getTtsModels: (language?: string) =>
       apiFetch<TtsModelSpec[]>(
         `/agents/tts-models${language ? `?language=${encodeURIComponent(language)}` : ""}`
@@ -576,10 +560,16 @@ export const api = {
   // Builder (vibe code)
   builder: {
     getConversation: (agentId: string) =>
-      apiFetch<BuilderConversation>(
-        `/agents/${agentId}/builder/conversation`
-      ),
-    upload: async (agentId: string, file: File): Promise<{ file_id: string; filename: string; total_lines: number; text_length: number }> => {
+      apiFetch<BuilderConversation>(`/agents/${agentId}/builder/conversation`),
+    upload: async (
+      agentId: string,
+      file: File
+    ): Promise<{
+      file_id: string;
+      filename: string;
+      total_lines: number;
+      text_length: number;
+    }> => {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/upload`, {
@@ -595,7 +585,7 @@ export const api = {
       agentId: string,
       content: string,
       callbacks: StreamCallbacks,
-      attachments?: FileAttachment[],
+      attachments?: FileAttachment[]
     ) => {
       const res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/stream`, {
         method: "POST",
@@ -675,40 +665,32 @@ export const api = {
   // Credentials
   credentials: {
     list: (agentId: string) =>
-      apiFetch<{ credentials: Credential[]; total: number }>(
-        `/agents/${agentId}/credentials`
-      ),
+      apiFetch<{ credentials: Credential[]; total: number }>(`/agents/${agentId}/credentials`),
     create: (agentId: string, data: CredentialCreate) =>
-      apiFetch<Credential>(
-        `/agents/${agentId}/credentials`,
-        {
-          method: "POST",
-          body: JSON.stringify(data),
-        }
-      ),
+      apiFetch<Credential>(`/agents/${agentId}/credentials`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     delete: (agentId: string, credentialId: string) =>
-      apiFetch<void>(
-        `/agents/${agentId}/credentials/${credentialId}`,
-        { method: "DELETE" }
-      ),
-    update: (agentId: string, credentialId: string, data: { name?: string; data?: Record<string, string> }) =>
-      apiFetch<Credential>(
-        `/agents/${agentId}/credentials/${credentialId}`,
-        {
-          method: "PUT",
-          body: JSON.stringify(data),
-        }
-      ),
+      apiFetch<void>(`/agents/${agentId}/credentials/${credentialId}`, {
+        method: "DELETE",
+      }),
+    update: (
+      agentId: string,
+      credentialId: string,
+      data: { name?: string; data?: Record<string, string> }
+    ) =>
+      apiFetch<Credential>(`/agents/${agentId}/credentials/${credentialId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Skills / Integrations
   skills: {
-    list: () =>
-      apiFetch<SkillMeta[]>("/integrations"),
+    list: () => apiFetch<SkillMeta[]>("/integrations"),
     getCredentialSchema: (skillName: string) =>
-      apiFetch<CredentialSchema>(
-        `/integrations/${skillName}/credential-schema`
-      ),
+      apiFetch<CredentialSchema>(`/integrations/${skillName}/credential-schema`),
   },
 
   // Integrations (typed with IntegrationSummary)
@@ -720,19 +702,23 @@ export const api = {
       apiFetch<DefaultConnection[]>("/integrations/default-connections"),
     getDefaultConnection: (name: string) =>
       apiFetch<DefaultConnection>(`/integrations/${name}/default-connection`),
-    upsertDefaultConnection: (name: string, data: { auth_type: string; data: Record<string, string> }) =>
+    upsertDefaultConnection: (
+      name: string,
+      data: { auth_type: string; data: Record<string, string> }
+    ) =>
       apiFetch<DefaultConnection>(`/integrations/${name}/default-connection`, {
         method: "PUT",
         body: JSON.stringify(data),
       }),
     deleteDefaultConnection: (name: string) =>
-      apiFetch<void>(`/integrations/${name}/default-connection`, { method: "DELETE" }),
+      apiFetch<void>(`/integrations/${name}/default-connection`, {
+        method: "DELETE",
+      }),
   },
 
   // OAuth
   oauth: {
-    getCallbackUrl: () =>
-      apiFetch<OAuthCallbackConfig>("/oauth/callback-url"),
+    getCallbackUrl: () => apiFetch<OAuthCallbackConfig>("/oauth/callback-url"),
     authorize: (skillName: string, agentId: string) =>
       apiFetch<{ authorize_url: string }>(
         `/oauth/${skillName}/authorize?agent_id=${agentId}&origin=${encodeURIComponent(window.location.origin)}`
@@ -766,9 +752,7 @@ export const api = {
     getLogCapabilities: (id: string) =>
       apiFetch<CallLogCapabilities>(`/calls/${id}/log-capabilities`),
     getEvents: (id: string, skip = 0, limit = 200) =>
-      apiFetch<CallEventListResponse>(
-        `/calls/${id}/events?skip=${skip}&limit=${limit}`
-      ),
+      apiFetch<CallEventListResponse>(`/calls/${id}/events?skip=${skip}&limit=${limit}`),
   },
 
   evaluations: {
@@ -789,10 +773,7 @@ export const api = {
         `/agents/${agentId}/evaluations/configs${suffix}`
       );
     },
-    createConfig: (
-      agentId: string,
-      data: { name: string; config: EvaluationConfigPayload }
-    ) =>
+    createConfig: (agentId: string, data: { name: string; config: EvaluationConfigPayload }) =>
       apiFetch<EvaluationConfigResponse>(`/agents/${agentId}/evaluations/configs`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -819,14 +800,11 @@ export const api = {
       data: { config_version?: number | null },
       idempotencyKey?: string
     ) =>
-      apiFetch<EvaluationRunSummary>(
-        `/agents/${agentId}/evaluations/configs/${configId}/run`,
-        {
-          method: "POST",
-          body: JSON.stringify(data),
-          headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-        }
-      ),
+      apiFetch<EvaluationRunSummary>(`/agents/${agentId}/evaluations/configs/${configId}/run`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
+      }),
     listRuns: (agentId: string, params?: EvaluationRunListParams) => {
       const q = new URLSearchParams();
       if (params?.status) q.set("status", params.status);
@@ -836,46 +814,34 @@ export const api = {
       if (typeof params?.skip === "number") q.set("skip", String(params.skip));
       if (typeof params?.limit === "number") q.set("limit", String(params.limit));
       const suffix = q.toString() ? `?${q.toString()}` : "";
-      return apiFetch<EvaluationRunListResponse>(
-        `/agents/${agentId}/evaluations/runs${suffix}`
-      );
+      return apiFetch<EvaluationRunListResponse>(`/agents/${agentId}/evaluations/runs${suffix}`);
     },
     getRunDetail: (agentId: string, runId: string) =>
-      apiFetch<EvaluationRunDetailResponse>(
-        `/agents/${agentId}/evaluations/runs/${runId}`
-      ),
+      apiFetch<EvaluationRunDetailResponse>(`/agents/${agentId}/evaluations/runs/${runId}`),
     deleteRun: (agentId: string, runId: string) =>
-      apiFetch<EvaluationRunsDeleteResponse>(
-        `/agents/${agentId}/evaluations/runs/${runId}`,
-        { method: "DELETE" }
-      ),
+      apiFetch<EvaluationRunsDeleteResponse>(`/agents/${agentId}/evaluations/runs/${runId}`, {
+        method: "DELETE",
+      }),
     clearRunHistory: (agentId: string) =>
-      apiFetch<EvaluationRunsDeleteResponse>(
-        `/agents/${agentId}/evaluations/runs`,
-        { method: "DELETE" }
-      ),
+      apiFetch<EvaluationRunsDeleteResponse>(`/agents/${agentId}/evaluations/runs`, {
+        method: "DELETE",
+      }),
     cancelRun: (agentId: string, runId: string, idempotencyKey?: string) =>
-      apiFetch<EvaluationRunSummary>(
-        `/agents/${agentId}/evaluations/runs/${runId}/cancel`,
-        {
-          method: "POST",
-          headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-        }
-      ),
+      apiFetch<EvaluationRunSummary>(`/agents/${agentId}/evaluations/runs/${runId}/cancel`, {
+        method: "POST",
+        headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
+      }),
     rerunRun: (
       agentId: string,
       runId: string,
       data: { seed_override?: number | null },
       idempotencyKey?: string
     ) =>
-      apiFetch<EvaluationRunSummary>(
-        `/agents/${agentId}/evaluations/runs/${runId}/rerun`,
-        {
-          method: "POST",
-          body: JSON.stringify(data),
-          headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-        }
-      ),
+      apiFetch<EvaluationRunSummary>(`/agents/${agentId}/evaluations/runs/${runId}/rerun`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
+      }),
     streamRunEvents: (
       agentId: string,
       runId: string,
@@ -887,7 +853,9 @@ export const api = {
       );
       source.addEventListener("run_event", (event) => {
         try {
-          const payload = JSON.parse((event as MessageEvent<string>).data) as EvaluationRunEventEnvelope;
+          const payload = JSON.parse(
+            (event as MessageEvent<string>).data
+          ) as EvaluationRunEventEnvelope;
           handlers.onEvent?.(payload);
         } catch {
           // Ignore malformed payloads.
@@ -902,61 +870,58 @@ export const api = {
 
   // Settings
   settings: {
-    getLLM: () =>
-      apiFetch<LLMSettings>("/settings/llm"),
+    getLLM: () => apiFetch<LLMSettings>("/settings/llm"),
     updateLLM: (data: LLMSettingsUpdate) =>
       apiFetch<LLMSettings>("/settings/llm", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getVoiceLLM: () =>
-      apiFetch<LLMSettings>("/settings/voice-llm"),
+    getVoiceLLM: () => apiFetch<LLMSettings>("/settings/voice-llm"),
     updateVoiceLLM: (data: LLMSettingsUpdate) =>
       apiFetch<LLMSettings>("/settings/voice-llm", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getNativeMultimodal: () =>
-      apiFetch<LLMSettings>("/settings/native-multimodal"),
+    getNativeMultimodal: () => apiFetch<LLMSettings>("/settings/native-multimodal"),
     updateNativeMultimodal: (data: LLMSettingsUpdate) =>
       apiFetch<LLMSettings>("/settings/native-multimodal", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getSTT: () =>
-      apiFetch<VoiceProviderSettings>("/settings/stt"),
+    getSTT: () => apiFetch<VoiceProviderSettings>("/settings/stt"),
     updateSTT: (data: VoiceProviderUpdate) =>
       apiFetch<VoiceProviderSettings>("/settings/stt", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getTTS: () =>
-      apiFetch<VoiceProviderSettings>("/settings/tts"),
+    getTTS: () => apiFetch<VoiceProviderSettings>("/settings/tts"),
     getTtsVoices: (language?: string, provider?: string) => {
-        const p = new URLSearchParams();
-        if (language) p.set("language", language);
-        if (provider) p.set("provider", provider);
-        const qs = p.toString();
-        return apiFetch<VoiceOption[]>(`/settings/tts/voices${qs ? `?${qs}` : ""}`);
-      },
+      const p = new URLSearchParams();
+      if (language) p.set("language", language);
+      if (provider) p.set("provider", provider);
+      const qs = p.toString();
+      return apiFetch<VoiceOption[]>(`/settings/tts/voices${qs ? `?${qs}` : ""}`);
+    },
     getTtsCatalog: (provider?: string) =>
-      apiFetch<SttModelSpec[]>(`/settings/tts-catalog${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`),
+      apiFetch<SttModelSpec[]>(
+        `/settings/tts-catalog${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`
+      ),
     getSttCatalog: (provider?: string) =>
-      apiFetch<SttModelSpec[]>(`/settings/stt-catalog${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`),
+      apiFetch<SttModelSpec[]>(
+        `/settings/stt-catalog${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`
+      ),
     updateTTS: (data: VoiceProviderUpdate) =>
       apiFetch<VoiceProviderSettings>("/settings/tts", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getTelephony: () =>
-      apiFetch<TelephonySettings>("/settings/telephony"),
+    getTelephony: () => apiFetch<TelephonySettings>("/settings/telephony"),
     updateTelephony: (data: TelephonySettingsUpdate) =>
       apiFetch<TelephonySettings>("/settings/telephony", {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    getObservability: () =>
-      apiFetch<ObservabilitySettings>("/settings/observability"),
+    getObservability: () => apiFetch<ObservabilitySettings>("/settings/observability"),
     updateObservability: (data: ObservabilitySettingsUpdate) =>
       apiFetch<ObservabilitySettings>("/settings/observability", {
         method: "PUT",
@@ -972,7 +937,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    patch: (integrationName: string, data: { client_id?: string; client_secret?: string; enabled?: boolean }) =>
+    patch: (
+      integrationName: string,
+      data: { client_id?: string; client_secret?: string; enabled?: boolean }
+    ) =>
       apiFetch<OAuthApp>(`/oauth-apps/${integrationName}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -999,8 +967,7 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    delete: (id: string) =>
-      apiFetch<void>(`/phone-numbers/${id}`, { method: "DELETE" }),
+    delete: (id: string) => apiFetch<void>(`/phone-numbers/${id}`, { method: "DELETE" }),
   },
 };
 

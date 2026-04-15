@@ -1,7 +1,13 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, Robot01Icon, AiBrowserIcon, AudioWave01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowRight01Icon,
+  Robot01Icon,
+  AiBrowserIcon,
+  AudioWave01Icon,
+  Cancel01Icon,
+} from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
@@ -44,7 +50,7 @@ export default function NewAgentPage() {
           <h2 className="text-3xl font-bold tracking-tight text-foreground">Deploy New Service Agent</h2>
         </div>
       </div>*/}
-      
+
       <Link href="/dashboard/agents" className="absolute top-4 right-4 block w-fit">
         <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
           <HugeiconsIcon icon={Cancel01Icon} className="size-5" />
@@ -58,8 +64,13 @@ export default function NewAgentPage() {
               <HugeiconsIcon icon={Robot01Icon} className="size-8" />
             </div>
             <h3 className="text-2xl font-bold tracking-tighter">Create Voice Agent</h3>
-            <p className="text-muted-foreground mt-1">Define the baseline identity for your voice agent.</p>
-            <HugeiconsIcon icon={AudioWave01Icon} className="size-52 absolute text-primary/10 -right-8 -bottom-16" />
+            <p className="text-muted-foreground mt-1">
+              Define the baseline identity for your voice agent.
+            </p>
+            <HugeiconsIcon
+              icon={AudioWave01Icon}
+              className="size-52 absolute text-primary/10 -right-8 -bottom-16"
+            />
           </div>
 
           <CardContent className="p-8 pt-4 space-y-8">
@@ -103,7 +114,11 @@ export default function NewAgentPage() {
                   </span>
                 ) : (
                   <>
-                    Initialize Voice Agent <HugeiconsIcon icon={ArrowRight01Icon} className="size-5 group-hover:translate-x-1 transition-transform" />
+                    Initialize Voice Agent{" "}
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      className="size-5 group-hover:translate-x-1 transition-transform"
+                    />
                   </>
                 )}
               </Button>
@@ -111,7 +126,8 @@ export default function NewAgentPage() {
               <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 text-muted-foreground">
                 <HugeiconsIcon icon={AiBrowserIcon} className="size-6 shrink-0 text-primary" />
                 <p className="text-xs leading-relaxed">
-                  Next step: You&apos;ll use the <strong>Agent Builder</strong> to describe the agent&apos;s behavior in natural language.
+                  Next step: You&apos;ll use the <strong>Agent Builder</strong> to describe the
+                  agent&apos;s behavior in natural language.
                 </p>
               </div>
             </div>

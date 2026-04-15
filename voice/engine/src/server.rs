@@ -387,7 +387,10 @@ pub fn build_router(state: ServerState) -> Router {
     {
         app = app
             .route("/rtc/offer/{session_id}", post(rtc_offer_registered))
-            .route("/rtc/candidate/{session_id}", post(rtc_candidate_registered))
+            .route(
+                "/rtc/candidate/{session_id}",
+                post(rtc_candidate_registered),
+            )
             .route("/rtc/ice-servers", get(rtc_get_ice_servers));
         info!("WebRTC signaling enabled at /rtc/offer/{{session_id}}, /rtc/candidate/{{session_id}}, /rtc/ice-servers");
     }
@@ -586,16 +589,25 @@ async fn forward_ws_events(
         }
     }
 
-    info!("WS event receive loop ended for {}. Cleaning up session.", session_id);
+    info!(
+        "WS event receive loop ended for {}. Cleaning up session.",
+        session_id
+    );
     forward_task.abort();
     // Signal the WebRTC session to shut down cleanly.
     // Sending Close drops audio_tx → reactor's audio_rx returns None →
     // reactor runs cancel_pipeline() + emits SessionEnded → recording saved.
     if let Some((_, session)) = state.hybrid_sessions.remove(&session_id) {
-        info!("Removed hybrid session {}. Sending Close command.", session_id);
+        info!(
+            "Removed hybrid session {}. Sending Close command.",
+            session_id
+        );
         let _ = session.control_tx.send(TransportCommand::Close);
     } else {
-        warn!("Failed to remove hybrid session {} — it may have been closed already.", session_id);
+        warn!(
+            "Failed to remove hybrid session {} — it may have been closed already.",
+            session_id
+        );
     }
 }
 
@@ -1066,8 +1078,17 @@ async fn rtc_candidate_registered(
     }
 
     if let Some(session) = state.hybrid_sessions.get(&session_id) {
-        if session.control_tx.send(voice_transport::TransportCommand::AddIceCandidate(body.candidate)).is_err() {
-            warn!("Session {} control channel closed when sending ICE candidate", session_id);
+        if session
+            .control_tx
+            .send(voice_transport::TransportCommand::AddIceCandidate(
+                body.candidate,
+            ))
+            .is_err()
+        {
+            warn!(
+                "Session {} control channel closed when sending ICE candidate",
+                session_id
+            );
             return StatusCode::GONE.into_response();
         }
         StatusCode::OK.into_response()

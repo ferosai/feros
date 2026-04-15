@@ -212,7 +212,6 @@ impl AgentAudioCursor {
     }
 }
 
-
 // ── Reactor ──────────────────────────────────────────────────────
 
 pub struct Reactor {

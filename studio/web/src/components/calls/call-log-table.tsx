@@ -25,7 +25,7 @@ function shortAgentId(agentId: string): string {
 
 function getAbsoluteUrl(url: string | null): string | undefined {
   if (!url) return undefined;
-  return url.startsWith('/') ? `${API_BASE}${url}` : url;
+  return url.startsWith("/") ? `${API_BASE}${url}` : url;
 }
 
 type CallLogTableProps = {
@@ -83,9 +83,7 @@ export function CallLogTable({
             <HugeiconsIcon icon={CallDisabled02Icon} className="size-7 text-muted-foreground/40" />
           </div>
           <h3 className="text-sm font-semibold text-foreground mb-1.5">{emptyTitle}</h3>
-          <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">
-            {emptyDescription}
-          </p>
+          <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">{emptyDescription}</p>
         </div>
       ) : (
         <div>
@@ -107,14 +105,22 @@ export function CallLogTable({
                     Agent {shortAgentId(call.agent_id)}
                   </p>
                 </div>
-                <Badge variant="outline" className="ml-2 h-5 px-1.5 text-[10px] uppercase tracking-wide shrink-0">
+                <Badge
+                  variant="outline"
+                  className="ml-2 h-5 px-1.5 text-[10px] uppercase tracking-wide shrink-0"
+                >
                   {call.direction}
                 </Badge>
               </div>
 
               <span className="text-xs text-muted-foreground truncate">
                 {call.started_at
-                  ? new Date(call.started_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })
+                  ? new Date(call.started_at).toLocaleString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      month: "short",
+                      day: "numeric",
+                    })
                   : "—"}
                 <span className="mx-1">·</span>
                 <span className="font-mono">{formatDuration(call.duration_seconds)}</span>
@@ -160,7 +166,10 @@ export function CallLogTable({
                     </button>
                   </>
                 ) : (
-                  <span title="No recording" className="flex items-center gap-1 text-muted-foreground/40">
+                  <span
+                    title="No recording"
+                    className="flex items-center gap-1 text-muted-foreground/40"
+                  >
                     <HugeiconsIcon icon={MicOff01Icon} className="size-3.5" />
                     <span className="text-[10px]">None</span>
                   </span>
@@ -168,7 +177,9 @@ export function CallLogTable({
               </div>
 
               <div className="flex items-center gap-1.5 justify-end w-20">
-                <div className={`size-1.5 rounded-full ${call.status === "completed" ? "bg-success" : "bg-amber-400"}`} />
+                <div
+                  className={`size-1.5 rounded-full ${call.status === "completed" ? "bg-success" : "bg-amber-400"}`}
+                />
                 <span className="text-xs text-foreground capitalize">{call.status}</span>
               </div>
 

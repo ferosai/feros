@@ -1,7 +1,15 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Robot01Icon, CallInternal02Icon, DashboardCircleIcon, HelpCircleIcon, ConnectIcon, Settings01Icon, VoiceIcon } from "@hugeicons/core-free-icons";
+import {
+  Robot01Icon,
+  CallInternal02Icon,
+  DashboardCircleIcon,
+  HelpCircleIcon,
+  ConnectIcon,
+  Settings01Icon,
+  VoiceIcon,
+} from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FerosLogoWordmark } from "@/components/logo";
@@ -11,16 +19,16 @@ const navItems = [
   { href: "/dashboard", label: "Home", icon: DashboardCircleIcon },
   { href: "/dashboard/agents", label: "Agents", icon: Robot01Icon },
   { href: "/dashboard/calls", label: "Calls", icon: VoiceIcon },
-  { href: "/dashboard/phone-numbers", label: "Phone Numbers", icon: CallInternal02Icon },
+  {
+    href: "/dashboard/phone-numbers",
+    label: "Phone Numbers",
+    icon: CallInternal02Icon,
+  },
   { href: "/dashboard/integrations", label: "Integrations", icon: ConnectIcon },
   { href: "/dashboard/settings", label: "Settings", icon: Settings01Icon },
 ];
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -52,7 +60,10 @@ export default function DashboardLayout({
                       : "text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-accent-foreground"
                   }`}
                 >
-                  <HugeiconsIcon icon={item.icon} className={`size-4 ${isActive ? "text-primary" : "text-sidebar-muted-foreground"}`} />
+                  <HugeiconsIcon
+                    icon={item.icon}
+                    className={`size-4 ${isActive ? "text-primary" : "text-sidebar-muted-foreground"}`}
+                  />
                   {item.label}
                 </Link>
               );
@@ -62,7 +73,12 @@ export default function DashboardLayout({
 
         {/* Bottom */}
         <div className="p-3 space-y-1">
-          <Link href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-accent-foreground transition-colors">
+          <Link
+            href={DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-accent-foreground transition-colors"
+          >
             <HugeiconsIcon icon={HelpCircleIcon} className="size-4 text-sidebar-muted-foreground" />
             Docs
           </Link>
@@ -72,9 +88,7 @@ export default function DashboardLayout({
       {/* Main */}
       <div className="flex-1 ml-60 flex flex-col min-h-screen">
         {/* Content */}
-        <main className="flex-1 px-10 py-10 max-w-[1100px] w-full mx-auto">
-          {children}
-        </main>
+        <main className="flex-1 px-10 py-10 max-w-[1100px] w-full mx-auto">{children}</main>
       </div>
     </div>
   );

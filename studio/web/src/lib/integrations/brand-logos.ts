@@ -16,7 +16,10 @@ export const brandLogos = {
     alt: "Google Calendar",
     src: "/brands/integrations/google_calendar.svg",
   },
-  google_docs: { alt: "Google Docs", src: "/brands/integrations/google_docs.svg" },
+  google_docs: {
+    alt: "Google Docs",
+    src: "/brands/integrations/google_docs.svg",
+  },
   google_sheets: {
     alt: "Google Sheets",
     src: "/brands/integrations/google_sheets.svg",

@@ -71,10 +71,7 @@ function isOpenBubble(entry: TimelineEntry, role: string): entry is MessageTimel
  *
  * Property A: Never increases the array length when an open bubble exists.
  */
-export function applyChunk(
-  prev: TimelineEntry[],
-  event: TranscriptChunkEvent,
-): TimelineEntry[] {
+export function applyChunk(prev: TimelineEntry[], event: TranscriptChunkEvent): TimelineEntry[] {
   const { role, text } = event;
   if (!text) return prev; // empty chunk is a no-op
 
@@ -96,10 +93,7 @@ export function applyChunk(
  * Property B: Always creates a new bubble unless there is an open bubble.
  * Property C: Replaces an open bubble of the same role instead of duplicating.
  */
-export function applyTranscript(
-  prev: TimelineEntry[],
-  event: TranscriptEvent,
-): TimelineEntry[] {
+export function applyTranscript(prev: TimelineEntry[], event: TranscriptEvent): TimelineEntry[] {
   const { role, text } = event;
   const lastIdx = prev.length - 1;
   const last = prev[lastIdx];
@@ -118,10 +112,7 @@ export function applyTranscript(
 /**
  * Convenience: route any recognized timeline event to the correct reducer.
  */
-export function applyTimelineEvent(
-  prev: TimelineEntry[],
-  event: TimelineEvent,
-): TimelineEntry[] {
+export function applyTimelineEvent(prev: TimelineEntry[], event: TimelineEvent): TimelineEntry[] {
   if (event.type === "transcript_chunk") return applyChunk(prev, event);
   if (event.type === "transcript") return applyTranscript(prev, event);
   return prev;

@@ -35,14 +35,16 @@ const quickActions = [
     stepIcon: TwoCircleIcon,
     bgIcon: Robot01Icon,
     title: "Build & Test Agent",
-    description: "Build your agent with Agent Builder, then run test calls to verify prompts, tools, and voice behavior",
+    description:
+      "Build your agent with Agent Builder, then run test calls to verify prompts, tools, and voice behavior",
     href: "/dashboard/agents/new",
   },
   {
     stepIcon: ThreeCircleIcon,
     bgIcon: CallInternal02Icon,
     title: "Config Phone Numbers",
-    description: "After your agent is ready, connect an external phone number so it can handle real calls",
+    description:
+      "After your agent is ready, connect an external phone number so it can handle real calls",
     href: "/dashboard/phone-numbers",
   },
 ];
@@ -74,7 +76,12 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-4">
           <PageHeader icon={SparklesIcon} title="Getting Started" />
-          <Link href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors shrink-0">
+          <Link
+            href={DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors shrink-0"
+          >
             <HugeiconsIcon icon={BookOpen01Icon} className="size-4" />
             Read the Docs
           </Link>
@@ -88,10 +95,15 @@ export default function DashboardPage() {
                   className="absolute -bottom-6 right-0 size-24 text-foreground/5 pointer-events-none transition-transform duration-500 ease-out group-hover:scale-125"
                 />
                 <div className="relative flex items-start gap-2.5">
-                  <HugeiconsIcon icon={action.stepIcon} className="size-6 text-primary mt-0.5 shrink-0" />
+                  <HugeiconsIcon
+                    icon={action.stepIcon}
+                    className="size-6 text-primary mt-0.5 shrink-0"
+                  />
                   <div>
                     <p className="text-sm font-semibold text-foreground mb-1">{action.title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{action.description}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {action.description}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -104,7 +116,10 @@ export default function DashboardPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-foreground">Agents</h2>
-          <Link href="/dashboard/agents" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          <Link
+            href="/dashboard/agents"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
             View all
           </Link>
         </div>
@@ -133,7 +148,11 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-2">
             {agents.map((agent) => (
-              <AgentListItemCard key={agent.id} agent={agent} href={`/dashboard/agents/${agent.id}`} />
+              <AgentListItemCard
+                key={agent.id}
+                agent={agent}
+                href={`/dashboard/agents/${agent.id}`}
+              />
             ))}
           </div>
         )}
@@ -143,7 +162,10 @@ export default function DashboardPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-foreground">Recent calls</h2>
-          <Link href="/dashboard/calls" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          <Link
+            href="/dashboard/calls"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
             View all
           </Link>
         </div>

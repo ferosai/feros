@@ -135,12 +135,14 @@ export function CallWaveform({
               className="h-8 gap-1.5"
               onClick={togglePlay}
             >
-              {isPlaying ? <HugeiconsIcon icon={PauseIcon} className="size-3.5" /> : <HugeiconsIcon icon={PlayIcon} className="size-3.5" />}
+              {isPlaying ? (
+                <HugeiconsIcon icon={PauseIcon} className="size-3.5" />
+              ) : (
+                <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
+              )}
               {isPlaying ? "Pause" : "Play"}
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Click anywhere on the waveform to seek.
-            </p>
+            <p className="text-xs text-muted-foreground">Click anywhere on the waveform to seek.</p>
           </div>
         </>
       )}

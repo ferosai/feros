@@ -1,7 +1,12 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, ArrowRight01Icon, MinusSignIcon, PencilEdit01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  ArrowRight01Icon,
+  MinusSignIcon,
+  PencilEdit01Icon,
+} from "@hugeicons/core-free-icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -45,16 +50,35 @@ function parseDiffDescription(description: string): DiffItem[] {
 
   // If no structured items were found, return the whole description as one item
   if (items.length === 0 && description.trim()) {
-    items.push({ type: "modified", section: "config", detail: description.trim() });
+    items.push({
+      type: "modified",
+      section: "config",
+      detail: description.trim(),
+    });
   }
 
   return items;
 }
 
 const typeConfig = {
-  added: { icon: Add01Icon, color: "text-green-600", bg: "bg-green-50 border-green-200", badge: "default" as const },
-  removed: { icon: MinusSignIcon, color: "text-red-600", bg: "bg-red-50 border-red-200", badge: "destructive" as const },
-  modified: { icon: PencilEdit01Icon, color: "text-blue-600", bg: "bg-blue-50 border-blue-200", badge: "secondary" as const },
+  added: {
+    icon: Add01Icon,
+    color: "text-green-600",
+    bg: "bg-green-50 border-green-200",
+    badge: "default" as const,
+  },
+  removed: {
+    icon: MinusSignIcon,
+    color: "text-red-600",
+    bg: "bg-red-50 border-red-200",
+    badge: "destructive" as const,
+  },
+  modified: {
+    icon: PencilEdit01Icon,
+    color: "text-blue-600",
+    bg: "bg-blue-50 border-blue-200",
+    badge: "secondary" as const,
+  },
 };
 
 export default function ConfigDiff({ description }: ConfigDiffProps) {
@@ -66,7 +90,9 @@ export default function ConfigDiff({ description }: ConfigDiffProps) {
     <div className="space-y-2">
       <div className="flex items-center gap-1.5">
         <HugeiconsIcon icon={ArrowRight01Icon} className="size-3 text-primary" />
-        <h4 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Changes</h4>
+        <h4 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Changes
+        </h4>
       </div>
       {items.map((item, i) => {
         const cfg = typeConfig[item.type];
@@ -79,7 +105,9 @@ export default function ConfigDiff({ description }: ConfigDiffProps) {
                   <Badge variant={cfg.badge} className="text-[10px] h-3.5 px-1">
                     {item.type}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground font-mono">{item.section}</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {item.section}
+                  </span>
                 </div>
                 <p className="text-[10px] text-foreground/80">{item.detail}</p>
               </div>

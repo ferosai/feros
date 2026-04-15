@@ -35,9 +35,7 @@ function getLanguageFromConfig(config: Agent["current_config"]): string | null {
 function getTimezoneFromConfig(config: Agent["current_config"]): string | null {
   if (!config || typeof config !== "object") return null;
   const timezone =
-    "timezone" in config && typeof config.timezone === "string"
-      ? config.timezone
-      : null;
+    "timezone" in config && typeof config.timezone === "string" ? config.timezone : null;
   return timezone?.trim() || null;
 }
 
@@ -71,7 +69,9 @@ function VersionBadge({
       }`}
     >
       <span className="px-2">{label}</span>
-      <span className={`border-l px-2 ${isAccent ? "border-primary/50" : "border-border"}`}>v{version}</span>
+      <span className={`border-l px-2 ${isAccent ? "border-primary/50" : "border-border"}`}>
+        v{version}
+      </span>
     </span>
   );
 }
@@ -81,7 +81,8 @@ export default function AgentListItemCard({ agent, href, className }: AgentListI
   const currentVersion = agent.version_count > 0 ? agent.version_count : null;
   const activeVersion = agent.active_version;
 
-  const showCurrent = currentVersion !== null && (activeVersion === null || activeVersion !== currentVersion);
+  const showCurrent =
+    currentVersion !== null && (activeVersion === null || activeVersion !== currentVersion);
   const showActive = activeVersion !== null;
 
   const rawLanguage = getLanguageFromConfig(agent.current_config);
@@ -101,7 +102,9 @@ export default function AgentListItemCard({ agent, href, className }: AgentListI
           </div>
           <div className="min-w-0">
             <p className="truncate text-xs font-medium text-foreground">{agent.name}</p>
-            {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
+            {description ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+            ) : null}
             {language || timezone ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 {language ? (

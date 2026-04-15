@@ -38,7 +38,7 @@ export default function AgentsPage() {
       } else {
         setAgents((prev) => {
           // ensure no duplicates just in case
-          const newAgents = data.agents.filter(a => !prev.some(p => p.id === a.id));
+          const newAgents = data.agents.filter((a) => !prev.some((p) => p.id === a.id));
           return [...prev, ...newAgents];
         });
       }
@@ -57,7 +57,10 @@ export default function AgentsPage() {
 
   useEffect(() => {
     const handleScroll = () => {
-      if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.offsetHeight - 100) {
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.offsetHeight - 100
+      ) {
         if (!loading && !loadingMore && hasMore) {
           const nextSkip = skip + limit;
           setSkip(nextSkip);
@@ -79,7 +82,10 @@ export default function AgentsPage() {
         />
         <div className="flex gap-2">
           <div className="relative group hidden md:block">
-            <HugeiconsIcon icon={Search01Icon} className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors"
+            />
             <input
               type="text"
               placeholder="Search..."
@@ -98,7 +104,7 @@ export default function AgentsPage() {
 
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map(i => (
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-16 rounded-xl bg-secondary animate-pulse" />
           ))}
         </div>
@@ -120,10 +126,16 @@ export default function AgentsPage() {
       ) : (
         <div className="space-y-2">
           {agents
-            .filter((agent) => agent.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
+            .filter((agent) =>
+              agent.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+            )
             .map((agent) => (
-            <AgentListItemCard key={agent.id} agent={agent} href={`/dashboard/agents/${agent.id}`} />
-          ))}
+              <AgentListItemCard
+                key={agent.id}
+                agent={agent}
+                href={`/dashboard/agents/${agent.id}`}
+              />
+            ))}
         </div>
       )}
       {loadingMore && (

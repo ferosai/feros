@@ -9,10 +9,7 @@ import { CallHeader } from "@/components/call-detail/call-header";
 import { LogTab } from "@/components/call-detail/log-tab";
 import { CallWaveform } from "@/components/call-detail/call-waveform";
 import { TranscriptTab } from "@/components/call-detail/transcript-tab";
-import {
-  extractTranscriptMessages,
-  parseTranscript,
-} from "@/components/call-detail/types";
+import { extractTranscriptMessages, parseTranscript } from "@/components/call-detail/types";
 import { Button } from "@/components/ui/button";
 import {
   api,
@@ -24,7 +21,7 @@ import {
 
 function getAbsoluteUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
-  return url.startsWith('/') ? `${API_BASE}${url}` : url;
+  return url.startsWith("/") ? `${API_BASE}${url}` : url;
 }
 
 type TabKey = "transcript" | "log";
@@ -271,10 +268,7 @@ export default function CallDetailPage() {
         </div>
 
         {activeTab === "transcript" ? (
-          <TranscriptTab
-            messages={transcriptMessages}
-            activeIndex={activeTranscriptIndex}
-          />
+          <TranscriptTab messages={transcriptMessages} activeIndex={activeTranscriptIndex} />
         ) : (
           <LogTab
             hasInternalLogs={logCapabilities?.has_internal_logs ?? false}

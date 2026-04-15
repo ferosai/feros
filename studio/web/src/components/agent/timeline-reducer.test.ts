@@ -40,15 +40,13 @@ const transcript = (role: string, text: string): TranscriptEvent => ({
 function lastMsg(tl: TimelineEntry[], role?: string) {
   const entries = tl.filter(
     (e): e is Extract<TimelineEntry, { kind: "message" }> =>
-      e.kind === "message" && (role === undefined || e.role === role),
+      e.kind === "message" && (role === undefined || e.role === role)
   );
   return entries[entries.length - 1];
 }
 
 function msgCount(tl: TimelineEntry[], role?: string) {
-  return tl.filter(
-    (e) => e.kind === "message" && (role === undefined || e.role === role),
-  ).length;
+  return tl.filter((e) => e.kind === "message" && (role === undefined || e.role === role)).length;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,7 +57,11 @@ describe("applyChunk", () => {
   it("opens a new bubble when timeline is empty", () => {
     const tl = applyChunk([], chunk("assistant", "Hello"));
     expect(tl).toHaveLength(1);
-    expect(tl[0]).toMatchObject({ kind: "message", role: "assistant", text: "Hello" });
+    expect(tl[0]).toMatchObject({
+      kind: "message",
+      role: "assistant",
+      text: "Hello",
+    });
     expect(tl[0]).not.toHaveProperty("_final"); // open bubble — not yet closed
   });
 
@@ -75,7 +77,12 @@ describe("applyChunk", () => {
 
   it("appends to an existing open bubble — length is unchanged", () => {
     const seed: TimelineEntry[] = [
-      { kind: "message", role: "assistant", text: "Hello, ", _final: undefined },
+      {
+        kind: "message",
+        role: "assistant",
+        text: "Hello, ",
+        _final: undefined,
+      },
     ];
     const tl = applyChunk(seed, chunk("assistant", "world!"));
     expect(tl).toHaveLength(1); // Property A
@@ -84,7 +91,12 @@ describe("applyChunk", () => {
 
   it("opens a new bubble for a different role even if previous is open", () => {
     const seed: TimelineEntry[] = [
-      { kind: "message", role: "assistant", text: "Thinking...", _final: undefined },
+      {
+        kind: "message",
+        role: "assistant",
+        text: "Thinking...",
+        _final: undefined,
+      },
     ];
     const tl = applyChunk(seed, chunk("user", "Hello"));
     expect(tl).toHaveLength(2);
@@ -104,7 +116,12 @@ describe("applyTranscript", () => {
   it("creates first bubble when timeline is empty", () => {
     const tl = applyTranscript([], transcript("user", "Hello!"));
     expect(tl).toHaveLength(1);
-    expect(tl[0]).toMatchObject({ kind: "message", role: "user", text: "Hello!", _final: true });
+    expect(tl[0]).toMatchObject({
+      kind: "message",
+      role: "user",
+      text: "Hello!",
+      _final: true,
+    });
   });
 
   it("Property C: closes an open streaming bubble with canonical text", () => {
@@ -117,9 +134,7 @@ describe("applyTranscript", () => {
   });
 
   it("Property B: creates new bubble when last bubble is already closed", () => {
-    const seed: TimelineEntry[] = [
-      { kind: "message", role: "user", text: "First.", _final: true },
-    ];
+    const seed: TimelineEntry[] = [{ kind: "message", role: "user", text: "First.", _final: true }];
     const tl = applyTranscript(seed, transcript("user", "Second."));
     expect(tl).toHaveLength(2); // new distinct bubble
     expect(tl[1]).toMatchObject({ text: "Second.", _final: true });
@@ -127,7 +142,12 @@ describe("applyTranscript", () => {
 
   it("creates new bubble when last bubble belongs to a different role", () => {
     const seed: TimelineEntry[] = [
-      { kind: "message", role: "assistant", text: "Hi there!", _final: undefined },
+      {
+        kind: "message",
+        role: "assistant",
+        text: "Hi there!",
+        _final: undefined,
+      },
     ];
     const tl = applyTranscript(seed, transcript("user", "Hello!"));
     expect(tl).toHaveLength(2);
@@ -206,7 +226,10 @@ describe("Classic STT-LLM-TTS scenario (no chunks)", () => {
 
     expect(tl).toHaveLength(4);
     expect(tl.map((e) => (e as { role: string }).role)).toEqual([
-      "user", "assistant", "user", "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
     ]);
     expect(tl.every((e) => (e as { _final?: boolean })._final === true)).toBe(true);
   });
@@ -220,15 +243,18 @@ describe("Property A – chunk sequence never creates extra bubbles", () => {
   it("holds for any sequence of same-role non-empty chunks", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.string({ minLength: 1, maxLength: 20 }), { minLength: 1, maxLength: 50 }),
+        fc.array(fc.string({ minLength: 1, maxLength: 20 }), {
+          minLength: 1,
+          maxLength: 50,
+        }),
         fc.constantFrom("user", "assistant"),
         (tokens, role) => {
           const events = tokens.map((t) => chunk(role, t));
           const tl = events.reduce(applyChunk, [] as TimelineEntry[]);
           // Only one bubble should exist for this role.
           expect(msgCount(tl, role)).toBe(1);
-        },
-      ),
+        }
+      )
     );
   });
 });
@@ -237,7 +263,10 @@ describe("Property B – transcript always closes or creates, never duplicates o
   it("holds: canonical transcript after N chunks yields exactly 1 bubble", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.string({ minLength: 1, maxLength: 10 }), { minLength: 0, maxLength: 30 }),
+        fc.array(fc.string({ minLength: 1, maxLength: 10 }), {
+          minLength: 0,
+          maxLength: 30,
+        }),
         fc.string({ minLength: 1, maxLength: 50 }),
         fc.constantFrom("user", "assistant"),
         (tokens, finalText, role) => {
@@ -250,8 +279,8 @@ describe("Property B – transcript always closes or creates, never duplicates o
           expect(msgs).toHaveLength(1);
           // It must be closed with the canonical text.
           expect(msgs[0]).toMatchObject({ text: finalText, _final: true });
-        },
-      ),
+        }
+      )
     );
   });
 });
@@ -260,7 +289,10 @@ describe("Property C – consecutive transcripts from same role never collapse",
   it("N canonical transcripts → exactly N distinct closed bubbles", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.string({ minLength: 1, maxLength: 30 }), { minLength: 1, maxLength: 20 }),
+        fc.array(fc.string({ minLength: 1, maxLength: 30 }), {
+          minLength: 1,
+          maxLength: 20,
+        }),
         fc.constantFrom("user", "assistant"),
         (texts, role) => {
           const tl = texts
@@ -269,8 +301,8 @@ describe("Property C – consecutive transcripts from same role never collapse",
 
           expect(msgCount(tl, role)).toBe(texts.length);
           expect(tl.every((e) => e.kind !== "message" || e._final === true)).toBe(true);
-        },
-      ),
+        }
+      )
     );
   });
 });

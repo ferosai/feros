@@ -1,7 +1,22 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, Robot01Icon, CheckmarkCircle02Icon, CodeIcon, Copy01Icon, Delete02Icon, GitBranchIcon, Key02Icon, PencilEdit01Icon, Rocket01Icon, MoreHorizontalIcon, Clock01Icon, LeftToRightListBulletIcon, Settings03Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowLeft01Icon,
+  Robot01Icon,
+  CheckmarkCircle02Icon,
+  CodeIcon,
+  Copy01Icon,
+  Delete02Icon,
+  GitBranchIcon,
+  Key02Icon,
+  PencilEdit01Icon,
+  Rocket01Icon,
+  MoreHorizontalIcon,
+  Clock01Icon,
+  LeftToRightListBulletIcon,
+  Settings03Icon,
+} from "@hugeicons/core-free-icons";
 import { useState, useRef, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -27,7 +42,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
 import {
   api,
   type Agent,
@@ -42,7 +56,10 @@ import ChatPanel, { type ChatMessage } from "@/components/agent/chat-panel";
 import PreviewPanel, { type PreviewTab } from "@/components/agent/preview-panel";
 import TestPanel from "@/components/agent/test-panel";
 import AgentConfigEditor from "@/components/agent/agent-config-editor";
-import { IntegrationConnectionDialog, OAuthAppRegistrationDialog } from "@/components/integrations/connection-dialogs";
+import {
+  IntegrationConnectionDialog,
+  OAuthAppRegistrationDialog,
+} from "@/components/integrations/connection-dialogs";
 import { IntegrationIcon } from "@/components/ui/integration-icon";
 import { renderMermaid } from "beautiful-mermaid";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -52,9 +69,15 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 function normalizeMermaidSource(source: string): string {
   let text = source.trim();
   if (text.startsWith("```")) {
-    text = text.replace(/^```(?:mermaid)?\s*/i, "").replace(/\s*```$/, "").trim();
+    text = text
+      .replace(/^```(?:mermaid)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
   }
-  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
   if (lines[0]?.toLowerCase() === "mermaid") {
     lines.shift();
   }
@@ -91,11 +114,7 @@ type FlowUpdateState = {
 
 import { Suspense } from "react";
 
-function AgentDetailPageContent({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -106,12 +125,15 @@ function AgentDetailPageContent({
     (searchParams.get("tab") as PreviewTab) || "config"
   );
 
-  const setActiveTab = useCallback((tab: PreviewTab) => {
-    setActiveTabInternal(tab);
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set("tab", tab);
-    router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-  }, [pathname, router, searchParams]);
+  const setActiveTab = useCallback(
+    (tab: PreviewTab) => {
+      setActiveTabInternal(tab);
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("tab", tab);
+      router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
   const [mermaidDiagram, setMermaidDiagram] = useState<string | null>(null);
   const [mermaidRenderVersion, setMermaidRenderVersion] = useState(0);
   const [flowUpdateState, setFlowUpdateState] = useState<FlowUpdateState | null>(null);
@@ -142,7 +164,9 @@ function AgentDetailPageContent({
   const [versionOptions, setVersionOptions] = useState<AgentVersion[]>([]);
   const [selectedDeployVersion, setSelectedDeployVersion] = useState<number | null>(null);
   const [deployPage, setDeployPage] = useState(0);
-  const [selectedVersionConfig, setSelectedVersionConfig] = useState<AgentVersion["config"] | null>(null);
+  const [selectedVersionConfig, setSelectedVersionConfig] = useState<AgentVersion["config"] | null>(
+    null
+  );
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
@@ -153,8 +177,6 @@ function AgentDetailPageContent({
   const pageSize = 10;
 
   // ── Data Loading ──────────────────────────────────────────────
-
-
 
   useEffect(() => {
     if (!renameDialogOpen) return;
@@ -205,18 +227,27 @@ function AgentDetailPageContent({
         {
           id: "welcome",
           role: "assistant",
-          parts: [{
-            kind: "text",
-            content: "Hi! I'm your agent builder. Describe the voice agent you want to create and I'll set everything up.\n\nFor example:\n\n- \"A restaurant booking assistant\"\n- \"A customer support agent for a SaaS product\"\n- \"An appointment scheduler that saves leads to Airtable\"",
-          }],
+          parts: [
+            {
+              kind: "text",
+              content:
+                'Hi! I\'m your agent builder. Describe the voice agent you want to create and I\'ll set everything up.\n\nFor example:\n\n- "A restaurant booking assistant"\n- "A customer support agent for a SaaS product"\n- "An appointment scheduler that saves leads to Airtable"',
+            },
+          ],
         },
       ]);
     };
 
-    api.agents.get(id).then(setAgent).catch(() => {});
+    api.agents
+      .get(id)
+      .then(setAgent)
+      .catch(() => {});
     void loadVersions();
     void loadCredentials();
-    void api.oauthApps.list().then(setOAuthApps).catch(() => {});
+    void api.oauthApps
+      .list()
+      .then(setOAuthApps)
+      .catch(() => {});
     // Reset stale state from previous agent
     setMermaidDiagram(null);
     setMermaidRenderVersion(0);
@@ -244,7 +275,9 @@ function AgentDetailPageContent({
           setWelcome();
         }
       })
-      .catch(() => { setWelcome(); });
+      .catch(() => {
+        setWelcome();
+      });
   }, [id, loadCredentials, loadVersions]);
 
   // Render mermaid
@@ -326,79 +359,81 @@ function AgentDetailPageContent({
 
   // ── Credential Modal ──────────────────────────────────────────
 
-   const openCredentialModal = async (card: ActionCard) => {
-     // Unified: always open the shared IntegrationConnectionDialog
-     try {
-       const [integrations, apps] = await Promise.all([
-         api.integrations.list(),
-         api.oauthApps.list(),
-       ]);
-       const integration = integrations.find((item) => item.name === card.skill) ?? null;
-       if (!integration) return;
+  const openCredentialModal = async (card: ActionCard) => {
+    // Unified: always open the shared IntegrationConnectionDialog
+    try {
+      const [integrations, apps] = await Promise.all([
+        api.integrations.list(),
+        api.oauthApps.list(),
+      ]);
+      const integration = integrations.find((item) => item.name === card.skill) ?? null;
+      if (!integration) return;
 
-       const existing = credentials.find((c) => c.provider === card.skill) || null;
-       setOAuthApps(apps);
-       setSelectedIntegration(integration);
-       setSelectedExisting(existing);
-       setOverrideDialogOpen(true);
-     } catch {
-       toast.error("Failed to load integration details. Please try again.");
-     }
-   };
+      const existing = credentials.find((c) => c.provider === card.skill) || null;
+      setOAuthApps(apps);
+      setSelectedIntegration(integration);
+      setSelectedExisting(existing);
+      setOverrideDialogOpen(true);
+    } catch {
+      toast.error("Failed to load integration details. Please try again.");
+    }
+  };
 
-   const refreshOAuthApps = useCallback(async (): Promise<OAuthApp[] | null> => {
-     try {
-       const apps = await api.oauthApps.list();
-       setOAuthApps(apps);
-       return apps;
-     } catch {
-       return null;
-     }
-   }, []);
+  const refreshOAuthApps = useCallback(async (): Promise<OAuthApp[] | null> => {
+    try {
+      const apps = await api.oauthApps.list();
+      setOAuthApps(apps);
+      return apps;
+    } catch {
+      return null;
+    }
+  }, []);
 
-   const openCredentialForProvider = async (provider: string) => {
-     try {
-       const [integrations, apps] = await Promise.all([
-         api.integrations.list(),
-         api.oauthApps.list(),
-       ]);
-       const integration = integrations.find((item) => item.name === provider) ?? null;
-       if (!integration) {
-         router.push("/dashboard/integrations");
-         return;
-       }
-       setOAuthApps(apps);
-       setSelectedIntegration(integration);
-       setSelectedExisting(null);
-       setOverrideDialogOpen(true);
-     } catch {
-       router.push("/dashboard/integrations");
-     }
-   };
+  const openCredentialForProvider = async (provider: string) => {
+    try {
+      const [integrations, apps] = await Promise.all([
+        api.integrations.list(),
+        api.oauthApps.list(),
+      ]);
+      const integration = integrations.find((item) => item.name === provider) ?? null;
+      if (!integration) {
+        router.push("/dashboard/integrations");
+        return;
+      }
+      setOAuthApps(apps);
+      setSelectedIntegration(integration);
+      setSelectedExisting(null);
+      setOverrideDialogOpen(true);
+    } catch {
+      router.push("/dashboard/integrations");
+    }
+  };
 
-   const editCredential = async (cred: Credential) => {
-     try {
-       const [integrations, apps] = await Promise.all([
-         api.integrations.list(),
-         api.oauthApps.list(),
-       ]);
-       const integration = integrations.find((item) => item.name === cred.provider) ?? null;
-       if (!integration) return;
+  const editCredential = async (cred: Credential) => {
+    try {
+      const [integrations, apps] = await Promise.all([
+        api.integrations.list(),
+        api.oauthApps.list(),
+      ]);
+      const integration = integrations.find((item) => item.name === cred.provider) ?? null;
+      if (!integration) return;
 
-       setOAuthApps(apps);
-       setSelectedIntegration(integration);
-       setSelectedExisting(cred);
-       setOverrideDialogOpen(true);
-     } catch {
-       // ignore
-     }
-   };
+      setOAuthApps(apps);
+      setSelectedIntegration(integration);
+      setSelectedExisting(cred);
+      setOverrideDialogOpen(true);
+    } catch {
+      // ignore
+    }
+  };
 
-   const deleteCredential = async (credId: string) => {
+  const deleteCredential = async (credId: string) => {
     try {
       await api.credentials.delete(id, credId);
       await loadCredentials();
-    } catch {/* ignore */}
+    } catch {
+      /* ignore */
+    }
   };
 
   const openNewCredential = useCallback(() => {
@@ -406,7 +441,7 @@ function AgentDetailPageContent({
   }, [router]);
 
   const existingOAuthApp = selectedIntegration
-    ? oauthApps.find((a) => a.integration_name === selectedIntegration.name) ?? null
+    ? (oauthApps.find((a) => a.integration_name === selectedIntegration.name) ?? null)
     : null;
 
   // ── Deploy ────────────────────────────────────────────────────
@@ -433,7 +468,9 @@ function AgentDetailPageContent({
       setAgent(updated);
       setDeployDialogOpen(false);
       await Promise.allSettled([loadVersions(), loadCredentials()]);
-    } catch {/* ignore */} finally {
+    } catch {
+      /* ignore */
+    } finally {
       setDeployLoading(false);
     }
   }, [id, loadCredentials, loadVersions, selectedDeployVersion]);
@@ -459,20 +496,21 @@ function AgentDetailPageContent({
   const latestVersion = versionOptions[0]?.version ?? null;
   const displayedVersionNumber = latestVersion;
   const latestIsActive = Boolean(
-    latestVersion !== null &&
-    activeVersionNumber !== null &&
-    activeVersionNumber === latestVersion
+    latestVersion !== null && activeVersionNumber !== null && activeVersionNumber === latestVersion
   );
   const displayedIsActive = Boolean(
     displayedVersionNumber !== null &&
     activeVersionNumber !== null &&
     displayedVersionNumber === activeVersionNumber
   );
-  const showVersionStateBadges = Boolean(agent && !versionsLoading && displayedVersionNumber !== null);
+  const showVersionStateBadges = Boolean(
+    agent && !versionsLoading && displayedVersionNumber !== null
+  );
   const currentVersionLabel = displayedVersionNumber ?? "-";
   const activeVersionLabel = activeVersionNumber ?? "-";
   const totalDeployPages = Math.max(1, Math.ceil(versionOptions.length / pageSize));
-  const selectedIsLatest = selectedDeployVersion !== null && selectedDeployVersion === latestVersion;
+  const selectedIsLatest =
+    selectedDeployVersion !== null && selectedDeployVersion === latestVersion;
   const pagedVersions = versionOptions.slice(
     deployPage * pageSize,
     deployPage * pageSize + pageSize
@@ -537,7 +575,11 @@ function AgentDetailPageContent({
         <div className="flex h-14 items-center justify-between border-b border-border/60 bg-accent/10 px-4 shrink-0 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/agents">
-              <Button variant="ghost" size="icon" className="size-8 rounded-xl hover:bg-background/80 hover:shadow-sm transition-all active:scale-95">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-xl hover:bg-background/80 hover:shadow-sm transition-all active:scale-95"
+              >
                 <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4.5" />
               </Button>
             </Link>
@@ -547,7 +589,9 @@ function AgentDetailPageContent({
                 <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                   <HugeiconsIcon icon={Robot01Icon} className="size-4" />
                 </div>
-                <h2 className="text-sm font-bold tracking-tight text-foreground truncate max-w-[180px]">{agent?.name || "Loading..."}</h2>
+                <h2 className="text-sm font-bold tracking-tight text-foreground truncate max-w-[180px]">
+                  {agent?.name || "Loading..."}
+                </h2>
 
                 {showVersionStateBadges && (
                   <div className="flex items-center gap-1.5 ml-1">
@@ -570,20 +614,25 @@ function AgentDetailPageContent({
                   </div>
                 )}
               </div>
-
             </div>
           </div>
 
           <div className="flex items-center gap-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8 rounded-xl hover:bg-background/80 hover:shadow-sm transition-all">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 rounded-xl hover:bg-background/80 hover:shadow-sm transition-all"
+                >
                   <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52 rounded-xl">
                 <DropdownMenuItem
-                  onClick={() => router.push(`/dashboard/calls?agent_ids=${encodeURIComponent(id)}`)}
+                  onClick={() =>
+                    router.push(`/dashboard/calls?agent_ids=${encodeURIComponent(id)}`)
+                  }
                   className="text-xs font-bold py-2"
                 >
                   <HugeiconsIcon icon={Clock01Icon} className="size-4" />
@@ -593,7 +642,11 @@ function AgentDetailPageContent({
                   <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" />
                   Rename Entity
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={openDeployDialog} className="text-xs font-bold py-2" disabled={!hasVersions}>
+                <DropdownMenuItem
+                  onClick={openDeployDialog}
+                  className="text-xs font-bold py-2"
+                  disabled={!hasVersions}
+                >
                   <HugeiconsIcon icon={Rocket01Icon} className="size-4" />
                   Version Sync
                 </DropdownMenuItem>
@@ -602,7 +655,14 @@ function AgentDetailPageContent({
                   Copy Agent ID
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" className="text-xs font-bold py-2" onClick={() => { setDeleteConfirmName(""); setDeleteDialogOpen(true); }}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  className="text-xs font-bold py-2"
+                  onClick={() => {
+                    setDeleteConfirmName("");
+                    setDeleteDialogOpen(true);
+                  }}
+                >
                   <HugeiconsIcon icon={Delete02Icon} className="size-4" />
                   Purge Agent
                 </DropdownMenuItem>
@@ -626,7 +686,10 @@ function AgentDetailPageContent({
           credentials={credentials}
           recentlySavedSkill={recentlySavedSkill}
           onOpenCredentialModal={openCredentialModal}
-          onDiff={(desc) => { setLastDiff(desc); setActiveTab("config"); }}
+          onDiff={(desc) => {
+            setLastDiff(desc);
+            setActiveTab("config");
+          }}
         />
       </div>
 
@@ -658,7 +721,9 @@ function AgentDetailPageContent({
           <div className="p-4 h-full flex flex-col">
             <div className="flex flex-col flex-1 min-h-0 space-y-3">
               <div className="flex items-center justify-between shrink-0">
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Agent Flow</h3>
+                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Agent Flow
+                </h3>
               </div>
               <div className="relative flex-1 w-full min-h-[500px] flex flex-col items-center justify-center overflow-hidden rounded-xl border border-border/40 shadow-sm bg-accent/5 backdrop-blur-[2px]">
                 {/* Dot grid + vignette only when a diagram is loaded */}
@@ -667,14 +732,16 @@ function AgentDetailPageContent({
                     <div
                       className="absolute inset-0 pointer-events-none opacity-20"
                       style={{
-                        backgroundImage: 'radial-gradient(circle at center, var(--foreground) 1px, transparent 1px)',
-                        backgroundSize: '24px 24px'
+                        backgroundImage:
+                          "radial-gradient(circle at center, var(--foreground) 1px, transparent 1px)",
+                        backgroundSize: "24px 24px",
                       }}
                     />
                     <div
                       className="absolute inset-0 pointer-events-none"
                       style={{
-                        background: 'radial-gradient(ellipse at center, transparent 40%, var(--background) 100%)'
+                        background:
+                          "radial-gradient(ellipse at center, transparent 40%, var(--background) 100%)",
                       }}
                     />
                   </>
@@ -717,9 +784,7 @@ function AgentDetailPageContent({
                     )}
                   </div>
                 )}
-                {flowUpdateState && (
-                  <FlowBusyOverlay mode={flowUpdateState.mode} />
-                )}
+                {flowUpdateState && <FlowBusyOverlay mode={flowUpdateState.mode} />}
               </div>
             </div>
           </div>
@@ -735,7 +800,11 @@ function AgentDetailPageContent({
                 lastDiff={lastDiff}
               />
             ) : (
-              <EmptyState icon={<HugeiconsIcon icon={CodeIcon} className="size-5 opacity-30" />} title="No config yet" desc="Configuration appears once your agent is defined." />
+              <EmptyState
+                icon={<HugeiconsIcon icon={CodeIcon} className="size-5 opacity-30" />}
+                title="No config yet"
+                desc="Configuration appears once your agent is defined."
+              />
             )}
           </div>
         )}
@@ -744,14 +813,24 @@ function AgentDetailPageContent({
         {activeTab === "credentials" && (
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Connected Integrations</h3>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 rounded-lg" onClick={() => openNewCredential()}>
-                <HugeiconsIcon icon={LeftToRightListBulletIcon} className="size-3" /> Browse Integrations
+              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Connected Integrations
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1 rounded-lg"
+                onClick={() => openNewCredential()}
+              >
+                <HugeiconsIcon icon={LeftToRightListBulletIcon} className="size-3" /> Browse
+                Integrations
               </Button>
             </div>
 
             {credLoading ? (
-              <div className="flex justify-center py-12"><Spinner className="size-5 text-muted-foreground" /></div>
+              <div className="flex justify-center py-12">
+                <Spinner className="size-5 text-muted-foreground" />
+              </div>
             ) : credentials.length > 0 ? (
               <div className="space-y-2">
                 {credentials.map((cred) => (
@@ -771,11 +850,17 @@ function AgentDetailPageContent({
                       <div>
                         <span className="text-xs font-medium">{cred.name}</span>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{cred.provider}</Badge>
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            {cred.provider}
+                          </Badge>
                           {cred.is_default ? (
-                            <span className="text-[10px] text-muted-foreground italic">platform default</span>
+                            <span className="text-[10px] text-muted-foreground italic">
+                              platform default
+                            </span>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground">{cred.auth_type}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {cred.auth_type}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -795,11 +880,27 @@ function AgentDetailPageContent({
                       ) : (
                         // Per-agent: full edit / delete
                         <>
-                          <Button variant="ghost" size="icon" className="size-7 rounded-md" onClick={() => editCredential(cred)}>
-                            <HugeiconsIcon icon={PencilEdit01Icon} className="size-3 text-muted-foreground" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 rounded-md"
+                            onClick={() => editCredential(cred)}
+                          >
+                            <HugeiconsIcon
+                              icon={PencilEdit01Icon}
+                              className="size-3 text-muted-foreground"
+                            />
                           </Button>
-                          <Button variant="ghost" size="icon" className="size-7 rounded-md" onClick={() => deleteCredential(cred.id)}>
-                            <HugeiconsIcon icon={Delete02Icon} className="size-3 text-destructive" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 rounded-md"
+                            onClick={() => deleteCredential(cred.id)}
+                          >
+                            <HugeiconsIcon
+                              icon={Delete02Icon}
+                              className="size-3 text-destructive"
+                            />
                           </Button>
                         </>
                       )}
@@ -808,7 +909,11 @@ function AgentDetailPageContent({
                 ))}
               </div>
             ) : (
-              <EmptyState icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />} title="No credentials" desc="Connect integrations from the chat or configure defaults in Integrations." />
+              <EmptyState
+                icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />}
+                title="No credentials"
+                desc="Connect integrations from the chat or configure defaults in Integrations."
+              />
             )}
           </div>
         )}
@@ -833,7 +938,9 @@ function AgentDetailPageContent({
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Versions and Deploy</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-              Deploy sets a selected version as Active, so calls and tests run with that config. Revert creates a new latest version by copying a past version, so you can safely roll back behavior without changing the current Active version until you deploy again.
+              Deploy sets a selected version as Active, so calls and tests run with that config.
+              Revert creates a new latest version by copying a past version, so you can safely roll
+              back behavior without changing the current Active version until you deploy again.
             </DialogDescription>
           </DialogHeader>
 
@@ -870,9 +977,13 @@ function AgentDetailPageContent({
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xs font-semibold text-foreground shrink-0">v{version.version}</span>
+                            <span className="text-xs font-semibold text-foreground shrink-0">
+                              v{version.version}
+                            </span>
                             {isActive ? (
-                              <Badge className="h-5 px-1.5 text-[10px] uppercase tracking-wider shrink-0">Active</Badge>
+                              <Badge className="h-5 px-1.5 text-[10px] uppercase tracking-wider shrink-0">
+                                Active
+                              </Badge>
                             ) : null}
                           </div>
                           <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
@@ -911,7 +1022,9 @@ function AgentDetailPageContent({
               </div>
               {selectedDeployVersion === null ? (
                 <div className="flex h-[420px] items-center justify-center lg:col-span-3">
-                  <p className="text-xs text-muted-foreground">Select a version to preview its config.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Select a version to preview its config.
+                  </p>
                 </div>
               ) : selectedVersionConfig ? (
                 <pre className="h-[420px] overflow-auto rounded-lg border border-border bg-accent/20 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre-wrap wrap-break-word lg:col-span-3">
@@ -1052,8 +1165,8 @@ function AgentDetailPageContent({
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">Delete Agent?</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              This action permanently deletes this Agent and related data including call logs.
-              To confirm, type the Agent name exactly:
+              This action permanently deletes this Agent and related data including call logs. To
+              confirm, type the Agent name exactly:
               <span className="block mt-3 font-mono text-foreground">{agent?.name || "-"}</span>
             </DialogDescription>
           </DialogHeader>
@@ -1094,7 +1207,9 @@ function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: strin
         </div>
       </div>
       <h3 className="text-base font-bold tracking-tight text-foreground mb-2">{title}</h3>
-      <p className="text-xs text-muted-foreground/80 max-w-[280px] leading-relaxed font-medium">{desc}</p>
+      <p className="text-xs text-muted-foreground/80 max-w-[280px] leading-relaxed font-medium">
+        {desc}
+      </p>
     </div>
   );
 }
@@ -1132,7 +1247,11 @@ function FlowBusyOverlay({ mode }: { mode: "create" | "update" }) {
 
 export default function AgentDetailPage(props: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center p-4">Loading agent...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center p-4">Loading agent...</div>
+      }
+    >
       <AgentDetailPageContent {...props} />
     </Suspense>
   );

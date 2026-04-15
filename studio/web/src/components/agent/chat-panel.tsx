@@ -1,7 +1,18 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AiBrain01Icon, ArrowDown01Icon, ArrowTurnBackwardIcon, ArtificialIntelligence08Icon, AttachmentIcon, Cancel01Icon, CheckmarkCircle02Icon, ConnectIcon, Wrench01Icon, SquareIcon } from "@hugeicons/core-free-icons";
+import {
+  AiBrain01Icon,
+  ArrowDown01Icon,
+  ArrowTurnBackwardIcon,
+  ArtificialIntelligence08Icon,
+  AttachmentIcon,
+  Cancel01Icon,
+  CheckmarkCircle02Icon,
+  ConnectIcon,
+  Wrench01Icon,
+  SquareIcon,
+} from "@hugeicons/core-free-icons";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -67,7 +78,9 @@ export default function ChatPanel({
   const [sending, setSending] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; totalLines: number }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    { id: string; name: string; totalLines: number }[]
+  >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,8 +107,17 @@ export default function ChatPanel({
     setUploading(true);
     try {
       const result = await api.builder.upload(agentId, file);
-      setUploadedFiles((p) => [...p, { id: result.file_id, name: result.filename, totalLines: result.total_lines }]);
-    } catch { /* ignore */ } finally {
+      setUploadedFiles((p) => [
+        ...p,
+        {
+          id: result.file_id,
+          name: result.filename,
+          totalLines: result.total_lines,
+        },
+      ]);
+    } catch {
+      /* ignore */
+    } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -107,7 +129,11 @@ export default function ChatPanel({
 
     // Build user message parts for local display: attachment parts + text part
     const parts: RenderedPartData[] = [];
-    const apiAttachments: { file_id: string; filename: string; total_lines: number }[] = [];
+    const apiAttachments: {
+      file_id: string;
+      filename: string;
+      total_lines: number;
+    }[] = [];
     if (uploadedFiles.length > 0) {
       for (const f of uploadedFiles) {
         parts.push({
@@ -126,8 +152,18 @@ export default function ChatPanel({
     }
     parts.push({ kind: "text", content });
 
-    const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: "user", parts };
-    const streamMsg: ChatMessage = { id: `stream-${Date.now()}`, role: "assistant", parts: [], isStreaming: true, progressEvents: [] };
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      parts,
+    };
+    const streamMsg: ChatMessage = {
+      id: `stream-${Date.now()}`,
+      role: "assistant",
+      parts: [],
+      isStreaming: true,
+      progressEvents: [],
+    };
     setMessages((p) => [...p, userMsg, streamMsg]);
     setInput("");
     setSending(true);
@@ -148,59 +184,120 @@ export default function ChatPanel({
     };
 
     try {
-      await api.builder.streamMessage(agentId, content, {
-        onMermaidStart: () => {
-          ensureBuildStarted();
-        },
-        onPart: (evt: StreamPart) => {
-          ensureBuildStarted();
-          setMessages((p) => p.map((m) => {
-            if (m.id !== streamMsg.id) return m;
-            const parts = [...(m.parts || [])];
+      await api.builder.streamMessage(
+        agentId,
+        content,
+        {
+          onMermaidStart: () => {
+            ensureBuildStarted();
+          },
+          onPart: (evt: StreamPart) => {
+            ensureBuildStarted();
+            setMessages((p) =>
+              p.map((m) => {
+                if (m.id !== streamMsg.id) return m;
+                const parts = [...(m.parts || [])];
 
-            if (evt.kind === "part_start" && evt.part_kind) {
-              parts.push({ kind: evt.part_kind, content: "", tool_name: evt.tool_name, args: evt.args });
-            } else if (evt.kind === "part_delta" && parts.length > 0) {
-              const last = { ...parts[parts.length - 1] };
-              last.content += evt.content || "";
-              parts[parts.length - 1] = last;
-            } else if (evt.kind === "tool_return") {
-              parts.push({ kind: "tool-return", content: evt.content || "", tool_name: evt.tool_name });
-            }
+                if (evt.kind === "part_start" && evt.part_kind) {
+                  parts.push({
+                    kind: evt.part_kind,
+                    content: "",
+                    tool_name: evt.tool_name,
+                    args: evt.args,
+                  });
+                } else if (evt.kind === "part_delta" && parts.length > 0) {
+                  const last = { ...parts[parts.length - 1] };
+                  last.content += evt.content || "";
+                  parts[parts.length - 1] = last;
+                } else if (evt.kind === "tool_return") {
+                  parts.push({
+                    kind: "tool-return",
+                    content: evt.content || "",
+                    tool_name: evt.tool_name,
+                  });
+                }
 
-            return { ...m, parts };
-          }));
+                return { ...m, parts };
+              })
+            );
+          },
+          onConfig: (config: AgentGraphConfig) => {
+            setMessages((p) => p.map((m) => (m.id === streamMsg.id ? { ...m, config } : m)));
+            void onConfigUpdate();
+          },
+          onActionCards: (cards: ActionCard[]) => {
+            setMessages((p) =>
+              p.map((m) => (m.id === streamMsg.id ? { ...m, actionCards: cards } : m))
+            );
+          },
+          onMermaid: (diagram) => {
+            onMermaidUpdate(diagram);
+          },
+          onProgress: (data) => {
+            setMessages((p) =>
+              p.map((m) =>
+                m.id === streamMsg.id
+                  ? {
+                      ...m,
+                      progressEvents: [
+                        ...(m.progressEvents || []),
+                        {
+                          step: data.step,
+                          status: data.status,
+                          message: data.message,
+                        },
+                      ],
+                    }
+                  : m
+              )
+            );
+          },
+          onDiff: (desc) => {
+            onDiff?.(desc);
+          },
+          onDone: (data) => {
+            setMessages((p) =>
+              p.map((m) =>
+                m.id === streamMsg.id
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      changeSummary: data.change_summary ?? undefined,
+                    }
+                  : m
+              )
+            );
+            onBuildFinish();
+          },
+          onError: (e: string) => {
+            setMessages((p) =>
+              p.map((m) =>
+                m.id === streamMsg.id
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      parts: [{ kind: "text" as const, content: e }],
+                    }
+                  : m
+              )
+            );
+            onBuildFinish();
+          },
         },
-        onConfig: (config: AgentGraphConfig) => {
-          setMessages((p) => p.map((m) => m.id === streamMsg.id ? { ...m, config } : m));
-          void onConfigUpdate();
-        },
-        onActionCards: (cards: ActionCard[]) => { setMessages((p) => p.map((m) => m.id === streamMsg.id ? { ...m, actionCards: cards } : m)); },
-        onMermaid: (diagram) => {
-          onMermaidUpdate(diagram);
-        },
-        onProgress: (data) => { setMessages((p) => p.map((m) => m.id === streamMsg.id ? { ...m, progressEvents: [...(m.progressEvents || []), { step: data.step, status: data.status, message: data.message }] } : m)); },
-        onDiff: (desc) => { onDiff?.(desc); },
-        onDone: (data) => {
-          setMessages((p) => p.map((m) => m.id === streamMsg.id ? { ...m, isStreaming: false, changeSummary: data.change_summary ?? undefined } : m));
-          onBuildFinish();
-        },
-        onError: (e: string) => {
-          setMessages((p) => p.map((m) => (
-            m.id === streamMsg.id
-              ? { ...m, isStreaming: false, parts: [{ kind: "text" as const, content: e }] }
-              : m
-          )));
-          onBuildFinish();
-        },
-      }, sentAttachments);
+        sentAttachments
+      );
     } catch {
       onBuildFinish();
-    } finally { setSending(false); }
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
   const canSend = input.trim().length > 0 && !sending;
@@ -216,18 +313,33 @@ export default function ChatPanel({
                 <div className="flex justify-end">
                   <div className="max-w-[85%] bg-secondary text-foreground rounded-2xl rounded-br-sm px-4 py-2.5 overflow-x-auto custom-scrollbar flex flex-col">
                     {/* Attachment chips */}
-                    {(msg.parts || []).filter(p => p.kind === "attachment").length > 0 && (
+                    {(msg.parts || []).filter((p) => p.kind === "attachment").length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-2">
-                        {(msg.parts || []).filter(p => p.kind === "attachment").map((p, i) => (
-                          <div key={i} className="flex items-center gap-1 bg-muted border border-border rounded-lg px-2 py-1 text-[10px] text-foreground/75">
-                            <HugeiconsIcon icon={AttachmentIcon} className="size-2.5 text-muted-foreground" />
-                            <span className="max-w-40 truncate">{p.filename}</span>
-                            <span className="text-muted-foreground/50">{p.total_lines} lines</span>
-                          </div>
-                        ))}
+                        {(msg.parts || [])
+                          .filter((p) => p.kind === "attachment")
+                          .map((p, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-1 bg-muted border border-border rounded-lg px-2 py-1 text-[10px] text-foreground/75"
+                            >
+                              <HugeiconsIcon
+                                icon={AttachmentIcon}
+                                className="size-2.5 text-muted-foreground"
+                              />
+                              <span className="max-w-40 truncate">{p.filename}</span>
+                              <span className="text-muted-foreground/50">
+                                {p.total_lines} lines
+                              </span>
+                            </div>
+                          ))}
                       </div>
                     )}
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-normal">{(msg.parts || []).filter(p => p.kind === "text").map(p => p.content).join("")}</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-normal">
+                      {(msg.parts || [])
+                        .filter((p) => p.kind === "text")
+                        .map((p) => p.content)
+                        .join("")}
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -241,7 +353,9 @@ export default function ChatPanel({
                       <div className="space-y-1">
                         {msg.progressEvents.map((p, i) => (
                           <div key={i} className="flex items-center gap-2 text-[10px] font-mono">
-                            <span className={`size-1.5 rounded-full ${p.status === "done" ? "bg-success" : p.status === "error" ? "bg-destructive" : "bg-yellow-500 animate-pulse"}`} />
+                            <span
+                              className={`size-1.5 rounded-full ${p.status === "done" ? "bg-success" : p.status === "error" ? "bg-destructive" : "bg-yellow-500 animate-pulse"}`}
+                            />
                             <span className="text-muted-foreground">Step {p.step}:</span>
                             <span className="text-muted-foreground">{p.message}</span>
                           </div>
@@ -273,12 +387,17 @@ export default function ChatPanel({
                                 return (
                                   <details key={i} className="group">
                                     <summary>
-                                      <HugeiconsIcon icon={ArrowDown01Icon} className="size-3 -rotate-90 transition-transform group-open:rotate-0" />
+                                      <HugeiconsIcon
+                                        icon={ArrowDown01Icon}
+                                        className="size-3 -rotate-90 transition-transform group-open:rotate-0"
+                                      />
                                       <HugeiconsIcon icon={AiBrain01Icon} className="size-3" />
                                       Thinking...
                                     </summary>
                                     <div className="relative mt-1 ml-1.5 pl-3 text-muted-foreground text-xs leading-relaxed before:absolute before:left-0 before:-top-1 before:bottom-0 before:w-px before:bg-border">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {part.content}
+                                      </ReactMarkdown>
                                     </div>
                                   </details>
                                 );
@@ -291,7 +410,11 @@ export default function ChatPanel({
                                 const callName = part.tool_name;
                                 let callIndex = 0;
                                 for (let j = 0; j < i; j++) {
-                                  if (parts[j].kind === "tool-call" && parts[j].tool_name === callName) callIndex++;
+                                  if (
+                                    parts[j].kind === "tool-call" &&
+                                    parts[j].tool_name === callName
+                                  )
+                                    callIndex++;
                                 }
                                 let returnCount = 0;
                                 const hasReturn = parts.some((p, j) => {
@@ -306,7 +429,10 @@ export default function ChatPanel({
                                 const hasExpandableContent = Boolean(part.args && part.args.trim());
                                 if (!hasExpandableContent) {
                                   return (
-                                    <div key={i} className="text-[10px] font-mono text-foreground/75 flex items-center gap-1.5">
+                                    <div
+                                      key={i}
+                                      className="text-[10px] font-mono text-foreground/75 flex items-center gap-1.5"
+                                    >
                                       <span className="size-3 shrink-0" aria-hidden />
                                       {isInFlight ? (
                                         <Spinner className="size-3 text-muted-foreground" />
@@ -314,21 +440,32 @@ export default function ChatPanel({
                                         <HugeiconsIcon icon={Wrench01Icon} className="size-3" />
                                       )}
                                       {part.tool_name ?? "tool"}()
-                                      {isInFlight && <span className="text-muted-foreground animate-pulse">running...</span>}
+                                      {isInFlight && (
+                                        <span className="text-muted-foreground animate-pulse">
+                                          running...
+                                        </span>
+                                      )}
                                     </div>
                                   );
                                 }
                                 return (
                                   <details key={i} className="group" open={isInFlight}>
                                     <summary>
-                                      <HugeiconsIcon icon={ArrowDown01Icon} className="size-3 -rotate-90 transition-transform group-open:rotate-0" />
+                                      <HugeiconsIcon
+                                        icon={ArrowDown01Icon}
+                                        className="size-3 -rotate-90 transition-transform group-open:rotate-0"
+                                      />
                                       {isInFlight ? (
                                         <Spinner className="size-3 text-muted-foreground" />
                                       ) : (
                                         <HugeiconsIcon icon={Wrench01Icon} className="size-3" />
                                       )}
                                       {part.tool_name ?? "tool"}()
-                                      {isInFlight && <span className="text-muted-foreground animate-pulse">running...</span>}
+                                      {isInFlight && (
+                                        <span className="text-muted-foreground animate-pulse">
+                                          running...
+                                        </span>
+                                      )}
                                     </summary>
                                     <pre className="relative mt-1 ml-1.5 pl-3 text-muted-foreground text-[10px] leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto custom-scrollbar before:absolute before:left-0 before:-top-1 before:bottom-0 before:w-px before:bg-border">
                                       {part.args}
@@ -340,12 +477,20 @@ export default function ChatPanel({
                                 return (
                                   <details key={i} className="group">
                                     <summary>
-                                      <HugeiconsIcon icon={ArrowDown01Icon} className="size-3 -rotate-90 transition-transform group-open:rotate-0" />
-                                      <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3" />
+                                      <HugeiconsIcon
+                                        icon={ArrowDown01Icon}
+                                        className="size-3 -rotate-90 transition-transform group-open:rotate-0"
+                                      />
+                                      <HugeiconsIcon
+                                        icon={CheckmarkCircle02Icon}
+                                        className="size-3"
+                                      />
                                       {part.tool_name ?? "tool"} result
                                     </summary>
                                     <div className="relative mt-1 ml-1.5 pl-3 text-muted-foreground text-xs leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto custom-scrollbar before:absolute before:left-0 before:-top-1 before:bottom-0 before:w-px before:bg-border">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {part.content}
+                                      </ReactMarkdown>
                                     </div>
                                   </details>
                                 );
@@ -353,7 +498,9 @@ export default function ChatPanel({
                               if (part.kind === "text" && part.content) {
                                 return (
                                   <div key={i}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {part.content}
+                                    </ReactMarkdown>
                                     {msg.isStreaming && i === parts.length - 1 && (
                                       <span className="inline-block w-0.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
                                     )}
@@ -368,18 +515,28 @@ export default function ChatPanel({
                     </div>
                     {msg.changeSummary && (
                       <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-accent/50 border border-border">
-                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3 text-muted-foreground shrink-0" />
-                        <span className="text-[10px] font-medium text-muted-foreground">{msg.changeSummary}</span>
+                        <HugeiconsIcon
+                          icon={CheckmarkCircle02Icon}
+                          className="size-3 text-muted-foreground shrink-0"
+                        />
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {msg.changeSummary}
+                        </span>
                       </div>
                     )}
                     {msg.actionCards?.map((card, i) => (
-                      <div key={i} className="flex gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-card hover:border-primary/30 hover:shadow-sm transition-all group">
+                      <div
+                        key={i}
+                        className="flex gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-card hover:border-primary/30 hover:shadow-sm transition-all group"
+                      >
                         <div className="size-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary shrink-0 group-hover:bg-primary/10 transition-colors mt-0.5">
                           <HugeiconsIcon icon={ConnectIcon} className="size-5" />
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                           <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-foreground truncate mb-1">{card.title}</h4>
+                            <h4 className="font-bold text-sm text-foreground truncate mb-1">
+                              {card.title}
+                            </h4>
                             <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 lg:line-clamp-3 pr-2">
                               {card.description}
                             </p>
@@ -387,7 +544,11 @@ export default function ChatPanel({
                           <div className="flex items-center gap-3 pt-1">
                             <Button
                               size="sm"
-                              onClick={() => recentlySavedSkill === card.skill ? undefined : onOpenCredentialModal(card)}
+                              onClick={() =>
+                                recentlySavedSkill === card.skill
+                                  ? undefined
+                                  : onOpenCredentialModal(card)
+                              }
                               className={`h-8 text-xs font-bold shrink-0 transition-all ${
                                 recentlySavedSkill === card.skill
                                   ? "bg-success hover:bg-success text-success-foreground"
@@ -395,9 +556,19 @@ export default function ChatPanel({
                               }`}
                               disabled={recentlySavedSkill === card.skill}
                             >
-                              {recentlySavedSkill === card.skill
-                                ? <><HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3.5" /> Saved</>
-                                : credentials.find((c) => c.provider === card.skill) ? "Update" : "Connect"}
+                              {recentlySavedSkill === card.skill ? (
+                                <>
+                                  <HugeiconsIcon
+                                    icon={CheckmarkCircle02Icon}
+                                    className="size-3.5"
+                                  />{" "}
+                                  Saved
+                                </>
+                              ) : credentials.find((c) => c.provider === card.skill) ? (
+                                "Update"
+                              ) : (
+                                "Connect"
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -417,10 +588,16 @@ export default function ChatPanel({
           {uploadedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2 px-1">
               {uploadedFiles.map((f) => (
-                <div key={f.id} className="flex items-center gap-1 bg-accent/60 border border-border rounded-lg px-2 py-1 text-[10px] text-foreground/75">
+                <div
+                  key={f.id}
+                  className="flex items-center gap-1 bg-accent/60 border border-border rounded-lg px-2 py-1 text-[10px] text-foreground/75"
+                >
                   <HugeiconsIcon icon={AttachmentIcon} className="size-2.5 text-muted-foreground" />
                   <span className="max-w-30 truncate">{f.name}</span>
-                  <button onClick={() => setUploadedFiles((p) => p.filter((x) => x.id !== f.id))} className="ml-0.5 text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => setUploadedFiles((p) => p.filter((x) => x.id !== f.id))}
+                    className="ml-0.5 text-muted-foreground hover:text-destructive"
+                  >
                     <HugeiconsIcon icon={Cancel01Icon} className="size-2.5" />
                   </button>
                 </div>
@@ -445,7 +622,13 @@ export default function ChatPanel({
             />
             <div className="flex items-center justify-between px-1.5 pb-0.5 pt-0.5">
               <div className="flex items-center gap-1">
-                <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.docx" className="hidden" onChange={handleFileChange} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md,.docx"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
                 <button
                   className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-secondary transition-all"
                   onClick={() => fileInputRef.current?.click()}
@@ -453,13 +636,22 @@ export default function ChatPanel({
                   aria-label="Upload document"
                   title="Upload document (PDF, TXT, MD, DOCX)"
                 >
-                  {uploading ? <Spinner className="size-4" /> : <HugeiconsIcon icon={AttachmentIcon} className="size-4" />}
+                  {uploading ? (
+                    <Spinner className="size-4" />
+                  ) : (
+                    <HugeiconsIcon icon={AttachmentIcon} className="size-4" />
+                  )}
                 </button>
                 <span className="text-[10px] text-muted-foreground/50 px-1">
-                  <kbd className="font-mono px-0.5 py-px uppercase border rounded">Enter</kbd> to send
+                  <kbd className="font-mono px-0.5 py-px uppercase border rounded">Enter</kbd> to
+                  send
                 </span>
                 <span className="text-[10px] text-muted-foreground/50 px-1">
-                  <kbd className="font-mono px-0.5 py-px uppercase border rounded">Shift</kbd><kbd className="ml-0.5 font-mono px-0.5 py-px uppercase border rounded">Enter</kbd> for newlines
+                  <kbd className="font-mono px-0.5 py-px uppercase border rounded">Shift</kbd>
+                  <kbd className="ml-0.5 font-mono px-0.5 py-px uppercase border rounded">
+                    Enter
+                  </kbd>{" "}
+                  for newlines
                 </span>
               </div>
               <button

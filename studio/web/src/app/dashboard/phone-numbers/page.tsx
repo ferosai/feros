@@ -1,7 +1,23 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AlertCircleIcon, ArrowDown01Icon, ArrowLeft01Icon, Robot01Icon, CallInternal02Icon, CallRinging01Icon, Cancel01Icon, Delete02Icon, Download01Icon, FlashIcon, Link01Icon, Search01Icon, Unlink01Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
+import {
+  AlertCircleIcon,
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  Robot01Icon,
+  CallInternal02Icon,
+  CallRinging01Icon,
+  Cancel01Icon,
+  Delete02Icon,
+  Download01Icon,
+  FlashIcon,
+  Link01Icon,
+  Search01Icon,
+  Unlink01Icon,
+  ViewIcon,
+  ViewOffIcon,
+} from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
@@ -80,7 +96,9 @@ function ProviderWordmark({ provider }: { provider: "twilio" | "telnyx" }) {
   return (
     <div className="h-10 flex items-center justify-center overflow-visible">
       <Image
-        src={provider === "twilio" ? "/brands/twilio-logo-wine.svg" : "/brands/telnyx-logo-black.png"}
+        src={
+          provider === "twilio" ? "/brands/twilio-logo-wine.svg" : "/brands/telnyx-logo-black.png"
+        }
         alt={provider === "twilio" ? "Twilio" : "Telnyx"}
         width={120}
         height={40}
@@ -117,9 +135,7 @@ function formatE164(num: string): string {
 function normalizePhoneish(value: string): string {
   const digits = value.replace(/\D/g, "");
   if (digits.length >= 10) {
-    return digits.length === 11 && digits.startsWith("1")
-      ? digits.slice(1)
-      : digits;
+    return digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
   }
   return value.trim().toLowerCase();
 }
@@ -133,9 +149,7 @@ function StatusBadge({ assigned }: { assigned: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
-        assigned
-          ? "bg-success/10 text-success"
-          : "bg-muted text-muted-foreground"
+        assigned ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
       }`}
     >
       <span
@@ -192,9 +206,7 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
     <Dialog open onOpenChange={closeModal}>
       <DialogContent className="max-h-[min(90vh,720px)] overflow-x-hidden overflow-y-auto rounded-2xl border-border custom-scrollbar sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">
-            {actionLabel}
-          </DialogTitle>
+          <DialogTitle className="text-sm font-semibold">{actionLabel}</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
             Choose which agent should answer calls for this number.
           </DialogDescription>
@@ -210,14 +222,14 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
               <StatusBadge assigned={!!phoneNumber.agent_id} />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {currentAgent
-                ? (
-                  <>
-                    Currently assigned to{" "}
-                    <span className="font-medium text-foreground">{currentAgent.name}</span>.
-                  </>
-                )
-                : "This number is not assigned to an agent yet."}
+              {currentAgent ? (
+                <>
+                  Currently assigned to{" "}
+                  <span className="font-medium text-foreground">{currentAgent.name}</span>.
+                </>
+              ) : (
+                "This number is not assigned to an agent yet."
+              )}
             </p>
           </div>
 
@@ -238,7 +250,10 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
                   </option>
                 ))}
               </select>
-              <HugeiconsIcon icon={ArrowDown01Icon} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
+              />
             </div>
             {selectedAgent && (
               <p className="pl-1 text-[10px] text-muted-foreground">
@@ -252,7 +267,11 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
               <HugeiconsIcon icon={FlashIcon} className="size-3.5 text-primary" /> Voice Server URL
             </label>
             <div className="rounded-lg border border-border bg-secondary/50 px-3 py-2 font-mono text-xs">
-              <span className={voiceServerUrl ? "break-all text-foreground/80" : "text-muted-foreground"}>
+              <span
+                className={
+                  voiceServerUrl ? "break-all text-foreground/80" : "text-muted-foreground"
+                }
+              >
                 {voiceServerUrl || "Not configured"}
               </span>
             </div>
@@ -260,7 +279,10 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
 
           {error && (
             <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2">
-              <HugeiconsIcon icon={AlertCircleIcon} className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <HugeiconsIcon
+                icon={AlertCircleIcon}
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+              />
               <p className="min-w-0 flex-1 max-h-32 overflow-auto whitespace-pre-wrap break-all text-xs leading-relaxed text-destructive custom-scrollbar">
                 {error}
               </p>
@@ -272,11 +294,7 @@ function AssignModal({ phoneNumber, agents, voiceServerUrl, onClose, onSave }: A
           <Button variant="ghost" onClick={onClose} disabled={saving} className="text-sm">
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="text-sm gap-2"
-          >
+          <Button onClick={handleSave} disabled={saving} className="text-sm gap-2">
             {saving ? (
               <>
                 <Spinner className="size-3.5" />
@@ -326,7 +344,10 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
       const result = await api.phoneNumbers.fetch({
         provider,
         ...(provider === "twilio"
-          ? { twilio_account_sid: twilioAccountSid, twilio_auth_token: twilioAuthToken }
+          ? {
+              twilio_account_sid: twilioAccountSid,
+              twilio_auth_token: twilioAuthToken,
+            }
           : { telnyx_api_key: telnyxApiKey }),
       });
       setFetchedNumbers(result.numbers);
@@ -351,7 +372,10 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
       const result = await api.phoneNumbers.importSelected({
         provider,
         ...(provider === "twilio"
-          ? { twilio_account_sid: twilioAccountSid, twilio_auth_token: twilioAuthToken }
+          ? {
+              twilio_account_sid: twilioAccountSid,
+              twilio_auth_token: twilioAuthToken,
+            }
           : { telnyx_api_key: telnyxApiKey }),
         selected_numbers: Array.from(selectedNumbers),
       });
@@ -448,7 +472,11 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                         onClick={() => setShowAuthToken(!showAuthToken)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        {showAuthToken ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                        {showAuthToken ? (
+                          <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                        ) : (
+                          <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -468,7 +496,11 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                       onClick={() => setShowApiKey(!showApiKey)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      {showApiKey ? <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="size-3.5" />}
+                      {showApiKey ? (
+                        <HugeiconsIcon icon={ViewOffIcon} className="size-3.5" />
+                      ) : (
+                        <HugeiconsIcon icon={ViewIcon} className="size-3.5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -489,8 +521,8 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                       disabled
                         ? "border-border bg-secondary/30 opacity-50 cursor-not-allowed"
                         : checked
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-secondary/50 hover:bg-secondary"
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-secondary/50 hover:bg-secondary"
                     }`}
                   >
                     <div
@@ -498,8 +530,8 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                         disabled
                           ? "border-muted-foreground/30 bg-muted"
                           : checked
-                          ? "border-primary bg-primary"
-                          : "border-border bg-card"
+                            ? "border-primary bg-primary"
+                            : "border-border bg-card"
                       }`}
                     >
                       {(checked || disabled) && (
@@ -523,8 +555,8 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                         disabled
                           ? "bg-muted text-muted-foreground"
                           : checked
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-border bg-card text-muted-foreground"
+                            ? "bg-primary text-primary-foreground"
+                            : "border border-border bg-card text-muted-foreground"
                       }`}
                     >
                       {disabled ? "Imported" : checked ? "Selected" : "Ready"}
@@ -552,9 +584,7 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-secondary/40">
           <div>
             {step === 2 && (
-              <span className="text-xs text-muted-foreground">
-                {selectedNumbers.size} selected
-              </span>
+              <span className="text-xs text-muted-foreground">{selectedNumbers.size} selected</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -562,7 +592,10 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setStep(1); setError(""); }}
+                onClick={() => {
+                  setStep(1);
+                  setError("");
+                }}
                 className="h-8 text-xs gap-1.5"
               >
                 <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
@@ -598,7 +631,9 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
                 ) : (
                   <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
                 )}
-                {loading ? "Importing…" : `Import ${selectedNumbers.size} Number${selectedNumbers.size !== 1 ? "s" : ""}`}
+                {loading
+                  ? "Importing…"
+                  : `Import ${selectedNumbers.size} Number${selectedNumbers.size !== 1 ? "s" : ""}`}
               </Button>
             )}
           </div>
@@ -639,7 +674,10 @@ function PhoneNumberCard({
               isAssigned ? "bg-primary/10" : "bg-secondary"
             }`}
           >
-            <HugeiconsIcon icon={CallRinging01Icon} className={`size-5 ${isAssigned ? "text-primary" : "text-muted-foreground"}`} />
+            <HugeiconsIcon
+              icon={CallRinging01Icon}
+              className={`size-5 ${isAssigned ? "text-primary" : "text-muted-foreground"}`}
+            />
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
@@ -659,15 +697,15 @@ function PhoneNumberCard({
 
             <div
               className={`rounded-xl border px-3.5 py-3 ${
-                isAssigned
-                  ? "border-primary/15 bg-primary/5"
-                  : "border-border bg-secondary/50"
+                isAssigned ? "border-primary/15 bg-primary/5" : "border-border bg-secondary/50"
               }`}
             >
               <div className="flex items-start gap-3">
                 <div
                   className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                    isAssigned ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground border border-border"
+                    isAssigned
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card text-muted-foreground border border-border"
                   }`}
                 >
                   <HugeiconsIcon icon={Robot01Icon} className="size-4" />
@@ -774,10 +812,7 @@ export default function PhoneNumbersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [numsData, agentData] = await Promise.all([
-        api.phoneNumbers.list(),
-        api.agents.list(),
-      ]);
+      const [numsData, agentData] = await Promise.all([api.phoneNumbers.list(), api.agents.list()]);
       setNumbers(numsData.phone_numbers);
       setAgents(agentData.agents);
     } catch {
@@ -857,11 +892,7 @@ export default function PhoneNumbersPage() {
           description="Manage your Twilio and Telnyx numbers and route them to agents"
         />
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            size="sm"
-            onClick={() => setShowImport(true)}
-            className="h-8 text-xs gap-1.5"
-          >
+          <Button size="sm" onClick={() => setShowImport(true)} className="h-8 text-xs gap-1.5">
             <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
             Import Numbers
           </Button>
@@ -872,7 +903,10 @@ export default function PhoneNumbersPage() {
       <div className="flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative group">
-          <HugeiconsIcon icon={Search01Icon} className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <HugeiconsIcon
+            icon={Search01Icon}
+            className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground group-focus-within:text-primary transition-colors"
+          />
           <input
             type="text"
             placeholder="Search numbers, agents…"
@@ -892,7 +926,10 @@ export default function PhoneNumbersPage() {
             <option value="twilio">Twilio</option>
             <option value="telnyx">Telnyx</option>
           </select>
-          <HugeiconsIcon icon={ArrowDown01Icon} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground"
+          />
         </div>
 
         <div className="relative">
@@ -905,7 +942,10 @@ export default function PhoneNumbersPage() {
             <option value="assigned">Assigned</option>
             <option value="unassigned">Unassigned</option>
           </select>
-          <HugeiconsIcon icon={ArrowDown01Icon} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground"
+          />
         </div>
 
         {numbers.length > 0 && (
@@ -994,16 +1034,23 @@ export default function PhoneNumbersPage() {
       )}
 
       {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove phone number?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget && (
                 <>
-                  <span className="font-mono font-medium">{formatE164(deleteTarget.phone_number)}</span> will be
-                  removed from {APP_TAGLINE}. The number stays in your {deleteTarget.provider} account — this only
-                  removes it from your workspace.
+                  <span className="font-mono font-medium">
+                    {formatE164(deleteTarget.phone_number)}
+                  </span>{" "}
+                  will be removed from {APP_TAGLINE}. The number stays in your{" "}
+                  {deleteTarget.provider} account — this only removes it from your workspace.
                 </>
               )}
             </AlertDialogDescription>

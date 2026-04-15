@@ -2,7 +2,12 @@
 
 import React from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { HeadsetIcon, ConnectIcon, Settings05Icon, WorkflowSquare10Icon } from "@hugeicons/core-free-icons";
+import {
+  HeadsetIcon,
+  ConnectIcon,
+  Settings05Icon,
+  WorkflowSquare10Icon,
+} from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 
 export type PreviewTab = "flow" | "config" | "credentials" | "test";
@@ -51,14 +56,21 @@ export default function PreviewPanel({
             >
               <HugeiconsIcon
                 icon={tab.icon}
-                className={cn("size-3.5 transition-transform group-hover/tab:scale-110", activeTab === tab.key ? "text-primary" : "text-muted-foreground")}
+                className={cn(
+                  "size-3.5 transition-transform group-hover/tab:scale-110",
+                  activeTab === tab.key ? "text-primary" : "text-muted-foreground"
+                )}
               />
               <span className="hidden sm:inline">{tab.label}</span>
               {tab.key === "credentials" && credentialCount > 0 && (
-                <span className={cn(
-                  "flex items-center justify-center min-w-5 h-4 rounded-full text-[10px] font-black tracking-tight",
-                  activeTab === tab.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "flex items-center justify-center min-w-5 h-4 rounded-full text-[10px] font-black tracking-tight",
+                    activeTab === tab.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
                   {credentialCount}
                 </span>
               )}
@@ -74,11 +86,9 @@ export default function PreviewPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto relative">
-         {/* Subtle background gradient to make the content feel layered */}
-         <div className="absolute inset-0 bg-linear-to-br from-transparent via-accent/5 to-transparent pointer-events-none" />
-         <div className="relative z-10 h-full">
-           {children}
-         </div>
+        {/* Subtle background gradient to make the content feel layered */}
+        <div className="absolute inset-0 bg-linear-to-br from-transparent via-accent/5 to-transparent pointer-events-none" />
+        <div className="relative z-10 h-full">{children}</div>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src",
+    "format": "prettier --write src/",
     "test": "vitest run",
     "test:watch": "vitest",
     "sync-api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/schema.d.ts"
@@ -53,6 +54,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "fast-check": "^3.23.2",
     "openapi-typescript": "^7.13.0",
+    "prettier": "^3.8.3",
     "shadcn": "^3.8.5",
     "ts-proto": "^2.11.6",
     "tw-animate-css": "^1.4.0",

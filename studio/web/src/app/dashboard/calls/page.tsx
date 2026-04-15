@@ -1,7 +1,13 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, CheckmarkCircle02Icon, FilterMailCircleIcon, Search01Icon, VoiceIcon } from "@hugeicons/core-free-icons";
+import {
+  ArrowDown01Icon,
+  CheckmarkCircle02Icon,
+  FilterMailCircleIcon,
+  Search01Icon,
+  VoiceIcon,
+} from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseAsNativeArrayOf, parseAsString, useQueryState } from "nuqs";
@@ -124,11 +130,9 @@ function CallsPageContent() {
   const toggleAgentSelection = (agent: Agent) => {
     setAgentNameById((prev) => ({ ...prev, [agent.id]: agent.name }));
     setCallsSkip(0);
-    void setSelectedAgentIds((prev) => (
-      prev.includes(agent.id)
-        ? prev.filter((id) => id !== agent.id)
-        : [...prev, agent.id]
-    ));
+    void setSelectedAgentIds((prev) =>
+      prev.includes(agent.id) ? prev.filter((id) => id !== agent.id) : [...prev, agent.id]
+    );
     setLoading(true);
   };
 
@@ -145,14 +149,13 @@ function CallsPageContent() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <PageHeader
-          icon={VoiceIcon}
-          title="Calls"
-          description="View and manage call history"
-        />
+        <PageHeader icon={VoiceIcon} title="Calls" description="View and manage call history" />
         <div className="flex gap-3 items-center">
           <div className="relative group hidden md:block">
-            <HugeiconsIcon icon={Search01Icon} className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors"
+            />
             <input
               type="text"
               placeholder="Search calls..."
@@ -186,7 +189,10 @@ function CallsPageContent() {
                     </span>
                   )}
                 </span>
-                <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5 text-muted-foreground shrink-0" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  className="size-3.5 text-muted-foreground shrink-0"
+                />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[340px] p-0" align="end">
@@ -208,7 +214,7 @@ function CallsPageContent() {
                       <CommandEmpty>No agents found.</CommandEmpty>
                       <CommandGroup>
                         {agentOptions.map((agent) => {
-                          const isSelected = selectedAgentIds.includes(agent.id)
+                          const isSelected = selectedAgentIds.includes(agent.id);
                           return (
                             <CommandItem
                               key={agent.id}
@@ -216,7 +222,9 @@ function CallsPageContent() {
                               onSelect={() => toggleAgentSelection(agent)}
                               className="justify-between"
                             >
-                              <span className={`truncate ${isSelected ? "font-semibold" : ""}`}>{agent.name}</span>
+                              <span className={`truncate ${isSelected ? "font-semibold" : ""}`}>
+                                {agent.name}
+                              </span>
                               {isSelected ? (
                                 <HugeiconsIcon
                                   icon={CheckmarkCircle02Icon}
@@ -224,7 +232,7 @@ function CallsPageContent() {
                                 />
                               ) : null}
                             </CommandItem>
-                          )
+                          );
                         })}
                       </CommandGroup>
                     </>
@@ -234,7 +242,9 @@ function CallsPageContent() {
                 <div className="grid grid-cols-3 items-center p-2 text-[10px] text-muted-foreground">
                   <div className="justify-self-start">
                     {agentPageCount > 1 ? (
-                      <span>Page {agentPage}/{agentPageCount}</span>
+                      <span>
+                        Page {agentPage}/{agentPageCount}
+                      </span>
                     ) : null}
                   </div>
                   <div className="justify-self-center">
@@ -245,9 +255,9 @@ function CallsPageContent() {
                         size="sm"
                         className="h-7 px-2 text-[10px]"
                         onClick={() => {
-                          setLoading(true)
-                          setCallsSkip(0)
-                          void setSelectedAgentIds([])
+                          setLoading(true);
+                          setCallsSkip(0);
+                          void setSelectedAgentIds([]);
                         }}
                       >
                         Clear All
@@ -261,7 +271,9 @@ function CallsPageContent() {
                       size="sm"
                       className="h-7 px-2 text-[10px]"
                       disabled={!canPrevAgentPage || agentOptionsLoading}
-                      onClick={() => setAgentOptionsSkip((prev) => Math.max(0, prev - AGENT_MENU_LIMIT))}
+                      onClick={() =>
+                        setAgentOptionsSkip((prev) => Math.max(0, prev - AGENT_MENU_LIMIT))
+                      }
                     >
                       Prev
                     </Button>
@@ -326,7 +338,11 @@ function CallsPageContent() {
 
 export default function CallsPage() {
   return (
-    <Suspense fallback={<div className="flex h-[400px] items-center justify-center p-4">Loading calls...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex h-[400px] items-center justify-center p-4">Loading calls...</div>
+      }
+    >
       <CallsPageContent />
     </Suspense>
   );

@@ -22,11 +22,8 @@ export function parseTranscript(raw: unknown): TranscriptDoc | null {
   if (!Array.isArray(entriesRaw)) return null;
 
   const startedAt =
-    typeof raw.started_at === "string" && raw.started_at.length > 0
-      ? raw.started_at
-      : null;
-  const endedAt =
-    typeof raw.ended_at === "string" && raw.ended_at.length > 0 ? raw.ended_at : null;
+    typeof raw.started_at === "string" && raw.started_at.length > 0 ? raw.started_at : null;
+  const endedAt = typeof raw.ended_at === "string" && raw.ended_at.length > 0 ? raw.ended_at : null;
 
   let wallclockDurationSec: number | null = null;
   if (startedAt && endedAt) {

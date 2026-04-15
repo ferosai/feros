@@ -1,17 +1,23 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Redo03Icon, ArrowTurnBackwardIcon, CallDisabled02Icon, Cancel01Icon, CheckmarkCircle02Icon, FlashIcon, Mic01Icon, PlayIcon, MessageMultiple01Icon } from "@hugeicons/core-free-icons";
+import {
+  Redo03Icon,
+  ArrowTurnBackwardIcon,
+  CallDisabled02Icon,
+  Cancel01Icon,
+  CheckmarkCircle02Icon,
+  FlashIcon,
+  Mic01Icon,
+  PlayIcon,
+  MessageMultiple01Icon,
+} from "@hugeicons/core-free-icons";
 import { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { type Agent, api, WS_BASE } from "@/lib/api/client";
-import {
-  type TimelineEntry,
-  applyChunk,
-  applyTranscript,
-} from "./timeline-reducer";
+import { type TimelineEntry, applyChunk, applyTranscript } from "./timeline-reducer";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -35,8 +41,9 @@ function _toolDurationBefore(timeline: TimelineEntry[], i: number): number | nul
   let total = 0;
   for (let j = i - 1; j >= 0; j--) {
     const e = timeline[j];
-    if (e.kind === "tool") { total += e.duration_ms ?? 0; }
-    else break; // stop at the first non-tool entry
+    if (e.kind === "tool") {
+      total += e.duration_ms ?? 0;
+    } else break; // stop at the first non-tool entry
   }
   return total > 0 ? total : null;
 }
@@ -45,12 +52,12 @@ function parseToolActivityPayload(payload: Record<string, unknown>): ToolActivit
   const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";
   const status = payload.status;
   if (
-    !toolName
-    || status !== "executing"
-    && status !== "completed"
-    && status !== "error"
-    && status !== "interrupted"
-    && status !== "orphaned"
+    !toolName ||
+    (status !== "executing" &&
+      status !== "completed" &&
+      status !== "error" &&
+      status !== "interrupted" &&
+      status !== "orphaned")
   ) {
     return null;
   }
@@ -68,7 +75,7 @@ function parseToolActivityPayload(payload: Record<string, unknown>): ToolActivit
 
 function applyToolActivity(
   timeline: TimelineEntry[],
-  activity: ToolActivityPayload,
+  activity: ToolActivityPayload
 ): TimelineEntry[] {
   if (activity.status === "executing") {
     return [
@@ -83,14 +90,16 @@ function applyToolActivity(
     ];
   }
 
-  const idx = [...timeline].reverse().findIndex((entry) =>
-    entry.kind === "tool"
-    && entry.status === "executing"
-    && (
-      activity.tool_call_id && entry.tool_call_id
-        ? entry.tool_call_id === activity.tool_call_id
-        : entry.tool_name === activity.tool_name
-    ));
+  const idx = [...timeline]
+    .reverse()
+    .findIndex(
+      (entry) =>
+        entry.kind === "tool" &&
+        entry.status === "executing" &&
+        (activity.tool_call_id && entry.tool_call_id
+          ? entry.tool_call_id === activity.tool_call_id
+          : entry.tool_name === activity.tool_name)
+    );
 
   if (idx < 0) {
     return [
@@ -137,7 +146,6 @@ export default function ManualTestView({
 }: ManualTestViewProps) {
   const id = agentId;
 
-
   const config = agent?.current_config;
   const isMissingVoiceId = agent !== null && !config?.voice_id?.trim();
 
@@ -157,24 +165,34 @@ export default function ManualTestView({
   const voiceStopExpectedRef = useRef(false);
   const voiceToastShownRef = useRef(false);
 
-  const showVoiceErrorToast = useCallback((errorMsg?: string) => {
-    if (voiceToastShownRef.current || voiceStopExpectedRef.current) return;
-    voiceToastShownRef.current = true;
-    const currentVoiceServerUrl = attemptedVoiceServerUrlRef.current || voiceServerUrl || "unknown";
-    toast.error(`Voice server error (${currentVoiceServerUrl})`, {
-      description: errorMsg || "Voice test could not continue because the voice server had an error.",
-      duration: 8000,
-    });
-  }, [voiceServerUrl]);
+  const showVoiceErrorToast = useCallback(
+    (errorMsg?: string) => {
+      if (voiceToastShownRef.current || voiceStopExpectedRef.current) return;
+      voiceToastShownRef.current = true;
+      const currentVoiceServerUrl =
+        attemptedVoiceServerUrlRef.current || voiceServerUrl || "unknown";
+      toast.error(`Voice server error (${currentVoiceServerUrl})`, {
+        description:
+          errorMsg || "Voice test could not continue because the voice server had an error.",
+        duration: 8000,
+      });
+    },
+    [voiceServerUrl]
+  );
 
   useEffect(() => {
-    api.settings.getTelephony().then((s) => {
-      if (s.voice_server_url) {
-        const normalizedVoiceServerUrl = s.voice_server_url.replace(/\/$/, "");
-        setVoiceServerUrl(normalizedVoiceServerUrl);
-        attemptedVoiceServerUrlRef.current = normalizedVoiceServerUrl;
-      }
-    }).catch(() => { /* keep localhost default */ });
+    api.settings
+      .getTelephony()
+      .then((s) => {
+        if (s.voice_server_url) {
+          const normalizedVoiceServerUrl = s.voice_server_url.replace(/\/$/, "");
+          setVoiceServerUrl(normalizedVoiceServerUrl);
+          attemptedVoiceServerUrlRef.current = normalizedVoiceServerUrl;
+        }
+      })
+      .catch(() => {
+        /* keep localhost default */
+      });
   }, []);
 
   // Text-only test state
@@ -188,12 +206,36 @@ export default function ManualTestView({
   const isNearBottomRef = useRef(true);
 
   const voiceStateMap: Record<VoiceState, { color: string; label: string; icon: ReactNode }> = {
-    idle: { color: "bg-muted-foreground", label: "Ready", icon: <HugeiconsIcon icon={PlayIcon} className="size-5" /> },
-    connecting: { color: "bg-muted-foreground animate-pulse", label: "Connecting...", icon: <Spinner className="size-5" /> },
-    listening: { color: "bg-primary animate-pulse", label: "Listening", icon: <HugeiconsIcon icon={Mic01Icon} className="size-5 text-primary-foreground" /> },
-    processing: { color: "bg-primary animate-pulse", label: "Thinking...", icon: <Spinner className="size-5 text-primary-foreground" /> },
-    speaking: { color: "bg-orange-500 animate-pulse", label: "Speaking", icon: <HugeiconsIcon icon={Mic01Icon} className="size-5 text-primary-foreground" /> },
-    toolcalling: { color: "bg-primary animate-pulse", label: "Running tool...", icon: <HugeiconsIcon icon={FlashIcon} className="size-5 text-primary-foreground" /> },
+    idle: {
+      color: "bg-muted-foreground",
+      label: "Ready",
+      icon: <HugeiconsIcon icon={PlayIcon} className="size-5" />,
+    },
+    connecting: {
+      color: "bg-muted-foreground animate-pulse",
+      label: "Connecting...",
+      icon: <Spinner className="size-5" />,
+    },
+    listening: {
+      color: "bg-primary animate-pulse",
+      label: "Listening",
+      icon: <HugeiconsIcon icon={Mic01Icon} className="size-5 text-primary-foreground" />,
+    },
+    processing: {
+      color: "bg-primary animate-pulse",
+      label: "Thinking...",
+      icon: <Spinner className="size-5 text-primary-foreground" />,
+    },
+    speaking: {
+      color: "bg-orange-500 animate-pulse",
+      label: "Speaking",
+      icon: <HugeiconsIcon icon={Mic01Icon} className="size-5 text-primary-foreground" />,
+    },
+    toolcalling: {
+      color: "bg-primary animate-pulse",
+      label: "Running tool...",
+      icon: <HugeiconsIcon icon={FlashIcon} className="size-5 text-primary-foreground" />,
+    },
   };
 
   const updateNearBottom = useCallback(() => {
@@ -226,14 +268,30 @@ export default function ManualTestView({
     }
     textTestWsRef.current = ws;
 
-    ws.onopen = () => { setTextTestConnecting(false); setTextTestConnected(true); };
+    ws.onopen = () => {
+      setTextTestConnecting(false);
+      setTextTestConnected(true);
+    };
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data as string);
         if (data.type === "ready") {
-          setTextTestTimeline([{ kind: "message", role: "assistant", text: data.greeting as string }]);
+          setTextTestTimeline([
+            {
+              kind: "message",
+              role: "assistant",
+              text: data.greeting as string,
+            },
+          ]);
         } else if (data.type === "transcript") {
-          setTextTestTimeline((prev) => [...prev, { kind: "message", role: data.role as string, text: data.text as string }]);
+          setTextTestTimeline((prev) => [
+            ...prev,
+            {
+              kind: "message",
+              role: data.role as string,
+              text: data.text as string,
+            },
+          ]);
         } else if (data.type === "tool_activity") {
           const activity = parseToolActivityPayload(data as Record<string, unknown>);
           if (activity) {
@@ -245,7 +303,9 @@ export default function ManualTestView({
           setTextTestProcessing(false);
         } else if (data.type === "metrics") {
           setTextTestTimeline((prev) => {
-            const idx = [...prev].reverse().findIndex((e) => e.kind === "message" && e.role === "assistant");
+            const idx = [...prev]
+              .reverse()
+              .findIndex((e) => e.kind === "message" && e.role === "assistant");
             if (idx < 0) return prev;
             const realIdx = prev.length - 1 - idx;
             const next = [...prev];
@@ -260,13 +320,31 @@ export default function ManualTestView({
             return next;
           });
         } else if (data.type === "error") {
-          setTextTestTimeline((prev) => [...prev, { kind: "message", role: "system", text: `Error: ${data.message as string}` }]);
+          setTextTestTimeline((prev) => [
+            ...prev,
+            {
+              kind: "message",
+              role: "system",
+              text: `Error: ${data.message as string}`,
+            },
+          ]);
           setTextTestProcessing(false);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
-    ws.onclose = () => { setTextTestConnected(false); setTextTestConnecting(false); setTextTestProcessing(false); textTestWsRef.current = null; };
-    ws.onerror = () => { setTextTestConnected(false); setTextTestConnecting(false); setTextTestProcessing(false); };
+    ws.onclose = () => {
+      setTextTestConnected(false);
+      setTextTestConnecting(false);
+      setTextTestProcessing(false);
+      textTestWsRef.current = null;
+    };
+    ws.onerror = () => {
+      setTextTestConnected(false);
+      setTextTestConnecting(false);
+      setTextTestProcessing(false);
+    };
   }, [id]);
 
   const stopTextTest = useCallback(() => {
@@ -277,66 +355,97 @@ export default function ManualTestView({
 
   const sendTextMsg = useCallback(() => {
     const text = textTestMsg.trim();
-    if (!text || !textTestWsRef.current || textTestWsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!text || !textTestWsRef.current || textTestWsRef.current.readyState !== WebSocket.OPEN)
+      return;
     textTestWsRef.current.send(JSON.stringify({ type: "text", text }));
     setTextTestMsg("");
   }, [textTestMsg]);
 
   const handleTextMsgKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendTextMsg(); }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendTextMsg();
+      }
     },
-    [sendTextMsg],
+    [sendTextMsg]
   );
 
   // ── Voice test (WebSocket for UI + WebRTC for audio) ────────────
 
   const stopVoice = useCallback(() => {
     // Null refs first to prevent re-entry from onclose/onerror callbacks
-    const ws = wsRef.current; wsRef.current = null;
-    const pc = pcRef.current; pcRef.current = null;
+    const ws = wsRef.current;
+    wsRef.current = null;
+    const pc = pcRef.current;
+    pcRef.current = null;
     const audio = remoteAudioRef.current;
-    const stream = streamRef.current; streamRef.current = null;
+    const stream = streamRef.current;
+    streamRef.current = null;
 
     // Send explicit session.end before closing — this triggers the server's
     // clean shutdown path (TransportCommand::Close → reactor teardown) immediately,
     // rather than relying solely on the WS close event which may arrive late.
     if (ws && ws.readyState === WebSocket.OPEN) {
-      try { ws.send(JSON.stringify({ type: "session.end" })); } catch { /* ignore */ }
+      try {
+        ws.send(JSON.stringify({ type: "session.end" }));
+      } catch {
+        /* ignore */
+      }
     }
     ws?.close();
     pc?.close();
-    if (audio) { audio.pause(); audio.srcObject = null; }
+    if (audio) {
+      audio.pause();
+      audio.srcObject = null;
+    }
     stream?.getTracks().forEach((t) => t.stop());
     setVoiceState("idle");
   }, []);
 
   /** Handle WebSocket messages for UI updates (no audio) */
-  const handleWsMsg = useCallback((ev: MessageEvent) => {
-    if (ev.data instanceof ArrayBuffer || ev.data instanceof Blob) return; // ignore audio
-    try {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "state_changed") {
-        setVoiceState(msg.state);
-      } else if (msg.type === "interrupt") {
-        // No local audio buffer to flush — WebRTC audio is handled by the browser
-      } else if (msg.type === "transcript") {
-        setVoiceTimeline((p) => applyTranscript(p, { type: "transcript", role: msg.role, text: msg.text }));
-      } else if (msg.type === "transcript_chunk") {
-        setVoiceTimeline((p) => applyChunk(p, { type: "transcript_chunk", role: msg.role, text: typeof msg.text === "string" ? msg.text : "" }));
-      } else if (msg.type === "tool_activity") {
-        const activity = parseToolActivityPayload(msg as Record<string, unknown>);
-        if (activity) {
-          setVoiceTimeline((p) => applyToolActivity(p, activity));
+  const handleWsMsg = useCallback(
+    (ev: MessageEvent) => {
+      if (ev.data instanceof ArrayBuffer || ev.data instanceof Blob) return; // ignore audio
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "state_changed") {
+          setVoiceState(msg.state);
+        } else if (msg.type === "interrupt") {
+          // No local audio buffer to flush — WebRTC audio is handled by the browser
+        } else if (msg.type === "transcript") {
+          setVoiceTimeline((p) =>
+            applyTranscript(p, {
+              type: "transcript",
+              role: msg.role,
+              text: msg.text,
+            })
+          );
+        } else if (msg.type === "transcript_chunk") {
+          setVoiceTimeline((p) =>
+            applyChunk(p, {
+              type: "transcript_chunk",
+              role: msg.role,
+              text: typeof msg.text === "string" ? msg.text : "",
+            })
+          );
+        } else if (msg.type === "tool_activity") {
+          const activity = parseToolActivityPayload(msg as Record<string, unknown>);
+          if (activity) {
+            setVoiceTimeline((p) => applyToolActivity(p, activity));
+          }
+        } else if (msg.type === "session_ended") {
+          // Normal agent hang-up — WS will close cleanly, not an error
+          voiceStopExpectedRef.current = true;
+        } else if (msg.type === "error") {
+          showVoiceErrorToast(msg.message);
         }
-      } else if (msg.type === "session_ended") {
-        // Normal agent hang-up — WS will close cleanly, not an error
-        voiceStopExpectedRef.current = true;
-      } else if (msg.type === "error") {
-        showVoiceErrorToast(msg.message);
+      } catch {
+        /* ignore */
       }
-    } catch {/* ignore */}
-  }, [showVoiceErrorToast]);
+    },
+    [showVoiceErrorToast]
+  );
 
   const startVoice = useCallback(async () => {
     try {
@@ -346,12 +455,17 @@ export default function ManualTestView({
       setVoiceTimeline([]);
       isNearBottomRef.current = true;
 
-      const latestVoiceServerUrl = process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") || voiceServerUrl.replace(/\/$/, "");
+      const latestVoiceServerUrl =
+        process.env.NEXT_PUBLIC_VOICE_SERVER_URL?.replace(/\/$/, "") ||
+        voiceServerUrl.replace(/\/$/, "");
       attemptedVoiceServerUrlRef.current = latestVoiceServerUrl;
 
       if (!latestVoiceServerUrl) {
         stopVoice();
-        toast.error("Voice server not configured", { description: "Set the Voice Server URL in Settings → Voice Infrastructure.", duration: 8000 });
+        toast.error("Voice server not configured", {
+          description: "Set the Voice Server URL in Settings → Voice Infrastructure.",
+          duration: 8000,
+        });
         return;
       }
 
@@ -364,20 +478,35 @@ export default function ManualTestView({
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 48000,
+          },
         });
       } catch {
         stopVoice();
-        toast.error("Microphone unavailable", { description: "Allow microphone access and try again.", duration: 8000 });
+        toast.error("Microphone unavailable", {
+          description: "Allow microphone access and try again.",
+          duration: 8000,
+        });
         return;
       }
       streamRef.current = stream;
 
       // 2. Create session directly on voice-server (no Python needed)
       const voiceBase = latestVoiceServerUrl;
-      const res = await fetch(`${voiceBase}/voice/session/${id}`, { method: "POST" });
+      const res = await fetch(`${voiceBase}/voice/session/${id}`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`Session registration failed: ${res.status}`);
-      const { session_id, ws_url, token } = await res.json() as { session_id: string; ws_url: string; token: string };
+      const { session_id, ws_url, token } = (await res.json()) as {
+        session_id: string;
+        ws_url: string;
+        token: string;
+      };
 
       // 3. Defer WS attach until WebRTC offer/answer is established.
       // If WS connects first, the server can consume the pre-registered
@@ -389,12 +518,18 @@ export default function ManualTestView({
       // 5. Fetch ICE server config from voice-server
       let iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
       try {
-        const iceRes = await fetch(`${rtcBase}/rtc/ice-servers?session_id=${session_id}&token=${token}`);
+        const iceRes = await fetch(
+          `${rtcBase}/rtc/ice-servers?session_id=${session_id}&token=${token}`
+        );
         if (iceRes.ok) {
-          const iceData = await iceRes.json() as { iceServers?: RTCIceServer[] };
+          const iceData = (await iceRes.json()) as {
+            iceServers?: RTCIceServer[];
+          };
           if (iceData.iceServers?.length) iceServers = iceData.iceServers;
         }
-      } catch { /* fall back to Google STUN */ }
+      } catch {
+        /* fall back to Google STUN */
+      }
 
       // 6. Create RTCPeerConnection with real ICE servers
       const pc = new RTCPeerConnection({ iceServers });
@@ -411,9 +546,11 @@ export default function ManualTestView({
       pc.ontrack = (e) => {
         if (e.track.kind === "audio" && remoteAudioRef.current) {
           const audio = remoteAudioRef.current;
-          audio.srcObject = e.streams && e.streams.length > 0 ? e.streams[0] : new MediaStream([e.track]);
+          audio.srcObject =
+            e.streams && e.streams.length > 0 ? e.streams[0] : new MediaStream([e.track]);
           audio.play().catch((err) => {
-            if (process.env.NODE_ENV === "development") console.warn("[voice] audio.play() returned an error:", err);
+            if (process.env.NODE_ENV === "development")
+              console.warn("[voice] audio.play() returned an error:", err);
           });
         }
       };
@@ -438,7 +575,8 @@ export default function ManualTestView({
             }
           })
           .catch((err) => {
-            if (process.env.NODE_ENV === "development") console.warn("[webrtc] Failed to send trickle ICE candidate", err);
+            if (process.env.NODE_ENV === "development")
+              console.warn("[webrtc] Failed to send trickle ICE candidate", err);
           });
       };
 
@@ -457,7 +595,6 @@ export default function ManualTestView({
           stopVoice();
         }
       };
-
 
       // 9. Create SDP offer
       const offer = await pc.createOffer();
@@ -510,7 +647,10 @@ export default function ManualTestView({
       setVoiceState("listening");
     } catch (err: unknown) {
       if (err instanceof Error && err.message) {
-        toast.error("Test connection failed", { description: err.message, duration: 8000 });
+        toast.error("Test connection failed", {
+          description: err.message,
+          duration: 8000,
+        });
       } else {
         showVoiceErrorToast();
       }
@@ -518,7 +658,13 @@ export default function ManualTestView({
     }
   }, [id, handleWsMsg, stopVoice, showVoiceErrorToast, voiceServerUrl]);
 
-  useEffect(() => () => { voiceStopExpectedRef.current = true; stopVoice(); }, [stopVoice]);
+  useEffect(
+    () => () => {
+      voiceStopExpectedRef.current = true;
+      stopVoice();
+    },
+    [stopVoice]
+  );
 
   useEffect(() => {
     updateNearBottom();
@@ -544,8 +690,7 @@ export default function ManualTestView({
   const showTextBottomBar = activeMode === "text" && textTestConnected;
   const showTextRestartBar = activeMode === "text" && !textTestConnected && hasTextHistory;
   const showVoiceBottomBar = activeMode === "voice" && voiceState !== "idle";
-  const showVoiceRestartBar =
-    activeMode === "voice" && voiceState === "idle" && hasVoiceHistory;
+  const showVoiceRestartBar = activeMode === "voice" && voiceState === "idle" && hasVoiceHistory;
   const showBottomBar =
     showTextBottomBar || showTextRestartBar || showVoiceBottomBar || showVoiceRestartBar;
 
@@ -556,7 +701,6 @@ export default function ManualTestView({
       {/* Dynamic Background Accents */}
       <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
-
 
       <div
         ref={scrollContainerRef}
@@ -571,7 +715,12 @@ export default function ManualTestView({
                 <>
                   <div className="space-y-4">
                     {textTestTimeline.map((entry, i) => (
-                      <TimelineEntryCard key={i} entry={entry} previousEntries={textTestTimeline} index={i} />
+                      <TimelineEntryCard
+                        key={i}
+                        entry={entry}
+                        previousEntries={textTestTimeline}
+                        index={i}
+                      />
                     ))}
                   </div>
                   {textTestProcessing && (
@@ -588,11 +737,15 @@ export default function ManualTestView({
               ) : (
                 <div className="flex flex-col items-center justify-center py-24 text-center">
                   <div className="size-32 rounded-full bg-background border-2 border-border shadow-sm flex items-center justify-center mb-8">
-                    <HugeiconsIcon icon={MessageMultiple01Icon} className="size-10 text-muted-foreground/20" />
+                    <HugeiconsIcon
+                      icon={MessageMultiple01Icon}
+                      className="size-10 text-muted-foreground/20"
+                    />
                   </div>
                   <h3 className="text-xl font-bold tracking-tight mb-2">Text Sandbox</h3>
                   <p className="max-w-[280px] text-xs text-muted-foreground leading-relaxed mb-8">
-                    Interact with your agent via text to debug prompts and tool execution logic in real-time.
+                    Interact with your agent via text to debug prompts and tool execution logic in
+                    real-time.
                   </p>
                   {!textTestConnected && (
                     <Button
@@ -601,8 +754,14 @@ export default function ManualTestView({
                       className="rounded-xl shadow-lg shadow-primary/10 gap-2 px-8 h-12 transition-all hover:-translate-y-px active:translate-y-0 ring-offset-background"
                       disabled={!agent?.current_config || textTestConnecting}
                     >
-                      {textTestConnecting ? <Spinner className="size-4" /> : <HugeiconsIcon icon={PlayIcon} className="size-4 fill-current" />}
-                      <span className="text-sm font-semibold">{textTestConnecting ? "Connecting..." : "Start Session"}</span>
+                      {textTestConnecting ? (
+                        <Spinner className="size-4" />
+                      ) : (
+                        <HugeiconsIcon icon={PlayIcon} className="size-4 fill-current" />
+                      )}
+                      <span className="text-sm font-semibold">
+                        {textTestConnecting ? "Connecting..." : "Start Session"}
+                      </span>
                     </Button>
                   )}
                 </div>
@@ -613,38 +772,57 @@ export default function ManualTestView({
               {hasVoiceHistory ? (
                 <div className="w-full space-y-4">
                   {voiceTimeline.map((entry, i) => (
-                    <TimelineEntryCard key={i} entry={entry} previousEntries={voiceTimeline} index={i} />
+                    <TimelineEntryCard
+                      key={i}
+                      entry={entry}
+                      previousEntries={voiceTimeline}
+                      index={i}
+                    />
                   ))}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-24 text-center w-full">
                   {/* The "Vibe Sphere" */}
                   <div className="relative mb-8">
-                    <div className={`absolute inset-0 rounded-full blur-3xl opacity-20 transition-all duration-700 ${
-                      voiceState === "connecting" ? "bg-muted-foreground animate-pulse" :
-                      voiceState === "listening" ? "bg-primary animate-pulse" :
-                      voiceState === "processing" ? "bg-primary/50" :
-                      voiceState === "speaking" ? "bg-orange-400 scale-110" :
-                      "bg-primary/10"
-                    }`} />
+                    <div
+                      className={`absolute inset-0 rounded-full blur-3xl opacity-20 transition-all duration-700 ${
+                        voiceState === "connecting"
+                          ? "bg-muted-foreground animate-pulse"
+                          : voiceState === "listening"
+                            ? "bg-primary animate-pulse"
+                            : voiceState === "processing"
+                              ? "bg-primary/50"
+                              : voiceState === "speaking"
+                                ? "bg-orange-400 scale-110"
+                                : "bg-primary/10"
+                      }`}
+                    />
 
-                    <div className={`relative size-32 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
-                      voiceState === "idle" ? "bg-background border-border shadow-sm" :
-                      "bg-background/80 backdrop-blur-sm border-primary/20 shadow-2xl"
-                    }`}>
+                    <div
+                      className={`relative size-32 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
+                        voiceState === "idle"
+                          ? "bg-background border-border shadow-sm"
+                          : "bg-background/80 backdrop-blur-sm border-primary/20 shadow-2xl"
+                      }`}
+                    >
                       {voiceState === "idle" ? (
-                        <HugeiconsIcon icon={Mic01Icon} className="size-10 text-muted-foreground/20" />
+                        <HugeiconsIcon
+                          icon={Mic01Icon}
+                          className="size-10 text-muted-foreground/20"
+                        />
                       ) : (
-                         <div className="relative flex items-center justify-center">
-                            {voiceState === "speaking" && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="size-24 rounded-full border-2 border-primary/10 animate-ping" />
-                              </div>
-                            )}
-                            <div className={`transition-transform duration-300 ${voiceState === "speaking" ? "scale-110" : "scale-100"}`}>
-                              {voiceStateMap[voiceState].icon}
+                        <div className="relative flex items-center justify-center">
+                          {voiceState === "speaking" && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="size-24 rounded-full border-2 border-primary/10 animate-ping" />
                             </div>
-                         </div>
+                          )}
+                          <div
+                            className={`transition-transform duration-300 ${voiceState === "speaking" ? "scale-110" : "scale-100"}`}
+                          >
+                            {voiceStateMap[voiceState].icon}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -653,11 +831,30 @@ export default function ManualTestView({
                     {voiceState === "idle" ? "Voice Sandbox" : voiceStateMap[voiceState].label}
                   </h3>
                   <p className="max-w-[320px] text-xs text-muted-foreground leading-relaxed mb-10">
-                    {voiceState === "idle"
-                      ? isMissingVoiceId
-                        ? <span className="text-destructive font-semibold">No voice selected.{onGoToConfig && <> Go to <button onClick={onGoToConfig} className="underline underline-offset-2 hover:opacity-80">Voice Settings</button> to configure one.</>}</span>
-                        : "Experience high-fidelity conversational AI with low-latency WebRTC streams."
-                      : "Engaging in a real-time voice session. Speak naturally to interact."}
+                    {voiceState === "idle" ? (
+                      isMissingVoiceId ? (
+                        <span className="text-destructive font-semibold">
+                          No voice selected.
+                          {onGoToConfig && (
+                            <>
+                              {" "}
+                              Go to{" "}
+                              <button
+                                onClick={onGoToConfig}
+                                className="underline underline-offset-2 hover:opacity-80"
+                              >
+                                Voice Settings
+                              </button>{" "}
+                              to configure one.
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        "Experience high-fidelity conversational AI with low-latency WebRTC streams."
+                      )
+                    ) : (
+                      "Engaging in a real-time voice session. Speak naturally to interact."
+                    )}
                   </p>
 
                   {voiceState === "idle" && (
@@ -681,7 +878,9 @@ export default function ManualTestView({
       {/* Contextual Action Bar */}
       {showBottomBar && (
         <div className="z-30 p-4 bg-transparent pointer-events-none sticky bottom-0">
-          <div className={`max-w-2xl mx-auto w-full pointer-events-auto flex items-center animate-in fade-in slide-in-from-bottom-4 duration-500 ${(showTextRestartBar || showVoiceRestartBar) ? "" : "bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-premium p-1.5"}`}>
+          <div
+            className={`max-w-2xl mx-auto w-full pointer-events-auto flex items-center animate-in fade-in slide-in-from-bottom-4 duration-500 ${showTextRestartBar || showVoiceRestartBar ? "" : "bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-premium p-1.5"}`}
+          >
             {showTextBottomBar && (
               <>
                 <div className="flex-1 relative group pl-3 flex items-center min-h-[40px]">
@@ -708,7 +907,11 @@ export default function ManualTestView({
                     disabled={!textTestMsg.trim() || textTestProcessing}
                     className="rounded-xl h-10 w-10 shadow-lg shadow-primary/20 shrink-0 transition-all active:scale-95 active:shadow-inner"
                   >
-                    {textTestProcessing ? <Spinner className="size-4" /> : <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-4" />}
+                    {textTestProcessing ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-4" />
+                    )}
                   </Button>
                   <div className="w-px h-5 bg-border/60 mx-1" />
                   <Button
@@ -730,7 +933,11 @@ export default function ManualTestView({
                 className="w-full rounded-xl gap-2.5 h-10 shadow-lg shadow-primary/10 transition-all active:scale-[0.98]"
                 disabled={!agent?.current_config || textTestConnecting}
               >
-                {textTestConnecting ? <Spinner className="size-4" /> : <HugeiconsIcon icon={Redo03Icon} className="size-4" />}
+                {textTestConnecting ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <HugeiconsIcon icon={Redo03Icon} className="size-4" />
+                )}
                 <span className="text-sm font-bold">Restart Debug Session</span>
               </Button>
             )}
@@ -738,14 +945,21 @@ export default function ManualTestView({
             {showVoiceBottomBar && (
               <div className="w-full flex items-center justify-between gap-4 px-1.5">
                 <div className="flex items-center gap-3">
-                   <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-primary/20 animate-pulse" />
-                      <HugeiconsIcon icon={Mic01Icon} className="size-3.5 text-primary relative z-10" />
-                   </div>
-                   <div>
-                     <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 leading-none mb-1">Status</div>
-                     <div className="text-[10px] font-bold text-foreground leading-none">{voiceStateMap[voiceState].label}</div>
-                   </div>
+                  <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-primary/20 animate-pulse" />
+                    <HugeiconsIcon
+                      icon={Mic01Icon}
+                      className="size-3.5 text-primary relative z-10"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 leading-none mb-1">
+                      Status
+                    </div>
+                    <div className="text-[10px] font-bold text-foreground leading-none">
+                      {voiceStateMap[voiceState].label}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Simulated Waveform Visualizer */}
@@ -755,15 +969,19 @@ export default function ManualTestView({
                       key={i}
                       className={`w-0.5 bg-primary/30 rounded-full transition-all duration-300 ${voiceState === "speaking" ? "animate-wave" : "h-1"}`}
                       style={{
-                        height: voiceState === "speaking" ? `${h * 15 + Math.random() * 20}%` : "4px",
-                        animationDelay: `${i * 0.1}s`
+                        height:
+                          voiceState === "speaking" ? `${h * 15 + Math.random() * 20}%` : "4px",
+                        animationDelay: `${i * 0.1}s`,
                       }}
                     />
                   ))}
                 </div>
 
                 <Button
-                  onClick={() => { voiceStopExpectedRef.current = true; stopVoice(); }}
+                  onClick={() => {
+                    voiceStopExpectedRef.current = true;
+                    stopVoice();
+                  }}
                   variant="destructive"
                   className="rounded-xl px-3.5 h-10 gap-2 shadow-lg shadow-destructive/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                 >
@@ -792,10 +1010,14 @@ export default function ManualTestView({
 
 // ── Internal Components ──────────────────────────────────────────
 
-function TimelineEntryCard({ entry, previousEntries: _previousEntries, index: _index }: {
-  entry: TimelineEntry,
-  previousEntries: TimelineEntry[],
-  index: number
+function TimelineEntryCard({
+  entry,
+  previousEntries: _previousEntries,
+  index: _index,
+}: {
+  entry: TimelineEntry;
+  previousEntries: TimelineEntry[];
+  index: number;
 }) {
   if (entry.kind === "message") {
     const isUser = entry.role === "user";
@@ -803,43 +1025,52 @@ function TimelineEntryCard({ entry, previousEntries: _previousEntries, index: _i
     const name = isUser ? "You" : isSystem ? "System" : "Agent";
 
     return (
-      <div className={`group animate-in fade-in slide-in-from-bottom-2 duration-400 fill-mode-both ${isUser ? "ml-12" : "mr-12"}`}>
+      <div
+        className={`group animate-in fade-in slide-in-from-bottom-2 duration-400 fill-mode-both ${isUser ? "ml-12" : "mr-12"}`}
+      >
         <div className="flex items-center gap-2 mb-1.5 px-1">
-          <div className={`text-[10px] font-bold uppercase tracking-[0.15em] ${isUser ? "text-primary ml-auto" : isSystem ? "text-destructive" : "text-muted-foreground/80"}`}>
+          <div
+            className={`text-[10px] font-bold uppercase tracking-[0.15em] ${isUser ? "text-primary ml-auto" : isSystem ? "text-destructive" : "text-muted-foreground/80"}`}
+          >
             {name}
           </div>
         </div>
-        <div className={`relative px-4 py-3 rounded-2xl border text-sm leading-relaxed shadow-sm transition-shadow hover:shadow-md ${
-          isUser
-            ? "bg-primary text-primary-foreground border-primary/10 rounded-tr-none ml-auto w-fit max-w-[90%]"
-            : isSystem
-            ? "bg-destructive/5 border-destructive/20 text-destructive text-center w-full"
-            : "bg-card/40 backdrop-blur-sm border-border/80 rounded-tl-none w-fit max-w-[90%]"
-        }`}>
+        <div
+          className={`relative px-4 py-3 rounded-2xl border text-sm leading-relaxed shadow-sm transition-shadow hover:shadow-md ${
+            isUser
+              ? "bg-primary text-primary-foreground border-primary/10 rounded-tr-none ml-auto w-fit max-w-[90%]"
+              : isSystem
+                ? "bg-destructive/5 border-destructive/20 text-destructive text-center w-full"
+                : "bg-card/40 backdrop-blur-sm border-border/80 rounded-tl-none w-fit max-w-[90%]"
+          }`}
+        >
           {entry.text}
 
           {!isUser && !isSystem && entry.total_turn_ms != null && (
             <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap items-center gap-y-2 gap-x-4 opacity-70 transition-opacity group-hover:opacity-100">
-               <div className="flex items-center gap-1.5">
-                  <HugeiconsIcon icon={FlashIcon} className="size-2.5 text-primary" />
-                  <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
-                    {entry.ttft_ms}ms <span className="text-[10px] opacity-60">TTFT</span>
-                  </span>
-               </div>
-               {entry.tokens_per_second != null && entry.tokens_per_second > 0 && (
-                 <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
-                   <span className="text-foreground">{entry.tokens_per_second}</span> <span className="text-[10px] opacity-60">T/S</span>
-                 </span>
-               )}
-               <div className="flex-1 min-w-[40px] h-1.5 bg-muted rounded-full overflow-hidden relative">
-                  <div
-                    className="absolute inset-y-0 left-0 bg-primary/40 rounded-full transition-all duration-700"
-                    style={{ width: `${Math.min(100, (entry.ttft_ms! / entry.total_turn_ms!) * 100)}%` }}
-                  />
-               </div>
-               <span className="text-[10px] font-bold text-foreground/80 tabular-nums">
-                 {Math.round(entry.total_turn_ms / 100) / 10}s
-               </span>
+              <div className="flex items-center gap-1.5">
+                <HugeiconsIcon icon={FlashIcon} className="size-2.5 text-primary" />
+                <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+                  {entry.ttft_ms}ms <span className="text-[10px] opacity-60">TTFT</span>
+                </span>
+              </div>
+              {entry.tokens_per_second != null && entry.tokens_per_second > 0 && (
+                <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+                  <span className="text-foreground">{entry.tokens_per_second}</span>{" "}
+                  <span className="text-[10px] opacity-60">T/S</span>
+                </span>
+              )}
+              <div className="flex-1 min-w-[40px] h-1.5 bg-muted rounded-full overflow-hidden relative">
+                <div
+                  className="absolute inset-y-0 left-0 bg-primary/40 rounded-full transition-all duration-700"
+                  style={{
+                    width: `${Math.min(100, (entry.ttft_ms! / entry.total_turn_ms!) * 100)}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[10px] font-bold text-foreground/80 tabular-nums">
+                {Math.round(entry.total_turn_ms / 100) / 10}s
+              </span>
             </div>
           )}
         </div>
@@ -850,21 +1081,33 @@ function TimelineEntryCard({ entry, previousEntries: _previousEntries, index: _i
   return (
     <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 p-4 flex items-center justify-between group animate-in zoom-in-95 duration-400">
       <div className="flex items-center gap-3">
-        <div className={`size-8 rounded-xl flex items-center justify-center transition-colors ${
-          entry.status === "completed" ? "bg-success/10 text-success" :
-          entry.status === "executing" ? "bg-primary/10 text-primary" :
-          "bg-destructive/10 text-destructive"
-        }`}>
-          {entry.status === "executing" ? <Spinner className="size-4" /> :
-           entry.status === "completed" ? <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4" /> :
-           <HugeiconsIcon icon={Cancel01Icon} className="size-4" />}
+        <div
+          className={`size-8 rounded-xl flex items-center justify-center transition-colors ${
+            entry.status === "completed"
+              ? "bg-success/10 text-success"
+              : entry.status === "executing"
+                ? "bg-primary/10 text-primary"
+                : "bg-destructive/10 text-destructive"
+          }`}
+        >
+          {entry.status === "executing" ? (
+            <Spinner className="size-4" />
+          ) : entry.status === "completed" ? (
+            <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4" />
+          ) : (
+            <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
+          )}
         </div>
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold font-mono tracking-tight">{entry.tool_name}</span>
-            <span className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
-               entry.status === "completed" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
-            }`}>
+            <span
+              className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                entry.status === "completed"
+                  ? "bg-success/10 text-success"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
               {entry.status}
             </span>
           </div>

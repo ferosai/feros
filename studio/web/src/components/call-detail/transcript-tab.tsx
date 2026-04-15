@@ -14,7 +14,10 @@ export function TranscriptTab({
   if (messages.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 p-10 text-center">
-        <HugeiconsIcon icon={MessageSquareDashedIcon} className="mx-auto size-8 text-muted-foreground/50" />
+        <HugeiconsIcon
+          icon={MessageSquareDashedIcon}
+          className="mx-auto size-8 text-muted-foreground/50"
+        />
         <p className="mt-3 text-sm text-muted-foreground">
           No transcript messages were captured for this call.
         </p>
@@ -32,9 +35,7 @@ export function TranscriptTab({
           <div
             key={msg.id}
             className={`rounded-lg border px-3.5 py-3 transition-colors ${
-              isActive
-                ? "border-primary/50 bg-primary/5"
-                : "border-border/50 bg-secondary/20"
+              isActive ? "border-primary/50 bg-primary/5" : "border-border/50 bg-secondary/20"
             }`}
           >
             <div className="mb-1.5 flex items-center justify-between gap-3">

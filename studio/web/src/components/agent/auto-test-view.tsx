@@ -1,14 +1,22 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, ArrowLeft01Icon, Cancel01Icon, CancelCircleIcon, CheckmarkCircle02Icon, Delete02Icon, GitBranchIcon, HardDriveUploadIcon, PanelLeftIcon, PlayIcon, RedoIcon, SquareIcon, UndoIcon } from "@hugeicons/core-free-icons";
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+  Add01Icon,
+  ArrowLeft01Icon,
+  Cancel01Icon,
+  CancelCircleIcon,
+  CheckmarkCircle02Icon,
+  Delete02Icon,
+  GitBranchIcon,
+  HardDriveUploadIcon,
+  PanelLeftIcon,
+  PlayIcon,
+  RedoIcon,
+  SquareIcon,
+  UndoIcon,
+} from "@hugeicons/core-free-icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   type Agent,
@@ -25,11 +33,7 @@ import {
 } from "@/lib/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -42,12 +46,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,25 +92,18 @@ interface FormState {
 }
 
 function newClientId(prefix: string): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Math.random().toString(36).slice(2)}`;
 }
 
 function isServerRunId(runId: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    runId,
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId);
 }
 
 function _isTerminalRunStatus(status: EvaluationRunSummary["status"]): boolean {
-  return (
-    status === "completed" || status === "failed" || status === "cancelled"
-  );
+  return status === "completed" || status === "failed" || status === "cancelled";
 }
 
 function makeGoalDraft(goal?: GoalTarget): GoalDraft {
@@ -140,10 +132,7 @@ function defaultFormState(): FormState {
   };
 }
 
-function formFromPayload(
-  name: string,
-  payload: EvaluationConfigPayload,
-): FormState {
+function formFromPayload(name: string, payload: EvaluationConfigPayload): FormState {
   return {
     name,
     persona_preset: payload.persona_preset,
@@ -183,9 +172,7 @@ function payloadFromForm(form: FormState): EvaluationConfigPayload {
   };
 }
 
-function normalizePayloadForComparison(
-  payload: EvaluationConfigPayload,
-): EvaluationConfigPayload {
+function normalizePayloadForComparison(payload: EvaluationConfigPayload): EvaluationConfigPayload {
   return {
     ...payload,
     run_count: payload.run_count ?? 1,
@@ -200,14 +187,14 @@ function canonicalizeForCompare(value: unknown): unknown {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, nested]) => [key, canonicalizeForCompare(nested)]),
+        .map(([key, nested]) => [key, canonicalizeForCompare(nested)])
     );
   }
   return value;
 }
 
 function _statusVariant(
-  status: EvaluationRunSummary["status"],
+  status: EvaluationRunSummary["status"]
 ): "success" | "secondary" | "destructive" | "outline" {
   if (status === "completed") return "success";
   if (status === "failed" || status === "cancelled") return "destructive";
@@ -241,13 +228,10 @@ function isValidNumericForm(form: FormState): boolean {
   const seed = Number(form.seed);
   const runCount = Number(form.run_count);
   if (!form.name.trim()) return false;
-  if (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > 100)
-    return false;
-  if (!Number.isInteger(timeout) || timeout < 10 || timeout > 3600)
-    return false;
+  if (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > 100) return false;
+  if (!Number.isInteger(timeout) || timeout < 10 || timeout > 3600) return false;
   if (!Number.isInteger(seed) || seed < 0) return false;
-  if (!Number.isInteger(runCount) || runCount < 1 || runCount > 20)
-    return false;
+  if (!Number.isInteger(runCount) || runCount < 1 || runCount > 20) return false;
   return true;
 }
 
@@ -271,7 +255,6 @@ export default function AutoTestView({
   activeTab,
   onTabChange,
 }: AutoTestViewProps) {
-
   const [configs, setConfigs] = useState<EvaluationConfigResponse[]>([]);
   const [runs, setRuns] = useState<EvaluationRunSummary[]>([]);
   const [loadingConfigs, setLoadingConfigs] = useState(false);
@@ -283,9 +266,7 @@ export default function AutoTestView({
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
   const [selectedConfigDetail, setSelectedConfigDetail] =
     useState<EvaluationConfigDetailResponse | null>(null);
-  const [loadedConfigVersion, setLoadedConfigVersion] = useState<number | null>(
-    null,
-  );
+  const [loadedConfigVersion, setLoadedConfigVersion] = useState<number | null>(null);
   const [creatingConfig, setCreatingConfig] = useState(false);
   const [form, setForm] = useState<FormState>(() => defaultFormState());
   const [saving, setSaving] = useState(false);
@@ -294,66 +275,53 @@ export default function AutoTestView({
   const [runStartedToast, setRunStartedToast] = useState<string | null>(null);
 
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [selectedRunDetail, setSelectedRunDetail] =
-    useState<EvaluationRunDetailResponse | null>(null);
-  const [runEventsById, setRunEventsById] = useState<
-    Record<string, EvaluationRunEvent[]>
-  >({});
+  const [selectedRunDetail, setSelectedRunDetail] = useState<EvaluationRunDetailResponse | null>(
+    null
+  );
+  const [runEventsById, setRunEventsById] = useState<Record<string, EvaluationRunEvent[]>>({});
   const [loadingRunDetail, setLoadingRunDetail] = useState(false);
-  const [runActionLoading, setRunActionLoading] = useState<
-    Record<string, boolean>
-  >({});
+  const [runActionLoading, setRunActionLoading] = useState<Record<string, boolean>>({});
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [configListHidden, setConfigListHidden] = useState(false);
   const [runListHidden, setRunListHidden] = useState(false);
   const [runDetailTab, setRunDetailTab] = useState<RunDetailTab>("result");
-  const [pendingRunFocusId, setPendingRunFocusId] = useState<string | null>(
-    null,
-  );
+  const [pendingRunFocusId, setPendingRunFocusId] = useState<string | null>(null);
 
   const streamCloseRef = useRef<(() => void) | null>(null);
 
   const hasActiveRuns = useMemo(
-    () =>
-      runs.some((run) => run.status === "queued" || run.status === "running"),
-    [runs],
+    () => runs.some((run) => run.status === "queued" || run.status === "running"),
+    [runs]
   );
   const configNameById = useMemo(
-    () =>
-      Object.fromEntries(
-        configs.map((config) => [config.id, config.name] as const),
-      ),
-    [configs],
+    () => Object.fromEntries(configs.map((config) => [config.id, config.name] as const)),
+    [configs]
   );
 
   const selectedRunEvents = useMemo(
     () => (selectedRunId ? (runEventsById[selectedRunId] ?? []) : []),
-    [runEventsById, selectedRunId],
+    [runEventsById, selectedRunId]
   );
   const selectedConversation = useMemo(
     () =>
       selectedRunEvents
         .filter(
           (event) =>
-            event.event_type === "caller_utterance" ||
-            event.event_type === "assistant_reply",
+            event.event_type === "caller_utterance" || event.event_type === "assistant_reply"
         )
         .map((event) => ({
-          role:
-            event.event_type === "caller_utterance"
-              ? "test_agent"
-              : "target_agent",
+          role: event.event_type === "caller_utterance" ? "test_agent" : "target_agent",
           text: typeof event.text === "string" ? event.text : "",
           seqNo: event.seq_no,
           turnId: typeof event.turn_id === "number" ? event.turn_id : null,
         })),
-    [selectedRunEvents],
+    [selectedRunEvents]
   );
   const loadedVersionPayload = useMemo(() => {
     if (!selectedConfigDetail || loadedConfigVersion == null) return null;
     const match = selectedConfigDetail.versions.find(
-      (version) => version.version === loadedConfigVersion,
+      (version) => version.version === loadedConfigVersion
     );
     return match?.config ?? null;
   }, [loadedConfigVersion, selectedConfigDetail]);
@@ -361,23 +329,15 @@ export default function AutoTestView({
   const isConfigFormDirty = useMemo(() => {
     if (!isExistingConfigMode || !loadedVersionPayload) return false;
     const current = JSON.stringify(
-      canonicalizeForCompare(
-        normalizePayloadForComparison(payloadFromForm(form)),
-      ),
+      canonicalizeForCompare(normalizePayloadForComparison(payloadFromForm(form)))
     );
     const baseline = JSON.stringify(
-      canonicalizeForCompare(
-        normalizePayloadForComparison(loadedVersionPayload),
-      ),
+      canonicalizeForCompare(normalizePayloadForComparison(loadedVersionPayload))
     );
     return current !== baseline;
   }, [form, isExistingConfigMode, loadedVersionPayload]);
   const canSaveVersion =
-    isExistingConfigMode &&
-    isConfigFormDirty &&
-    !saving &&
-    !runningNow &&
-    isValidNumericForm(form);
+    isExistingConfigMode && isConfigFormDirty && !saving && !runningNow && isValidNumericForm(form);
   const runPrimaryLabel = isConfigFormDirty ? "Save and Run" : "Run";
 
   const refreshConfigs = useCallback(async () => {
@@ -389,9 +349,7 @@ export default function AutoTestView({
       });
       setConfigs(response.configs);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load configurations",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load configurations");
     } finally {
       setLoadingConfigs(false);
     }
@@ -423,22 +381,18 @@ export default function AutoTestView({
         setRuns(response.runs);
         setSelectedRunDetail((previous) => {
           if (!previous) return previous;
-          const matched = response.runs.find(
-            (run) => run.id === previous.run.id,
-          );
+          const matched = response.runs.find((run) => run.id === previous.run.id);
           return matched ? { ...previous, run: matched } : previous;
         });
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load run history",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load run history");
       } finally {
         if (!silent) {
           setLoadingRuns(false);
         }
       }
     },
-    [agentId],
+    [agentId]
   );
 
   useEffect(() => {
@@ -476,22 +430,16 @@ export default function AutoTestView({
       try {
         const detail = await api.evaluations.getConfigDetail(agentId, configId);
         setSelectedConfigDetail(detail);
-        const latestVersion = [...detail.versions].sort(
-          (a, b) => b.version - a.version,
-        )[0];
+        const latestVersion = [...detail.versions].sort((a, b) => b.version - a.version)[0];
         if (latestVersion) {
           setLoadedConfigVersion(latestVersion.version);
           setForm(formFromPayload(detail.config.name, latestVersion.config));
         }
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load configuration details",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load configuration details");
       }
     },
-    [agentId],
+    [agentId]
   );
 
   const startCreateConfig = useCallback(() => {
@@ -517,17 +465,14 @@ export default function AutoTestView({
     }));
   }, []);
 
-  const updateGoal = useCallback(
-    (localId: string, field: keyof GoalDraft, value: string) => {
-      setForm((previous) => ({
-        ...previous,
-        goals: previous.goals.map((goal) =>
-          goal.localId === localId ? { ...goal, [field]: value } : goal,
-        ),
-      }));
-    },
-    [],
-  );
+  const updateGoal = useCallback((localId: string, field: keyof GoalDraft, value: string) => {
+    setForm((previous) => ({
+      ...previous,
+      goals: previous.goals.map((goal) =>
+        goal.localId === localId ? { ...goal, [field]: value } : goal
+      ),
+    }));
+  }, []);
 
   const runFromConfig = useCallback(
     async (config: EvaluationConfigResponse, configVersion?: number) => {
@@ -556,12 +501,9 @@ export default function AutoTestView({
           agentId,
           config.id,
           { config_version: configVersion ?? null },
-          newClientId("idem-run"),
+          newClientId("idem-run")
         );
-        setRuns((previous) => [
-          created,
-          ...previous.filter((run) => run.id !== tempId),
-        ]);
+        setRuns((previous) => [created, ...previous.filter((run) => run.id !== tempId)]);
         setSelectedRunId(created.id);
         setRunDetailTab("conversation");
         setPendingRunFocusId(created.id);
@@ -570,12 +512,10 @@ export default function AutoTestView({
         setRuns((previous) => previous.filter((run) => run.id !== tempId));
         setError(err instanceof Error ? err.message : "Failed to start run");
       } finally {
-        setRunningConfigId((previous) =>
-          previous === config.id ? null : previous,
-        );
+        setRunningConfigId((previous) => (previous === config.id ? null : previous));
       }
     },
-    [agent?.active_version, agentId, onTabChange],
+    [agent?.active_version, agentId, onTabChange]
   );
 
   const saveConfig = useCallback(
@@ -591,16 +531,11 @@ export default function AutoTestView({
       try {
         const payload = payloadFromForm(form);
         if (selectedConfigId && !creatingConfig) {
-          const version = await api.evaluations.createConfigVersion(
-            agentId,
-            selectedConfigId,
-            { config: payload },
-          );
+          const version = await api.evaluations.createConfigVersion(agentId, selectedConfigId, {
+            config: payload,
+          });
           setLoadedConfigVersion(version.version);
-          const detail = await api.evaluations.getConfigDetail(
-            agentId,
-            selectedConfigId,
-          );
+          const detail = await api.evaluations.getConfigDetail(agentId, selectedConfigId);
           setSelectedConfigDetail(detail);
           await refreshConfigs();
           if (runImmediately) {
@@ -624,9 +559,7 @@ export default function AutoTestView({
           }
         }
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to save configuration",
-        );
+        setError(err instanceof Error ? err.message : "Failed to save configuration");
       } finally {
         setSaving(false);
         setRunningNow(false);
@@ -641,7 +574,7 @@ export default function AutoTestView({
       runFromConfig,
       selectConfig,
       selectedConfigId,
-    ],
+    ]
   );
 
   const setRunLoading = useCallback((runId: string, loading: boolean) => {
@@ -672,12 +605,9 @@ export default function AutoTestView({
           agentId,
           run.id,
           {},
-          newClientId("idem-rerun"),
+          newClientId("idem-rerun")
         );
-        setRuns((previous) => [
-          created,
-          ...previous.filter((item) => item.id !== tempId),
-        ]);
+        setRuns((previous) => [created, ...previous.filter((item) => item.id !== tempId)]);
         setSelectedRunId(created.id);
         setRunDetailTab("conversation");
         setPendingRunFocusId(created.id);
@@ -689,7 +619,7 @@ export default function AutoTestView({
         setRunLoading(run.id, false);
       }
     },
-    [agentId, setRunLoading, onTabChange],
+    [agentId, setRunLoading, onTabChange]
   );
 
   const cancelRun = useCallback(
@@ -697,32 +627,26 @@ export default function AutoTestView({
       setRunLoading(run.id, true);
       const previousStatus = run.status;
       setRuns((previous) =>
-        previous.map((item) =>
-          item.id === run.id ? { ...item, status: "cancelled" } : item,
-        ),
+        previous.map((item) => (item.id === run.id ? { ...item, status: "cancelled" } : item))
       );
 
       try {
         const updated = await api.evaluations.cancelRun(
           agentId,
           run.id,
-          newClientId("idem-cancel"),
+          newClientId("idem-cancel")
         );
-        setRuns((previous) =>
-          previous.map((item) => (item.id === run.id ? updated : item)),
-        );
+        setRuns((previous) => previous.map((item) => (item.id === run.id ? updated : item)));
       } catch (err) {
         setRuns((previous) =>
-          previous.map((item) =>
-            item.id === run.id ? { ...item, status: previousStatus } : item,
-          ),
+          previous.map((item) => (item.id === run.id ? { ...item, status: previousStatus } : item))
         );
         setError(err instanceof Error ? err.message : "Failed to cancel run");
       } finally {
         setRunLoading(run.id, false);
       }
     },
-    [agentId, setRunLoading],
+    [agentId, setRunLoading]
   );
 
   const removeRun = useCallback(
@@ -752,7 +676,7 @@ export default function AutoTestView({
         setRemoveDialogOpen(false);
       }
     },
-    [agentId, refreshRuns, runs, selectedRunId, setRunLoading],
+    [agentId, refreshRuns, runs, selectedRunId, setRunLoading]
   );
 
   const clearHistory = useCallback(async () => {
@@ -760,42 +684,33 @@ export default function AutoTestView({
     try {
       const response = await api.evaluations.clearRunHistory(agentId);
       setRuns((previous) =>
-        previous.filter(
-          (run) => run.status === "queued" || run.status === "running",
-        ),
+        previous.filter((run) => run.status === "queued" || run.status === "running")
       );
       setRunEventsById({});
       setSelectedRunId((previous) => {
         if (!previous) return previous;
         const stillExists = runs.some(
-          (run) =>
-            run.id === previous &&
-            (run.status === "queued" || run.status === "running"),
+          (run) => run.id === previous && (run.status === "queued" || run.status === "running")
         );
         return stillExists ? previous : null;
       });
       setSelectedRunDetail((previous) => {
         if (!previous) return previous;
-        if (
-          previous.run.status === "queued" ||
-          previous.run.status === "running"
-        ) {
+        if (previous.run.status === "queued" || previous.run.status === "running") {
           return previous;
         }
         return null;
       });
       if (response.skipped_active_count > 0) {
         setError(
-          `Cleared ${response.deleted_count} runs. ${response.skipped_active_count} active run(s) were kept.`,
+          `Cleared ${response.deleted_count} runs. ${response.skipped_active_count} active run(s) were kept.`
         );
       } else {
         setError(null);
       }
       await refreshRuns();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to clear run history",
-      );
+      setError(err instanceof Error ? err.message : "Failed to clear run history");
     } finally {
       setLoadingRuns(false);
       setClearDialogOpen(false);
@@ -816,61 +731,45 @@ export default function AutoTestView({
 
         const existingEvents = runEventsById[runId] ?? [];
         let maxSeq =
-          existingEvents.length > 0
-            ? existingEvents[existingEvents.length - 1].seq_no
-            : 0;
+          existingEvents.length > 0 ? existingEvents[existingEvents.length - 1].seq_no : 0;
 
-        streamCloseRef.current = api.evaluations.streamRunEvents(
-          agentId,
-          runId,
-          maxSeq,
-          {
-            onEvent: (envelope) => {
-              setRunEventsById((previous) => {
-                const runEvents = previous[runId] ?? [];
-                if (
-                  runEvents.some(
-                    (event) => event.seq_no === envelope.event.seq_no,
-                  )
-                ) {
-                  return previous;
-                }
-                const next = [...runEvents, envelope.event].sort(
-                  (a, b) => a.seq_no - b.seq_no,
-                );
-                maxSeq =
-                  next.length > 0 ? next[next.length - 1].seq_no : maxSeq;
-                return { ...previous, [runId]: next };
-              });
-
-              if (
-                envelope.event.event_type === "run_finished" ||
-                envelope.event.event_type === "run_failed"
-              ) {
-                streamCloseRef.current?.();
-                streamCloseRef.current = null;
-                void refreshRuns();
-                void api.evaluations
-                  .getRunDetail(agentId, runId)
-                  .then(setSelectedRunDetail)
-                  .catch(() => {});
+        streamCloseRef.current = api.evaluations.streamRunEvents(agentId, runId, maxSeq, {
+          onEvent: (envelope) => {
+            setRunEventsById((previous) => {
+              const runEvents = previous[runId] ?? [];
+              if (runEvents.some((event) => event.seq_no === envelope.event.seq_no)) {
+                return previous;
               }
-            },
-            onError: () => {
+              const next = [...runEvents, envelope.event].sort((a, b) => a.seq_no - b.seq_no);
+              maxSeq = next.length > 0 ? next[next.length - 1].seq_no : maxSeq;
+              return { ...previous, [runId]: next };
+            });
+
+            if (
+              envelope.event.event_type === "run_finished" ||
+              envelope.event.event_type === "run_failed"
+            ) {
               streamCloseRef.current?.();
               streamCloseRef.current = null;
-            },
+              void refreshRuns();
+              void api.evaluations
+                .getRunDetail(agentId, runId)
+                .then(setSelectedRunDetail)
+                .catch(() => {});
+            }
           },
-        );
+          onError: () => {
+            streamCloseRef.current?.();
+            streamCloseRef.current = null;
+          },
+        });
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load run detail",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load run detail");
       } finally {
         setLoadingRunDetail(false);
       }
     },
-    [agentId, refreshRuns, runEventsById],
+    [agentId, refreshRuns, runEventsById]
   );
 
   useEffect(() => {
@@ -914,8 +813,7 @@ export default function AutoTestView({
   const configListEmpty = !loadingConfigs && configs.length === 0;
   const runListEmpty = !loadingRuns && runs.length === 0;
   const selectedRunIsActive =
-    selectedRunDetail?.run.status === "queued" ||
-    selectedRunDetail?.run.status === "running";
+    selectedRunDetail?.run.status === "queued" || selectedRunDetail?.run.status === "running";
 
   useEffect(() => {
     if (!selectedRunDetail) return;
@@ -926,7 +824,6 @@ export default function AutoTestView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-
       {error && (
         <Card>
           <CardContent className="pt-4">
@@ -945,7 +842,6 @@ export default function AutoTestView({
             <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 text-center">
               <h3 className="text-sm font-semibold">No Configurations Yet</h3>
               <p className="text-xs text-muted-foreground">
-
                 Create your first Auto Test configuration to get started.
               </p>
               <Button onClick={startCreateConfig}>
@@ -961,9 +857,7 @@ export default function AutoTestView({
                   <div className="flex min-h-0 h-full flex-col">
                     <div className="px-4 py-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold">
-                          Configurations
-                        </h3>
+                        <h3 className="text-sm font-semibold">Configurations</h3>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -973,14 +867,10 @@ export default function AutoTestView({
                           <HugeiconsIcon icon={Add01Icon} className="size-3" /> Add
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Saved templates
-                      </p>
+                      <p className="text-xs text-muted-foreground">Saved templates</p>
                     </div>
                     <div className="min-h-0 flex-1 space-y-3 overflow-auto px-4 pt-1 pb-4">
-                      {loadingConfigs ? (
-                        <Spinner className="size-4 text-muted-foreground" />
-                      ) : null}
+                      {loadingConfigs ? <Spinner className="size-4 text-muted-foreground" /> : null}
                       {configs.map((config) => (
                         <button
                           key={config.id}
@@ -993,9 +883,7 @@ export default function AutoTestView({
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium">
-                              {config.name}
-                            </span>
+                            <span className="text-xs font-medium">{config.name}</span>
                             <Badge variant="outline" className="text-[10px] font-mono">
                               v{config.latest_version}
                             </Badge>
@@ -1035,9 +923,7 @@ export default function AutoTestView({
                         </Button>
                       ) : null}
                       <CardTitle className="text-sm">
-                        {creatingConfig
-                          ? "New Configuration"
-                          : "Configuration Detail"}
+                        {creatingConfig ? "New Configuration" : "Configuration Detail"}
                       </CardTitle>
                     </div>
                     {!creatingConfig && selectedConfigId ? (
@@ -1048,27 +934,21 @@ export default function AutoTestView({
                           variant="ghost"
                           className="text-primary text-xs hover:text-primary hover:bg-primary/10"
                           disabled={
-                            Boolean(runningConfigId) ||
-                            runningNow ||
-                            !isValidNumericForm(form)
+                            Boolean(runningConfigId) || runningNow || !isValidNumericForm(form)
                           }
                           onClick={() => {
                             if (isConfigFormDirty) {
                               void saveConfig(true);
                               return;
                             }
-                            const selected = configs.find(
-                              (item) => item.id === selectedConfigId,
-                            );
+                            const selected = configs.find((item) => item.id === selectedConfigId);
                             if (selected) {
-                              const targetVersion =
-                                loadedConfigVersion ?? selected.latest_version;
+                              const targetVersion = loadedConfigVersion ?? selected.latest_version;
                               void runFromConfig(selected, targetVersion);
                             }
                           }}
                         >
-                          {runningNow ||
-                          runningConfigId === selectedConfigId ? (
+                          {runningNow || runningConfigId === selectedConfigId ? (
                             <Spinner className="size-3.5" />
                           ) : (
                             <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
@@ -1098,8 +978,7 @@ export default function AutoTestView({
                       ? "Create and save a reusable Auto Test setup."
                       : selectedConfigDetail
                         ? `${selectedConfigDetail.config.name} (Version ${
-                            loadedConfigVersion ??
-                            selectedConfigDetail.config.latest_version
+                            loadedConfigVersion ?? selectedConfigDetail.config.latest_version
                           }${isConfigFormDirty ? "*" : ""})`
                         : "Select a configuration from the list."}
                   </p>
@@ -1123,9 +1002,7 @@ export default function AutoTestView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Persona Preset
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Persona Preset</label>
                       <Select
                         value={form.persona_preset}
                         onValueChange={(value: string) =>
@@ -1177,9 +1054,7 @@ export default function AutoTestView({
 
                   <div className="grid gap-2 md:grid-cols-2">
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Scenario Profile
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Scenario Profile</label>
                       <Select
                         value={form.scenario_profile}
                         onValueChange={(value: string) =>
@@ -1206,9 +1081,7 @@ export default function AutoTestView({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Evaluation Rubric
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Evaluation Rubric</label>
                       <Select
                         value={form.rubric_version}
                         onValueChange={(value: string) =>
@@ -1222,9 +1095,7 @@ export default function AutoTestView({
                         <SelectTrigger>
                           <SelectValue
                             placeholder={
-                              loadingRubrics
-                                ? "Loading rubrics..."
-                                : "Select rubric preset"
+                              loadingRubrics ? "Loading rubrics..." : "Select rubric preset"
                             }
                           />
                         </SelectTrigger>
@@ -1232,13 +1103,9 @@ export default function AutoTestView({
                           {rubrics.map((rubric) => (
                             <SelectItem key={rubric.id} value={rubric.id}>
                               <div className="flex flex-col gap-0.5">
-                                <SelectItemText>
-                                  {rubric.display_name}
-                                </SelectItemText>
+                                <SelectItemText>{rubric.display_name}</SelectItemText>
                                 <span className="text-xs text-muted-foreground">
-                                  {rubric.dimensions
-                                    .map((d) => d.label)
-                                    .join(", ")}
+                                  {rubric.dimensions.map((d) => d.label).join(", ")}
                                 </span>
                               </div>
                             </SelectItem>
@@ -1250,9 +1117,7 @@ export default function AutoTestView({
 
                   <div className="grid gap-2 md:grid-cols-3">
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Max Turns
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Max Turns</label>
                       <Input
                         value={form.max_turns}
                         onChange={(event) =>
@@ -1264,9 +1129,7 @@ export default function AutoTestView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Timeout (s)
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Timeout (s)</label>
                       <Input
                         value={form.timeout_seconds}
                         onChange={(event) =>
@@ -1278,9 +1141,7 @@ export default function AutoTestView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] text-muted-foreground">
-                        Seed
-                      </label>
+                      <label className="text-[10px] text-muted-foreground">Seed</label>
                       <Input
                         value={form.seed}
                         onChange={(event) =>
@@ -1307,9 +1168,7 @@ export default function AutoTestView({
                       </Button>
                     </div>
                     {form.goals.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        No goals configured yet.
-                      </p>
+                      <p className="text-xs text-muted-foreground">No goals configured yet.</p>
                     ) : null}
                     {form.goals.map((goal) => (
                       <Card key={goal.localId}>
@@ -1318,22 +1177,14 @@ export default function AutoTestView({
                             <Input
                               value={goal.id}
                               onChange={(event) =>
-                                updateGoal(
-                                  goal.localId,
-                                  "id",
-                                  event.target.value,
-                                )
+                                updateGoal(goal.localId, "id", event.target.value)
                               }
                               placeholder="Goal ID"
                             />
                             <Input
                               value={goal.title}
                               onChange={(event) =>
-                                updateGoal(
-                                  goal.localId,
-                                  "title",
-                                  event.target.value,
-                                )
+                                updateGoal(goal.localId, "title", event.target.value)
                               }
                               placeholder="Goal title"
                             />
@@ -1341,22 +1192,14 @@ export default function AutoTestView({
                           <Textarea
                             value={goal.description}
                             onChange={(event) =>
-                              updateGoal(
-                                goal.localId,
-                                "description",
-                                event.target.value,
-                              )
+                              updateGoal(goal.localId, "description", event.target.value)
                             }
                             placeholder="Goal description"
                           />
                           <Textarea
                             value={goal.success_criteria}
                             onChange={(event) =>
-                              updateGoal(
-                                goal.localId,
-                                "success_criteria",
-                                event.target.value,
-                              )
+                              updateGoal(goal.localId, "success_criteria", event.target.value)
                             }
                             placeholder="Success criteria"
                           />
@@ -1388,10 +1231,7 @@ export default function AutoTestView({
                       }
                       className="h-4 w-4 rounded border border-border"
                     />
-                    <label
-                      htmlFor="judge-enabled"
-                      className="text-xs text-muted-foreground"
-                    >
+                    <label htmlFor="judge-enabled" className="text-xs text-muted-foreground">
                       Enable LLM judge
                     </label>
                   </div>
@@ -1406,8 +1246,7 @@ export default function AutoTestView({
                             .slice()
                             .sort((a, b) => b.version - a.version)
                             .map((version) => {
-                              const isLoadedVersion =
-                                loadedConfigVersion === version.version;
+                              const isLoadedVersion = loadedConfigVersion === version.version;
                               const showDiscardForLoadedDirty =
                                 isLoadedVersion && isConfigFormDirty;
 
@@ -1436,29 +1275,20 @@ export default function AutoTestView({
                                           size="icon"
                                           variant="ghost"
                                           className={`size-7 hover:bg-primary/10 ${isLoadedVersion ? "text-primary hover:text-primary" : ""}`}
-                                          disabled={
-                                            Boolean(runningConfigId) ||
-                                            runningNow
-                                          }
+                                          disabled={Boolean(runningConfigId) || runningNow}
                                           onClick={() => {
                                             const selected = configs.find(
-                                              (item) =>
-                                                item.id === selectedConfigId,
+                                              (item) => item.id === selectedConfigId
                                             );
                                             if (selected) {
-                                              void runFromConfig(
-                                                selected,
-                                                version.version,
-                                              );
+                                              void runFromConfig(selected, version.version);
                                             }
                                           }}
                                         >
                                           <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
                                         </Button>
                                       </TooltipTrigger>
-                                      <TooltipContent>
-                                        Run this version
-                                      </TooltipContent>
+                                      <TooltipContent>Run this version</TooltipContent>
                                     </Tooltip>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -1468,22 +1298,22 @@ export default function AutoTestView({
                                           variant="ghost"
                                           className={`size-7 hover:bg-primary/10 ${isLoadedVersion ? "text-primary hover:text-primary" : ""}`}
                                           onClick={() => {
-                                            setLoadedConfigVersion(
-                                              version.version,
-                                            );
+                                            setLoadedConfigVersion(version.version);
                                             setForm(
                                               formFromPayload(
-                                                selectedConfigDetail.config
-                                                  .name,
-                                                version.config,
-                                              ),
+                                                selectedConfigDetail.config.name,
+                                                version.config
+                                              )
                                             );
                                           }}
                                         >
                                           {showDiscardForLoadedDirty ? (
                                             <HugeiconsIcon icon={UndoIcon} className="size-3.5" />
                                           ) : (
-                                            <HugeiconsIcon icon={HardDriveUploadIcon} className="size-3.5" />
+                                            <HugeiconsIcon
+                                              icon={HardDriveUploadIcon}
+                                              className="size-3.5"
+                                            />
                                           )}
                                         </Button>
                                       </TooltipTrigger>
@@ -1511,9 +1341,7 @@ export default function AutoTestView({
                           onClick={() => void saveConfig(false)}
                           disabled={saveDisabled}
                         >
-                          {saving ? (
-                            <Spinner className="size-4" />
-                          ) : null}
+                          {saving ? <Spinner className="size-4" /> : null}
                           Save Config
                         </Button>
                         <Button
@@ -1574,10 +1402,7 @@ export default function AutoTestView({
                             <Spinner className="size-4 text-muted-foreground" />
                           ) : null}
                         </div>
-                        <AlertDialog
-                          open={clearDialogOpen}
-                          onOpenChange={setClearDialogOpen}
-                        >
+                        <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
                           <AlertDialogTrigger asChild>
                             <Button
                               size="sm"
@@ -1590,28 +1415,21 @@ export default function AutoTestView({
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Clear run history?
-                              </AlertDialogTitle>
+                              <AlertDialogTitle>Clear run history?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This removes all finished runs. Active runs will
-                                be kept.
+                                This removes all finished runs. Active runs will be kept.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => void clearHistory()}
-                              >
+                              <AlertDialogAction onClick={() => void clearHistory()}>
                                 Clear
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Recent and live test runs
-                      </p>
+                      <p className="text-xs text-muted-foreground">Recent and live test runs</p>
                     </div>
                     <div className="min-h-0 flex-1 space-y-3 overflow-auto px-4 pt-1 pb-4">
                       {loadingRuns && runs.length === 0 ? (
@@ -1630,14 +1448,11 @@ export default function AutoTestView({
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate text-xs font-medium">
-                              {configNameById[run.config_id] ??
-                                "Unknown Configuration"}{" "}
-                              (v{run.config_version})
+                              {configNameById[run.config_id] ?? "Unknown Configuration"} (v
+                              {run.config_version})
                             </span>
                             <Badge variant="secondary" className="text-[10px] font-mono">
-                              {run.aggregate_score != null
-                                ? `${run.aggregate_score}`
-                                : "-"}
+                              {run.aggregate_score != null ? `${run.aggregate_score}` : "-"}
                             </Badge>
                           </div>
                           <div className="mt-1 flex items-center justify-between gap-2">
@@ -1694,12 +1509,8 @@ export default function AutoTestView({
                             size="sm"
                             variant="ghost"
                             className="text-xs"
-                            disabled={Boolean(
-                              runActionLoading[selectedRunDetail.run.id],
-                            )}
-                            onClick={() =>
-                              void cancelRun(selectedRunDetail.run)
-                            }
+                            disabled={Boolean(runActionLoading[selectedRunDetail.run.id])}
+                            onClick={() => void cancelRun(selectedRunDetail.run)}
                           >
                             {runActionLoading[selectedRunDetail.run.id] ? (
                               <Spinner className="size-3.5" />
@@ -1714,9 +1525,8 @@ export default function AutoTestView({
                           variant="ghost"
                           className="text-xs"
                           disabled={
-                            Boolean(
-                              runActionLoading[selectedRunDetail.run.id],
-                            ) || selectedRunIsActive
+                            Boolean(runActionLoading[selectedRunDetail.run.id]) ||
+                            selectedRunIsActive
                           }
                           onClick={() => void rerun(selectedRunDetail.run)}
                         >
@@ -1727,19 +1537,14 @@ export default function AutoTestView({
                           )}
                           Rerun
                         </Button>
-                        <AlertDialog
-                          open={removeDialogOpen}
-                          onOpenChange={setRemoveDialogOpen}
-                        >
+                        <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
                           <AlertDialogTrigger asChild>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="text-xs"
                               disabled={
-                                Boolean(
-                                  runActionLoading[selectedRunDetail.run.id],
-                                ) ||
+                                Boolean(runActionLoading[selectedRunDetail.run.id]) ||
                                 selectedRunDetail.run.status === "queued" ||
                                 selectedRunDetail.run.status === "running"
                               }
@@ -1754,20 +1559,16 @@ export default function AutoTestView({
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Remove this run?
-                              </AlertDialogTitle>
+                              <AlertDialogTitle>Remove this run?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This removes the selected run history item and
-                                its timeline. This cannot be undone.
+                                This removes the selected run history item and its timeline. This
+                                cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() =>
-                                  void removeRun(selectedRunDetail.run)
-                                }
+                                onClick={() => void removeRun(selectedRunDetail.run)}
                               >
                                 Remove
                               </AlertDialogAction>
@@ -1783,9 +1584,7 @@ export default function AutoTestView({
                     <>
                       <div className="grid gap-3 pb-4 md:grid-cols-3">
                         <div className="rounded-md border border-border p-3">
-                          <div className="text-[10px] text-muted-foreground mb-1">
-                            Status
-                          </div>
+                          <div className="text-[10px] text-muted-foreground mb-1">Status</div>
                           <div
                             className={`text-sm font-semibold ${statusTextClass(selectedRunDetail.run.status)}`}
                           >
@@ -1797,9 +1596,7 @@ export default function AutoTestView({
                             Aggregate Score
                           </div>
                           <div className="text-sm font-semibold">
-                            {formatAggregateScore(
-                              selectedRunDetail.run.aggregate_score,
-                            )}
+                            {formatAggregateScore(selectedRunDetail.run.aggregate_score)}
                           </div>
                         </div>
                         <div className="rounded-md border border-border p-3">
@@ -1861,76 +1658,67 @@ export default function AutoTestView({
                       {runDetailTab === "result" ? (
                         <div className="@container space-y-6">
                           <div className="space-y-2">
-                            <div className="text-xs font-semibold">
-                              Evaluation Summary
-                            </div>
+                            <div className="text-xs font-semibold">Evaluation Summary</div>
                             <p className="text-xs text-muted-foreground">
-                              {selectedRunDetail.summary ??
-                                "No summary available."}
+                              {selectedRunDetail.summary ?? "No summary available."}
                             </p>
                           </div>
 
                           <div className="space-y-2">
-                            <div className="text-xs font-semibold">
-                              Hard Checks
-                            </div>
-                            {Object.keys(selectedRunDetail.hard_checks)
-                              .length === 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                No hard-check data.
-                              </p>
+                            <div className="text-xs font-semibold">Hard Checks</div>
+                            {Object.keys(selectedRunDetail.hard_checks).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No hard-check data.</p>
                             ) : (
                               <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2">
-                                {Object.entries(
-                                  selectedRunDetail.hard_checks,
-                                ).map(([key, value]) => (
-                                  <div
-                                    key={key}
-                                    className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      {value ? (
-                                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-4 text-success" />
-                                      ) : (
-                                        <HugeiconsIcon icon={CancelCircleIcon} className="size-4 text-destructive" />
-                                      )}
-                                      <span>{humanizeLabel(key)}</span>
+                                {Object.entries(selectedRunDetail.hard_checks).map(
+                                  ([key, value]) => (
+                                    <div
+                                      key={key}
+                                      className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {value ? (
+                                          <HugeiconsIcon
+                                            icon={CheckmarkCircle02Icon}
+                                            className="size-4 text-success"
+                                          />
+                                        ) : (
+                                          <HugeiconsIcon
+                                            icon={CancelCircleIcon}
+                                            className="size-4 text-destructive"
+                                          />
+                                        )}
+                                        <span>{humanizeLabel(key)}</span>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        {value ? "Passed" : "Failed"}
+                                      </span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">
-                                      {value ? "Passed" : "Failed"}
-                                    </span>
-                                  </div>
-                                ))}
+                                  )
+                                )}
                               </div>
                             )}
                           </div>
 
                           <div className="space-y-2">
-                            <div className="text-xs font-semibold">
-                              Rubric Scores
-                            </div>
-                            {Object.keys(selectedRunDetail.rubric_scores)
-                              .length === 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                No rubric scores.
-                              </p>
+                            <div className="text-xs font-semibold">Rubric Scores</div>
+                            {Object.keys(selectedRunDetail.rubric_scores).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No rubric scores.</p>
                             ) : (
                               <div className="grid grid-cols-3 gap-2 @lg:grid-cols-5">
-                                {Object.entries(
-                                  selectedRunDetail.rubric_scores,
-                                ).map(([key, value]) => (
-                                  <div
-                                    key={key}
-                                    className="rounded-md border border-border px-3 py-3"
-                                  >
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {humanizeLabel(key)}
+                                {Object.entries(selectedRunDetail.rubric_scores).map(
+                                  ([key, value]) => (
+                                    <div
+                                      key={key}
+                                      className="rounded-md border border-border px-3 py-3"
+                                    >
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {humanizeLabel(key)}
+                                      </div>
+                                      <div className="mt-1 text-lg font-semibold">{value}</div>
                                     </div>
-                                    <div className="mt-1 text-lg font-semibold">
-                                      {value}
-                                    </div>
-                                  </div>
-                                ))}
+                                  )
+                                )}
                               </div>
                             )}
                           </div>
@@ -1961,18 +1749,12 @@ export default function AutoTestView({
                                         : "text-primary/75"
                                     }`}
                                   >
-                                    {message.role === "test_agent"
-                                      ? "Test Agent"
-                                      : "Target Agent"}{" "}
+                                    {message.role === "test_agent" ? "Test Agent" : "Target Agent"}{" "}
                                     · seq#
                                     {message.seqNo}
-                                    {message.turnId !== null
-                                      ? ` · turn ${message.turnId}`
-                                      : ""}
+                                    {message.turnId !== null ? ` · turn ${message.turnId}` : ""}
                                   </div>
-                                  <p className="whitespace-pre-wrap break-words">
-                                    {message.text}
-                                  </p>
+                                  <p className="whitespace-pre-wrap break-words">{message.text}</p>
                                 </div>
                               ))}
                             </div>
@@ -1983,9 +1765,7 @@ export default function AutoTestView({
                       {runDetailTab === "events" ? (
                         <div className="space-y-3">
                           {selectedRunEvents.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                              No events received yet.
-                            </p>
+                            <p className="text-sm text-muted-foreground">No events received yet.</p>
                           ) : (
                             <div className="space-y-2">
                               {selectedRunEvents.map((event) => (
@@ -1994,7 +1774,9 @@ export default function AutoTestView({
                                   className="rounded-md border border-border px-3 py-2"
                                 >
                                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <Badge variant="outline" className="text-[10px]">{event.event_type}</Badge>
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {event.event_type}
+                                    </Badge>
                                     <span>#{event.seq_no}</span>
                                   </div>
                                   <pre className="mt-3 whitespace-pre-wrap break-words text-xs text-muted-foreground">
