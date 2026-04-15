@@ -5,6 +5,7 @@ import { Robot01Icon, CallInternal02Icon, DashboardCircleIcon, HelpCircleIcon, C
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FerosLogoWordmark } from "@/components/logo";
+import { DOCS_URL } from "@/lib/constants";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: DashboardCircleIcon },
@@ -61,7 +62,7 @@ export default function DashboardLayout({
 
         {/* Bottom */}
         <div className="p-3 space-y-1">
-          <Link href="#" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-accent-foreground transition-colors">
+          <Link href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-accent-foreground transition-colors">
             <HugeiconsIcon icon={HelpCircleIcon} className="size-4 text-sidebar-muted-foreground" />
             Docs
           </Link>

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { CallLogTable } from "@/components/calls/call-log-table";
 import AgentListItemCard from "@/components/agent/agent-list-item-card";
 import { PageHeader } from "@/components/ui/page-header";
+import { DOCS_URL } from "@/lib/constants";
 import Link from "next/link";
 
 const quickActions = [
@@ -73,7 +74,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-4">
           <PageHeader icon={SparklesIcon} title="Getting Started" />
-          <Link href="https://feros.ai/docs" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors shrink-0">
+          <Link href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors shrink-0">
             <HugeiconsIcon icon={BookOpen01Icon} className="size-4" />
             Read the Docs
           </Link>
