@@ -122,7 +122,7 @@ async def oauth_authorize(
 
     # PKCE via authlib
     code_verifier = generate_token(48)
-    code_challenge = create_s256_code_challenge(code_verifier)
+    code_challenge = create_s256_code_challenge(code_verifier)  # type: ignore[no-untyped-call]
 
     # State token — random, opaque
     state_token = secrets.token_urlsafe(32)
@@ -353,8 +353,7 @@ async def oauth_callback(
 
     # Return HTML that notifies the opener and closes the popup
     target_origin = opener_origin or settings.oauth_callback_base_url
-    return HTMLResponse(
-        """<!DOCTYPE html>
+    return HTMLResponse("""<!DOCTYPE html>
 <html>
 <head><title>Authorization Complete</title></head>
 <body>
@@ -367,5 +366,4 @@ async def oauth_callback(
   setTimeout(() => window.close(), 1000);
 </script>
 </body>
-</html>""".replace("%s", integration_name, 1).replace("%s", target_origin, 1)
-    )
+</html>""".replace("%s", integration_name, 1).replace("%s", target_origin, 1))

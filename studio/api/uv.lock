@@ -2837,6 +2837,7 @@ dev = [
     { name = "rich" },
     { name = "ruff" },
     { name = "setuptools" },
+    { name = "types-authlib" },
     { name = "types-pyyaml" },
 ]
 
@@ -2882,6 +2883,7 @@ dev = [
     { name = "rich", specifier = ">=14.3.2" },
     { name = "ruff", specifier = ">=0.8.0" },
     { name = "setuptools", specifier = ">=75.0.0" },
+    { name = "types-authlib", specifier = ">=1.6.10.20260414" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
 ]
 
@@ -3041,6 +3043,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a7/a7/e6aecc4b4eb59598829a3b5076a93aff291b4fdaa2ded25efc4e1f4d219c/typer_slim-0.24.0.tar.gz", hash = "sha256:f0ed36127183f52ae6ced2ecb2521789995992c521a46083bfcdbb652d22ad34", size = 4776, upload-time = "2026-02-16T22:08:51.2Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/24/5480c20380dfd18cf33d14784096dca45a24eae6102e91d49a718d3b6855/typer_slim-0.24.0-py3-none-any.whl", hash = "sha256:d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e", size = 3394, upload-time = "2026-02-16T22:08:49.92Z" },
+]
+
+[[package]]
+name = "types-authlib"
+version = "1.6.10.20260414"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/40/84/05ebd66b75660e69257197b293d3b7e03ad9fcdcea8a030e83fece078435/types_authlib-1.6.10.20260414.tar.gz", hash = "sha256:cc4507efc6a27a3402beb29d91e23b375bf255ad71cb95b0e56689926719cf63", size = 46802, upload-time = "2026-04-14T04:35:37.686Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/6e/32221892cf6a2c85158ff314576fed9f943cdb31566585de66960e0ea009/types_authlib-1.6.10.20260414-py3-none-any.whl", hash = "sha256:86f86381d93fa81699cf9b5d57e351a60517237d3661788ddb90cdde3dd1db1e", size = 103945, upload-time = "2026-04-14T04:35:36.62Z" },
 ]
 
 [[package]]
