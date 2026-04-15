@@ -386,6 +386,14 @@ async fn run_native_multimodal(
         return;
     }
 
+    // ── AgentAudio cursor ─────────────────────────────────────────────
+    // Created here — BEFORE the WebSocket connect — so that
+    // elapsed_samples() includes the full connection + setup latency.
+    // This aligns the cursor's clock origin with the recording subscriber's
+    // own session_start (which is set at subscriber spawn, also before setup),
+    // preventing bot audio from being placed too early in the recording.
+    let mut tts_cursor = AgentAudioCursor::new(WEBRTC_RATE);
+
     let provider = Box::new(GeminiLiveProvider::new(
         api_key,
         nm_config.model.clone(),
@@ -442,9 +450,6 @@ async fn run_native_multimodal(
 
     let mut ring = crate::utils::AudioRingBuffer::default();
     let mut bot_speaking = false;
-    // Wall-clock–accurate cursor for recording placement.
-    // Created here (not lazily) so elapsed_samples() is measured from session start.
-    let mut tts_cursor = AgentAudioCursor::new(WEBRTC_RATE);
     let mut bot_transcript_buf = String::new();
 
     // ── Main event loop ────────────────────────────────────────────

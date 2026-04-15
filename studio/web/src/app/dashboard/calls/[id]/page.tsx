@@ -38,7 +38,6 @@ export default function CallDetailPage() {
   const [call, setCall] = useState<CallLog | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("transcript");
   const [currentTimeSec, setCurrentTimeSec] = useState(0);
-  const [audioDurationSec, setAudioDurationSec] = useState(0);
   const [logCapabilities, setLogCapabilities] = useState<CallLogCapabilities | null>(null);
   const [events, setEvents] = useState<CallEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -114,47 +113,33 @@ export default function CallDetailPage() {
     [transcriptDoc]
   );
 
-  const transcriptSyncScale = useMemo(() => {
-    const audioDur = audioDurationSec;
-    if (!(audioDur > 0)) return 1;
-
-    const wallclockDur = transcriptDoc?.wallclockDurationSec;
-    if (wallclockDur && wallclockDur > 0) {
-      const scale = audioDur / wallclockDur;
-      if (scale > 0.5 && scale < 1.5) return scale;
-    }
-
-    if (call?.duration_seconds && call.duration_seconds > 0) {
-      const scale = audioDur / call.duration_seconds;
-      if (scale > 0.5 && scale < 1.5) return scale;
-    }
-
-    return 1;
-  }, [audioDurationSec, transcriptDoc?.wallclockDurationSec, call?.duration_seconds]);
-
-  const transcriptLeadInSec = useMemo(() => {
-    for (const msg of transcriptMessages) {
-      if (msg.offsetSecRaw != null) {
-        const shifted = msg.offsetSecRaw * transcriptSyncScale;
-        return shifted > 0 ? shifted : 0;
-      }
-    }
-    return 0;
-  }, [transcriptMessages, transcriptSyncScale]);
+  // ── Transcript ↔ audio alignment ─────────────────────────────────────────
+  //
+  // `offsetSecRaw` in each message is already (message_utc - recording_started_at)
+  // in seconds (see types.ts → extractTranscriptMessages). The audio file's t=0 is
+  // also `recording_started_at`, so both axes share the same origin and no scale or
+  // lead-in correction is needed.
+  //
+  // DO NOT apply a sync-scale (audio_duration / wallclock_duration). The audio file
+  // is legitimately shorter than the wall-clock session because the recording stops
+  // when the last audio packet arrives while the session connection stays alive for a
+  // few more seconds. Scaling by that ratio compresses all timestamps and causes
+  // highlights to drift earlier as the call progresses.
+  //
+  // DO NOT apply a lead-in offset derived from the first message's offsetSecRaw.
+  // Adding it to currentTimeSec shifts the activation window later than it should be.
 
   const activeTranscriptIndex = useMemo(() => {
-    const alignedTimeSec = currentTimeSec + transcriptLeadInSec;
     let activeIndex = -1;
     for (let i = 0; i < transcriptMessages.length; i += 1) {
-      const offsetRaw = transcriptMessages[i]?.offsetSecRaw;
-      const offset = offsetRaw == null ? null : offsetRaw * transcriptSyncScale;
+      const offset = transcriptMessages[i]?.offsetSecRaw;
       if (offset == null) continue;
-      if (offset <= alignedTimeSec) {
+      if (offset <= currentTimeSec) {
         activeIndex = i;
       }
     }
     return activeIndex;
-  }, [transcriptMessages, currentTimeSec, transcriptSyncScale, transcriptLeadInSec]);
+  }, [transcriptMessages, currentTimeSec]);
 
   const canShowLogTab =
     (logCapabilities?.has_internal_logs ?? false) ||
@@ -241,7 +226,6 @@ export default function CallDetailPage() {
         key={call.recording_url ?? "no-recording"}
         recordingUrl={getAbsoluteUrl(call.recording_url) ?? null}
         fallbackDurationSec={call.duration_seconds}
-        onDurationReady={setAudioDurationSec}
         onTimeUpdate={setCurrentTimeSec}
       />
 

@@ -602,6 +602,12 @@ async fn run_recording_loop(
     // advance strictly by sample count.
     let mut agent_write_cursor: usize = 0;
 
+    // Saved UTC timestamp of the most recent bot-turn start (set on the first
+    // AgentAudio forward-snap for that turn). Consumed by the next assistant
+    // Event::Transcript so the highlight activates at the audio's actual start
+    // rather than at TurnComplete (which can be seconds later in Gemini Live).
+    let mut pending_assistant_turn_ts: Option<String> = None;
+
     // Barge-in tracking: when Event::Interrupt arrives, the agent is muted.
     // All in-flight AgentAudio chunks from the cancelled turn are discarded.
     // The muting is lifted exactly when the reactor signals the start of a
@@ -692,6 +698,24 @@ async fn run_recording_loop(
                     // soxr filter-delay mismatch that would create tiny gaps filled by
                     // displaced samples additively, causing static/distortion.
                     if converted_offset > agent_write_cursor {
+                        // A forward snap unambiguously signals the start of a new bot
+                        // turn. Lift any lingering barge-in mute here so that the new
+                        // turn is captured even if Event::TurnStarted arrives after the
+                        // first audio chunk — which can happen in the Gemini Live path
+                        // where the provider may emit bot audio before it finalises the
+                        // user input transcript (the event that would emit TurnStarted).
+                        if agent_muted {
+                            info!(
+                                "[recording] Agent unmuted via turn snap ({} > {})",
+                                converted_offset, agent_write_cursor
+                            );
+                            agent_muted = false;
+                        }
+                        // Record the wall-clock time of this turn's first audio chunk.
+                        // The next assistant Event::Transcript will consume this so the
+                        // transcript highlight starts at the audio's beginning, not at
+                        // TurnComplete (which arrives after all audio in Gemini Live).
+                        pending_assistant_turn_ts = Some(utc_now_iso8601());
                         agent_write_cursor = converted_offset;
                     }
                     let start = agent_write_cursor;
@@ -731,11 +755,21 @@ async fn run_recording_loop(
 
                 Event::Transcript { role, text } => {
                     let is_assistant = role == "assistant";
+                    // For assistant turns: use the saved turn-start timestamp so the
+                    // highlight activates when the audio begins, not when the transcript
+                    // event fires (which can be seconds later at TurnComplete in Gemini
+                    // Live). Falls back to utc_now() for the standard TTS path where
+                    // no forward-snap has occurred before the transcript event.
+                    let timestamp = if is_assistant {
+                        pending_assistant_turn_ts.take().unwrap_or_else(utc_now_iso8601)
+                    } else {
+                        utc_now_iso8601()
+                    };
                     let idx = transcript.len();
                     transcript.push(TranscriptEntry::Message {
                         role,
                         text,
-                        timestamp: utc_now_iso8601(),
+                        timestamp,
                         was_interrupted: false,
                     });
                     if is_assistant {
@@ -820,6 +854,15 @@ async fn run_recording_loop(
                     // Unmute the agent when a new turn officially starts.
                     // This lifts the barge-in guard, allowing new TTS audio.
                     agent_muted = false;
+                    // Clear any stale pending assistant timestamp. In the standard
+                    // TTS path, Event::Transcript(assistant) fires before the TTS
+                    // audio snap, so the snap from the PREVIOUS turn would otherwise
+                    // be consumed by the NEXT turn's transcript. Resetting here ensures
+                    // each turn's transcript falls back to utc_now() in the standard
+                    // path rather than inheriting a stale prior-snap timestamp.
+                    // (In Gemini Live, TurnStarted also fires before bot audio, so
+                    // this reset is a safe no-op there too.)
+                    pending_assistant_turn_ts = None;
                     transcript.push(TranscriptEntry::SessionEvent {
                         kind: format!("turn_started ({})", turn_number),
                         timestamp: utc_now_iso8601(),
