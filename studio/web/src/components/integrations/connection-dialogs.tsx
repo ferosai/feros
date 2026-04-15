@@ -67,6 +67,7 @@ export function OAuthAppRegistrationDialog({
   const [clientSecret, setClientSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState<string>("{server_url}/api/oauth/callback");
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +75,30 @@ export function OAuthAppRegistrationDialog({
     setClientSecret("");
     setShowSecret(false);
   }, [existing, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+
+    api.oauth
+      .getCallbackUrl()
+      .then((res) => {
+        if (!active) return;
+        setCallbackUrl(res.callback_url || "{server_url}/api/oauth/callback");
+      })
+      .catch(() => {
+        if (!active) return;
+        if (typeof window !== "undefined") {
+          setCallbackUrl(`${window.location.origin}/api/oauth/callback`);
+          return;
+        }
+        setCallbackUrl("{server_url}/api/oauth/callback");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   const handleSave = async () => {
     if (!integration) return;
@@ -137,7 +162,7 @@ export function OAuthAppRegistrationDialog({
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               Create an OAuth app in your <span className="font-medium text-foreground">{integration.display_name}</span>{" "}
               developer portal, set the callback or redirect URL to{" "}
-              <span className="font-mono text-foreground">{`{server_url}/api/oauth/callback`}</span>, then paste the{" "}
+              <span className="font-mono text-foreground">{callbackUrl}</span>, then paste the{" "}
               <span className="font-medium text-foreground">Client ID</span> and{" "}
               <span className="font-medium text-foreground">Client Secret</span> below.
             </p>

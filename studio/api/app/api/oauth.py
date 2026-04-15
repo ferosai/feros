@@ -49,7 +49,19 @@ async def _get_oauth_client_credentials(
     return await get_oauth_client_credentials(integration, db)
 
 
+def _oauth_callback_url() -> str:
+    """Return the normalized OAuth callback URL used by the backend."""
+    settings = get_settings()
+    return f"{settings.oauth_callback_base_url.rstrip('/')}/api/oauth/callback"
+
+
 # ── Routes ───────────────────────────────────────────────────────
+
+
+@router.get("/callback-url")
+async def oauth_callback_url() -> dict[str, str]:
+    """Expose the effective OAuth callback URL for frontend display."""
+    return {"callback_url": _oauth_callback_url()}
 
 
 @router.get("/{integration_name}/authorize")
@@ -128,8 +140,7 @@ async def oauth_authorize(
     )
 
     # Build authorize URL from integrations.yaml config
-    settings = get_settings()
-    callback_url = f"{settings.oauth_callback_base_url}/api/oauth/callback"
+    callback_url = _oauth_callback_url()
 
     # Start with integration-defined authorization_params
     params: dict[str, str] = dict(auth.authorization_params)
@@ -218,7 +229,7 @@ async def oauth_callback(
 
     auth = config.auth
     client_id, client_secret = await _get_oauth_client_credentials(integration_name, db)
-    callback_url = f"{settings.oauth_callback_base_url}/api/oauth/callback"
+    callback_url = _oauth_callback_url()
 
     # Build token exchange request from integrations.yaml token_params
     token_data: dict[str, str] = dict(auth.token_params)
