@@ -88,6 +88,11 @@ export function CallWaveform({
     return () => {
       onTimeUpdate(0);
       onDurationReady?.(0);
+      try {
+        ws.pause();
+      } catch {
+        // ignore
+      }
       ws.destroy();
       waveRef.current = null;
     };

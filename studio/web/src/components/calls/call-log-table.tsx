@@ -53,9 +53,11 @@ export function CallLogTable({
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
 
   useEffect(() => {
-    const audioMap = audioRefs.current;
+    const currentRefs = audioRefs.current;
     return () => {
-      Object.values(audioMap).forEach((el) => el?.pause());
+      Object.values(currentRefs).forEach((el) => {
+        if (el) el.pause();
+      });
     };
   }, []);
 
@@ -132,7 +134,15 @@ export function CallLogTable({
                     <audio
                       preload="none"
                       ref={(el) => {
-                        audioRefs.current[call.id] = el;
+                        if (el) {
+                          audioRefs.current[call.id] = el;
+                        } else {
+                          const existing = audioRefs.current[call.id];
+                          if (existing) {
+                            existing.pause();
+                            delete audioRefs.current[call.id];
+                          }
+                        }
                       }}
                       src={getAbsoluteUrl(call.recording_url)}
                       onEnded={() => setPlayingId(null)}
