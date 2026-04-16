@@ -85,6 +85,11 @@ async def get_conversation(
                     if isinstance(m.metadata_json, dict)
                     else None
                 ),
+                imported_connections=(
+                    m.metadata_json.get("imported_connections", [])
+                    if isinstance(m.metadata_json, dict)
+                    else []
+                ),
                 created_at=m.created_at,
             )
             for m in conversation.messages

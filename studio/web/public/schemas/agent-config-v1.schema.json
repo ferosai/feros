@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://feros.ai/schemas/agent-config-v1.schema.json",
+  "title": "Agent Config v1",
+  "description": "Portable full export/import payload for Feros agents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "name",
+    "config",
+    "connections"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://feros.ai/schemas/agent-config-v1.schema.json"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "config": {
+      "type": "object",
+      "description": "Agent runtime config (v3_graph).",
+      "additionalProperties": true
+    },
+    "mermaid_diagram": {
+      "type": ["string", "null"]
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "is_default", "status"],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": ["string", "null"]
+          },
+          "auth_type": {
+            "type": ["string", "null"]
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["connected", "inherited", "missing"]
+          }
+        }
+      }
+    }
+  }
+}

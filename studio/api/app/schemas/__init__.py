@@ -1,10 +1,16 @@
 from app.schemas.agent import (
     AgentCreate,
+    AgentFullConfig,
+    AgentImportRequest,
     AgentListResponse,
     AgentResponse,
     AgentUpdate,
     AgentVersionResponse,
     GuardrailConfigSchema,
+    ImportedConnection,
+    ImportIssue,
+    ImportValidationRequest,
+    ImportValidationResponse,
     ToolConfigSchema,
 )
 from app.schemas.call import CallListResponse, CallResponse
@@ -57,10 +63,16 @@ from app.schemas.provider import ProviderConfigCreate, ProviderConfigResponse
 
 __all__ = [
     "AgentCreate",
+    "AgentFullConfig",
+    "AgentImportRequest",
     "AgentUpdate",
     "AgentResponse",
     "AgentListResponse",
     "AgentVersionResponse",
+    "ImportedConnection",
+    "ImportIssue",
+    "ImportValidationRequest",
+    "ImportValidationResponse",
     "ToolConfigSchema",
     "GuardrailConfigSchema",
     "BuilderMessageCreate",

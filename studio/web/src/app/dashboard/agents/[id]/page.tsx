@@ -8,6 +8,7 @@ import {
   CodeIcon,
   Copy01Icon,
   Delete02Icon,
+  Download01Icon,
   GitBranchIcon,
   Key02Icon,
   PencilEdit01Icon,
@@ -48,6 +49,7 @@ import {
   type AgentVersion,
   type ActionCard,
   type Credential,
+  type ImportedConnection,
   type OAuthApp,
   type IntegrationSummary,
 } from "@/lib/api/client";
@@ -142,6 +144,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
 
   // Credentials state
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [importedConnections, setImportedConnections] = useState<ImportedConnection[]>([]);
   const [credLoading, setCredLoading] = useState(false);
   const credentialRequestSeqRef = useRef(0);
   const [oauthApps, setOAuthApps] = useState<OAuthApp[]>([]);
@@ -253,6 +256,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
     setMermaidRenderVersion(0);
     setFlowUpdateState(null);
     pendingMermaidRenderRef.current = false;
+    setImportedConnections([]);
     api.builder
       .getConversation(id)
       .then((conv) => {
@@ -266,8 +270,21 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
           setMessages(loaded);
 
           for (let i = conv.messages.length - 1; i >= 0; i--) {
-            if (conv.messages[i].mermaid_diagram) {
-              setMermaidDiagram(conv.messages[i].mermaid_diagram!);
+            const msg = conv.messages[i];
+            if (!msg) continue;
+            if (msg.mermaid_diagram) {
+              setMermaidDiagram(msg.mermaid_diagram);
+            }
+            if (
+              msg.imported_connections &&
+              msg.imported_connections.length > 0
+            ) {
+              setImportedConnections(msg.imported_connections);
+            }
+            if (
+              msg.mermaid_diagram ||
+              (msg.imported_connections && msg.imported_connections.length > 0)
+            ) {
               break;
             }
           }
@@ -565,6 +582,30 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
     }
   }, [id]);
 
+  const exportFullConfig = useCallback(async () => {
+    try {
+      const payload = await api.agents.export(id);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const slug = (agent?.name || "agent")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      a.href = url;
+      a.download = `${slug || "agent"}-full-config.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Full config exported");
+    } catch {
+      toast.error("Failed to export full config");
+    }
+  }, [agent?.name, id]);
+
   // ── Render ────────────────────────────────────────────────────
 
   return (
@@ -653,6 +694,10 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
                 <DropdownMenuItem onClick={copyAgentId} className="text-xs font-bold py-2">
                   <HugeiconsIcon icon={Copy01Icon} className="size-4" />
                   Copy Agent ID
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportFullConfig} className="text-xs font-bold py-2">
+                  <HugeiconsIcon icon={Download01Icon} className="size-4" />
+                  Download Agent Config
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -909,11 +954,51 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
                 ))}
               </div>
             ) : (
-              <EmptyState
-                icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />}
-                title="No credentials"
-                desc="Connect integrations from the chat or configure defaults in Integrations."
-              />
+              importedConnections.length > 0 ? (
+                <div className="space-y-2">
+                  {importedConnections.map((conn, idx) => (
+                    <div
+                      key={`${conn.provider}-${idx}`}
+                      className="flex items-center justify-between p-3 rounded-xl border border-border bg-background"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="relative size-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                          <IntegrationIcon
+                            name={conn.provider}
+                            iconHint="shield"
+                            size="size-4"
+                            brandSize="size-7"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium">
+                            {conn.name || conn.provider}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                              {conn.provider}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground">
+                              {conn.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 rounded-md gap-1 text-foreground"
+                        onClick={() => openCredentialForProvider(conn.provider)}
+                      >
+                        <HugeiconsIcon icon={Settings03Icon} className="size-2.5" />
+                        Connect
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />} title="No credentials" desc="Connect integrations from the chat or configure defaults in Integrations." />
+              )
             )}
           </div>
         )}

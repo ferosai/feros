@@ -1,7 +1,7 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, AiScanIcon, Robot01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, AiScanIcon, HardDriveUploadIcon, Robot01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { api, type Agent } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,11 @@ export default function AgentsPage() {
           <Link href="/dashboard/agents/new">
             <Button size="sm" className="h-8 px-4 text-xs font-medium gap-1.5">
               <HugeiconsIcon icon={Add01Icon} className="size-3.5" /> Create agent
+            </Button>
+          </Link>
+          <Link href="/dashboard/agents/import">
+            <Button size="sm" variant="outline" className="h-8 px-4 text-xs font-medium gap-1.5">
+              <HugeiconsIcon icon={HardDriveUploadIcon} className="size-3.5" /> Import agent
             </Button>
           </Link>
         </div>

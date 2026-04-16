@@ -81,6 +81,51 @@ export interface AgentVersion {
   created_at: string;
 }
 
+export interface ImportIssue {
+  source: "schema" | "fulfillment";
+  code: string;
+  path?: string | null;
+  message: string;
+  severity: "error" | "warning";
+  blocking: boolean;
+  mappable: boolean;
+  suggested_value?: string | null;
+}
+
+export interface ImportedConnection {
+  provider: string;
+  name?: string | null;
+  auth_type?: string | null;
+  is_default: boolean;
+  status: "connected" | "inherited" | "missing";
+}
+
+export interface AgentFullConfig {
+  $schema: "https://feros.ai/schemas/agent-config-v1.schema.json";
+  name: string;
+  description?: string | null;
+  config: AgentGraphConfig;
+  mermaid_diagram?: string | null;
+  connections: ImportedConnection[];
+}
+
+export interface ImportValidationResponse {
+  schema_valid: boolean;
+  schema_issues: ImportIssue[];
+  fulfillable: boolean;
+  fulfillment_issues: ImportIssue[];
+  suggested_mappings: Record<string, string>;
+  normalized_config: AgentGraphConfig;
+}
+
+export interface ImportAgentPayload {
+  name: string;
+  description?: string;
+  full_config: AgentFullConfig;
+  mapping_mode: "strict" | "map_defaults";
+  mappings?: Record<string, string>;
+}
+
 export type EvaluationConfigStatus = "active" | "archived";
 export type EvaluationRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 export type PersonaPreset = "cooperative" | "confused" | "impatient" | "adversarial" | "silent";
@@ -234,6 +279,7 @@ export interface BuilderMessage {
   agent_version_id: string | null;
   action_cards?: ActionCard[];
   mermaid_diagram?: string | null;
+  imported_connections?: ImportedConnection[];
   created_at: string;
 }
 
@@ -515,6 +561,8 @@ export const api = {
         }).toString()}`
       ),
     get: (id: string) => apiFetch<Agent>(`/agents/${id}`),
+    export: (id: string) =>
+      apiFetch<AgentFullConfig>(`/agents/${id}/export`),
     create: (data: { name: string; description?: string }) =>
       apiFetch<Agent>("/agents", {
         method: "POST",
@@ -555,6 +603,16 @@ export const api = {
       apiFetch<TtsModelSpec[]>(
         `/agents/tts-models${language ? `?language=${encodeURIComponent(language)}` : ""}`
       ),
+    importValidate: (config: AgentGraphConfig) =>
+      apiFetch<ImportValidationResponse>("/agents/import/validate", {
+        method: "POST",
+        body: JSON.stringify({ config }),
+      }),
+    import: (data: ImportAgentPayload) =>
+      apiFetch<Agent>("/agents/import", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Builder (vibe code)

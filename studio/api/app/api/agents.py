@@ -16,16 +16,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.settings import get_builder_llm_config
 from app.lib.config import LLMConfig
+from app.lib.config_utils import extract_secret_keys
 from app.lib.database import get_db
 from app.lib.llm_factory import build_model
 from app.models.agent import Agent, AgentStatus, AgentVersion
-from app.models.conversation import BuilderConversation
+from app.models.conversation import BuilderConversation, BuilderMessage
+from app.models.credential import Credential
 from app.schemas.agent import (
     AgentCreate,
+    AgentFullConfig,
+    AgentImportRequest,
     AgentListResponse,
     AgentResponse,
     AgentUpdate,
     AgentVersionResponse,
+    ImportedConnection,
+    ImportValidationRequest,
+    ImportValidationResponse,
+)
+from app.services.agent_import import (
+    apply_import_mappings,
+    unresolved_blocking_issues,
+    validate_import_config,
 )
 
 try:
@@ -161,6 +173,264 @@ async def create_agent(
         current_config=None,
         version_count=0,
     )
+
+
+@router.get("/{agent_id}/export", response_model=AgentFullConfig)
+async def export_agent_full_config(
+    agent_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> AgentFullConfig:
+    """Export a full agent payload (config + mermaid + connection metadata)."""
+    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = agent_result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    version: AgentVersion | None = None
+    if agent.active_version is not None:
+        version_result = await db.execute(
+            select(AgentVersion).where(
+                AgentVersion.agent_id == agent_id,
+                AgentVersion.version == agent.active_version,
+            )
+        )
+        version = version_result.scalar_one_or_none()
+    if version is None:
+        version_result = await db.execute(
+            select(AgentVersion)
+            .where(AgentVersion.agent_id == agent_id)
+            .order_by(AgentVersion.version.desc())
+            .limit(1)
+        )
+        version = version_result.scalar_one_or_none()
+    if version is None:
+        raise HTTPException(status_code=400, detail="Agent has no config to export")
+
+    conv_result = await db.execute(
+        select(BuilderConversation)
+        .where(BuilderConversation.agent_id == agent_id)
+        .order_by(BuilderConversation.created_at.desc())
+        .limit(1)
+    )
+    conversation = conv_result.scalar_one_or_none()
+
+    mermaid_diagram: str | None = None
+    imported_connections: list[ImportedConnection] = []
+    if conversation is not None:
+        msg_result = await db.execute(
+            select(BuilderMessage)
+            .where(BuilderMessage.conversation_id == conversation.id)
+            .order_by(BuilderMessage.created_at.desc())
+        )
+        for msg in msg_result.scalars().all():
+            if not isinstance(msg.metadata_json, dict):
+                continue
+            if mermaid_diagram is None and isinstance(
+                msg.metadata_json.get("mermaid_diagram"), str
+            ):
+                mermaid_diagram = msg.metadata_json.get("mermaid_diagram")
+            if not imported_connections and isinstance(
+                msg.metadata_json.get("imported_connections"), list
+            ):
+                imported_connections = [
+                    ImportedConnection.model_validate(item)
+                    for item in msg.metadata_json.get("imported_connections", [])
+                    if isinstance(item, dict)
+                ]
+            if mermaid_diagram is not None and imported_connections:
+                break
+
+    if not imported_connections:
+        imported_connections = await _build_connection_export_rows(
+            db,
+            version.config_json,
+            agent_id,
+        )
+
+    return AgentFullConfig(
+        name=agent.name,
+        description=agent.description,
+        config=version.config_json,
+        mermaid_diagram=mermaid_diagram,
+        connections=imported_connections,
+    )
+
+
+@router.post("/import/validate", response_model=ImportValidationResponse)
+async def validate_import(
+    body: ImportValidationRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ImportValidationResponse:
+    """Validate a raw imported agent config and return structured issues."""
+    return await validate_import_config(db, body.config)
+
+
+@router.post("/import", response_model=AgentResponse, status_code=201)
+async def import_agent(
+    body: AgentImportRequest,
+    db: AsyncSession = Depends(get_db),
+) -> AgentResponse:
+    """Create an agent from imported config with strict or map-defaults strategy."""
+    initial_result = await validate_import_config(db, body.full_config.config)
+
+    mapping_input = {
+        path: value
+        for path, value in body.mappings.items()
+        if path in {"tts_provider", "tts_model", "voice_id"} and value
+    }
+
+    effective_config = initial_result.normalized_config
+    if body.mapping_mode == "map_defaults":
+        mappable_issue_paths = {
+            issue.path
+            for issue in initial_result.fulfillment_issues
+            if issue.mappable and issue.path
+        }
+        merged_mappings = {
+            path: value
+            for path, value in initial_result.suggested_mappings.items()
+            if path in mappable_issue_paths
+        }
+        merged_mappings.update(mapping_input)
+        effective_config = apply_import_mappings(effective_config, merged_mappings)
+    elif mapping_input:
+        effective_config = apply_import_mappings(effective_config, mapping_input)
+
+    final_result = await validate_import_config(db, effective_config)
+    blocking_issues = unresolved_blocking_issues(final_result)
+    if blocking_issues:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "import_validation_failed",
+                "message": "Imported config has unresolved blocking issues.",
+                "issues": [issue.model_dump() for issue in blocking_issues],
+                "schema_issues": [issue.model_dump() for issue in final_result.schema_issues],
+                "fulfillment_issues": [
+                    issue.model_dump() for issue in final_result.fulfillment_issues
+                ],
+            },
+        )
+
+    applied_change_summary = "Imported from raw config"
+    if body.mapping_mode == "map_defaults":
+        applied_change_summary = "Imported from raw config with default mappings"
+
+    agent = Agent(name=body.name.strip(), description=body.description)
+    db.add(agent)
+    await db.flush()
+
+    version = AgentVersion(
+        agent_id=agent.id,
+        version=1,
+        config_json=final_result.normalized_config,
+        change_summary=applied_change_summary,
+    )
+    db.add(version)
+
+    agent.active_version = 1
+    conversation = BuilderConversation(agent_id=agent.id)
+    db.add(conversation)
+
+    await db.flush()
+    if body.full_config.mermaid_diagram or body.full_config.connections:
+        imported_msg = BuilderMessage(
+            conversation_id=conversation.id,
+            role="assistant",
+            parts=[
+                {
+                    "kind": "text",
+                    "content": "Imported full configuration into the builder workspace.",
+                }
+            ],
+            agent_version_id=version.id,
+            metadata_json={
+                "mermaid_diagram": body.full_config.mermaid_diagram,
+                "imported_connections": [
+                    conn.model_dump() for conn in body.full_config.connections
+                ],
+            },
+        )
+        db.add(imported_msg)
+        await db.flush()
+
+    await db.refresh(agent)
+
+    return AgentResponse(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        status=agent.status,
+        active_version=agent.active_version,
+        phone_number=agent.phone_number,
+        created_at=agent.created_at,
+        updated_at=agent.updated_at,
+        current_config=final_result.normalized_config,
+        version_count=1,
+    )
+
+
+async def _build_connection_export_rows(
+    db: AsyncSession,
+    config: dict[str, Any],
+    agent_id: uuid.UUID,
+) -> list[ImportedConnection]:
+    used_providers = extract_secret_keys(config)
+    if not used_providers:
+        return []
+
+    creds_result = await db.execute(
+        select(Credential).where(
+            Credential.provider.in_(used_providers),
+            (Credential.agent_id == agent_id) | Credential.agent_id.is_(None),
+        )
+    )
+    rows = creds_result.scalars().all()
+
+    agent_rows: dict[str, Credential] = {}
+    default_rows: dict[str, Credential] = {}
+    for row in rows:
+        if row.agent_id == agent_id and row.provider not in agent_rows:
+            agent_rows[row.provider] = row
+        if row.agent_id is None and row.provider not in default_rows:
+            default_rows[row.provider] = row
+
+    out: list[ImportedConnection] = []
+    for provider in sorted(used_providers):
+        if provider in agent_rows:
+            cred = agent_rows[provider]
+            out.append(
+                ImportedConnection(
+                    provider=provider,
+                    name=cred.name,
+                    auth_type=cred.auth_type,
+                    is_default=False,
+                    status="connected",
+                )
+            )
+            continue
+        if provider in default_rows:
+            cred = default_rows[provider]
+            out.append(
+                ImportedConnection(
+                    provider=provider,
+                    name=cred.name,
+                    auth_type=cred.auth_type,
+                    is_default=True,
+                    status="inherited",
+                )
+            )
+            continue
+        out.append(
+            ImportedConnection(
+                provider=provider,
+                name=None,
+                auth_type=None,
+                is_default=False,
+                status="missing",
+            )
+        )
+    return out
 
 
 @router.get("/languages")

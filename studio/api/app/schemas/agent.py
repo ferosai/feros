@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.agent import AgentStatus
 
+FULL_CONFIG_SCHEMA_URL = "https://feros.ai/schemas/agent-config-v1.schema.json"
+
 # ── Tool Config (used inside AgentConfig) ──────────────────────────
 
 
@@ -172,6 +174,73 @@ class AgentUpdate(BaseModel):
     description: str | None = None
     status: AgentStatus | None = None
     phone_number: str | None = None
+
+
+class ImportIssue(BaseModel):
+    """Structured import issue for schema/fulfillment validation."""
+
+    source: Literal["schema", "fulfillment"]
+    code: str
+    path: str | None = None
+    message: str
+    severity: Literal["error", "warning"] = "error"
+    blocking: bool = True
+    mappable: bool = False
+    suggested_value: str | None = None
+
+
+class ImportedConnection(BaseModel):
+    """Connection metadata included in full config export/import."""
+
+    provider: str
+    name: str | None = None
+    auth_type: str | None = None
+    is_default: bool = False
+    status: Literal["connected", "inherited", "missing"] = "missing"
+
+
+class AgentFullConfig(BaseModel):
+    """Superset export/import payload for agent portability."""
+
+    schema_uri: str = Field(
+        default=FULL_CONFIG_SCHEMA_URL,
+        alias="$schema",
+        description="Canonical JSON Schema URL for this payload format.",
+    )
+    name: str
+    description: str | None = None
+    config: dict[str, Any]
+    mermaid_diagram: str | None = None
+    connections: list[ImportedConnection] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class ImportValidationRequest(BaseModel):
+    """Request body for import validation preview."""
+
+    config: dict[str, Any]
+
+
+class ImportValidationResponse(BaseModel):
+    """Validation result for imported config."""
+
+    schema_valid: bool
+    schema_issues: list[ImportIssue]
+    fulfillable: bool
+    fulfillment_issues: list[ImportIssue]
+    suggested_mappings: dict[str, str] = Field(default_factory=dict)
+    normalized_config: dict[str, Any]
+
+
+class AgentImportRequest(BaseModel):
+    """Request body for final agent import."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    full_config: AgentFullConfig
+    mapping_mode: Literal["strict", "map_defaults"] = "strict"
+    mappings: dict[str, str] = Field(default_factory=dict)
 
 
 class AgentVersionResponse(BaseModel):

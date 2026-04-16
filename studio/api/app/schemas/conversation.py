@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.schemas.agent import ActionCardSchema
+from app.schemas.agent import ActionCardSchema, ImportedConnection
 
 
 class FileAttachment(BaseModel):
@@ -40,6 +40,7 @@ class BuilderMessageResponse(BaseModel):
     agent_version_id: uuid.UUID | None = None
     action_cards: list[ActionCardSchema] = Field(default_factory=list)
     mermaid_diagram: str | None = None
+    imported_connections: list[ImportedConnection] = Field(default_factory=list)
     created_at: datetime
 
     model_config = {"from_attributes": True}
