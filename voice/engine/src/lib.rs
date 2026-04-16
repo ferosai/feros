@@ -15,6 +15,7 @@ pub mod utils;
 // Re-export at crate root so existing `voice_engine::policies::*` paths still work.
 pub use reactor::policies;
 
+pub(crate) mod native_session;
 pub mod providers;
 #[cfg(feature = "pyo3")]
 pub mod python;
