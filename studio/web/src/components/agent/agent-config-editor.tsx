@@ -110,6 +110,20 @@ const GEMINI_LIVE_VOICES = [
   { value: "Vindemiatrix" },
   { value: "Sadachbia" },
   { value: "Sulafat" },
+  { value: "Algieba" },
+  { value: "Despina" },
+  { value: "Erinome" },
+  { value: "Algenib" },
+  { value: "Rasalghul" },
+  { value: "Laomedeia" },
+  { value: "Achernar" },
+  { value: "Alnilam" },
+  { value: "Enceladus" },
+  { value: "Iocaste" },
+  { value: "Umbriel" },
+  { value: "Oberon" },
+  { value: "Callirrhoe" },
+  { value: "Autonoe" },
 ] as const;
 
 // ── Helpers ──────────────────────────────────────────────────────
