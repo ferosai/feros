@@ -8,8 +8,7 @@
   "required": [
     "$schema",
     "name",
-    "config",
-    "connections"
+    "config"
   ],
   "properties": {
     "$schema": {

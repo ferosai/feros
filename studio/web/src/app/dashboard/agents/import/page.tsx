@@ -31,6 +31,7 @@ import {
   ApiError,
   type AgentFullConfig,
   api,
+  FULL_CONFIG_SCHEMA_URL,
   getErrorMessage,
   type AgentGraphConfig,
   type ImportIssue,
@@ -40,8 +41,6 @@ import {
 type Step = 1 | 2 | 3;
 
 const MAPPABLE_PATHS = ["tts_provider", "tts_model", "voice_id"] as const;
-const FULL_CONFIG_SCHEMA_URL =
-  "https://feros.ai/schemas/agent-config-v1.schema.json";
 const STEP_ITEMS = [
   { step: 1 as Step, label: "Config Input", icon: OneCircleIcon },
   { step: 2 as Step, label: "Validation & Resolution", icon: TwoCircleIcon },

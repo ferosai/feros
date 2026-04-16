@@ -90,6 +90,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     normalized["config_schema_version"] = "v3_graph"
     normalized.setdefault("language", "en")
     normalized.setdefault("timezone", "")
+    # Canonicalize again after defaults are injected so derived/model fields stay consistent.
     return canonicalize_config(normalized)
 
 

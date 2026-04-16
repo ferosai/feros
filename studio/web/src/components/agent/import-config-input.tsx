@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 type ParseStatus = "empty" | "parsing" | "invalid" | "valid";
 export type ImportConfigParseStatus = ParseStatus;
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
 interface ImportConfigInputProps {
   rawValue: string;
@@ -81,6 +82,10 @@ export function ImportConfigInput({
     setSelectedFileName(file.name);
     if (!file.name.toLowerCase().endsWith(".json")) {
       setFileError("Only .json files are supported.");
+      return;
+    }
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setFileError("File is too large (max 5 MB).");
       return;
     }
 

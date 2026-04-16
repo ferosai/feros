@@ -269,22 +269,24 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
           }));
           setMessages(loaded);
 
+          let foundMermaid = false;
+          let foundConnections = false;
           for (let i = conv.messages.length - 1; i >= 0; i--) {
             const msg = conv.messages[i];
             if (!msg) continue;
-            if (msg.mermaid_diagram) {
+            if (!foundMermaid && msg.mermaid_diagram) {
               setMermaidDiagram(msg.mermaid_diagram);
+              foundMermaid = true;
             }
             if (
+              !foundConnections &&
               msg.imported_connections &&
               msg.imported_connections.length > 0
             ) {
               setImportedConnections(msg.imported_connections);
+              foundConnections = true;
             }
-            if (
-              msg.mermaid_diagram ||
-              (msg.imported_connections && msg.imported_connections.length > 0)
-            ) {
+            if (foundMermaid && foundConnections) {
               break;
             }
           }

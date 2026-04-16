@@ -100,13 +100,15 @@ export interface ImportedConnection {
   status: "connected" | "inherited" | "missing";
 }
 
+export const FULL_CONFIG_SCHEMA_URL = "https://feros.ai/schemas/agent-config-v1.schema.json" as const;
+
 export interface AgentFullConfig {
-  $schema: "https://feros.ai/schemas/agent-config-v1.schema.json";
+  $schema: typeof FULL_CONFIG_SCHEMA_URL;
   name: string;
   description?: string | null;
   config: AgentGraphConfig;
   mermaid_diagram?: string | null;
-  connections: ImportedConnection[];
+  connections?: ImportedConnection[];
 }
 
 export interface ImportValidationResponse {
