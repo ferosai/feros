@@ -8,6 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](http://discord.com/invite/yjfk7KuXgq)
 
+**Website:** [https://feros.ai](https://feros.ai)
+
 **Feros Voice Agent OS** is built with a clear goal: providing an **open**, **airtight**, and **enterprise-grade** infrastructure layer for production voice AI.
 
 We built Feros to solve the structural problems of the current voice AI ecosystem. With a Rust runtime engineered for sub-second latency, an AI-driven builder, and a Python control plane—**all in a single self-hostable monorepo**—we address these barriers head-on:
