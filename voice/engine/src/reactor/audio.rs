@@ -24,7 +24,36 @@ impl Reactor {
         //    SAFETY NOTE: The closure is sync and non-recursive; the reactor's
         //    on_vad_event is async but is called *after* process_frames completes
         //    (we collect the VAD result inside the closure, not await inside it).
+
+        // True while TTS audio is actively being streamed to the client.
+        // bot_audio_sent: set on first TTS chunk, cleared on barge-in/cancel.
+        // tts.is_active(): true between start_ws/http() and mark_finished()/cancel().
+        // Combined this is narrower than is_pipeline_active(), which also covers LLM.
+        let is_playing = self.bot_audio_sent && self.tts.is_active();
         let mut vad_event: Option<crate::types::VadEvent> = None;
+
+        // Threshold is a packet-level decision: is_playing doesn't change within a
+        // process_frames batch, so set it once here rather than once per frame.
+        //
+        // When the denoiser is disabled, audio reaches VAD unfiltered (raw mic),
+        // so we use VAD_THRESHOLD_PLAYBACK_RAW (0.90) instead of the denoised
+        // playback threshold (0.85) to maintain equivalent echo rejection.
+        //
+        // Known behaviour: if is_playing flips true while the user is already
+        // mid-utterance, the threshold elevation can cause a premature SpeechEnd
+        // (~192 ms / 6 silence frames). This is acceptable because the bot does not
+        // normally start TTS while the user is speaking (barge-in clears TTS first);
+        // re-engagement prompts are the only realistic scenario.
+        self.vad.set_threshold(if is_playing {
+            if self.denoiser.is_enabled() {
+                crate::audio_ml::vad::VAD_THRESHOLD_PLAYBACK
+            } else {
+                crate::audio_ml::vad::VAD_THRESHOLD_PLAYBACK_RAW
+            }
+        } else {
+            crate::audio_ml::vad::VAD_THRESHOLD_IDLE
+        });
+
         self.ring_buffer.process_frames(&resampled, |frame| {
             // Denoise (inline ONNX, or passthrough if disabled).
             // denoiser.process() allocates for the model output; the frame

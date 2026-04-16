@@ -48,6 +48,11 @@ impl DenoiserStage {
         }
     }
 
+    /// Returns `true` when a denoiser model is active; `false` in passthrough mode.
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_some()
+    }
+
     /// Process a single 16kHz PCM-16 LE audio frame.
     /// Returns cleaned audio (or the original if denoising is disabled/failed).
     pub fn process(&mut self, frame: &[u8]) -> Vec<u8> {

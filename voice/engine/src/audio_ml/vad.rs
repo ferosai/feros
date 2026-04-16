@@ -14,6 +14,19 @@ pub enum VadEvent {
     SpeechEnd,
 }
 
+/// Default VAD threshold used when the bot is silent / listening.
+pub const VAD_THRESHOLD_IDLE: f32 = 0.70;
+
+/// VAD threshold used during bot playback on the standard Reactor path.
+/// Audio is pre-filtered by the denoiser before reaching VAD, so 0.85 gives
+/// meaningful noise suppression without requiring the user to shout to barge in.
+pub const VAD_THRESHOLD_PLAYBACK: f32 = 0.85;
+
+/// VAD threshold used during Gemini Live bot playback.
+/// Higher than `VAD_THRESHOLD_PLAYBACK` because audio on this path is raw
+/// (undenoised) — no denoiser pre-filters mic input before reaching VAD.
+pub const VAD_THRESHOLD_PLAYBACK_RAW: f32 = 0.90;
+
 #[derive(Debug, Clone)]
 pub struct VadConfig {
     pub threshold: f32,
@@ -27,7 +40,7 @@ pub struct VadConfig {
 impl Default for VadConfig {
     fn default() -> Self {
         Self {
-            threshold: 0.7,
+            threshold: VAD_THRESHOLD_IDLE,
             min_volume: 0.0035,
             silence_frames: 6,
             min_speech_frames: 6, // Increased from 3 (96ms) to 6 (192ms) to filter pops/echo
@@ -59,6 +72,17 @@ pub struct SileroVad {
 }
 
 impl SileroVad {
+    pub fn threshold(&self) -> f32 {
+        self.config.threshold
+    }
+
+    pub fn set_threshold(&mut self, threshold: f32) {
+        // Equality is safe here: both sides always come from named constants
+        // (VAD_THRESHOLD_*). If threshold is ever derived by arithmetic, switch
+        // to an epsilon comparison to avoid IEEE 754 surprises.
+        self.config.threshold = threshold;
+    }
+
     pub fn new(model_path: &str, config: VadConfig) -> Self {
         let ctx = config.context_size;
         Self {
@@ -325,5 +349,77 @@ impl SileroVad {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a synthetic PCM-16 frame at the given RMS amplitude (0.0–1.0).
+    /// 512 samples at 16kHz = 32ms, matching FRAME_SIZE.
+    fn make_frame(amplitude: f32) -> Vec<u8> {
+        let n = FRAME_SIZE;
+        let sample = (amplitude * 32767.0) as i16;
+        let mut frame = Vec::with_capacity(n * 2);
+        for _ in 0..n {
+            frame.extend_from_slice(&sample.to_le_bytes());
+        }
+        frame
+    }
+
+    fn make_vad(threshold: f32) -> SileroVad {
+        SileroVad::new(
+            "",
+            VadConfig {
+                threshold,
+                min_volume: 0.0, // disable volume gate so tests focus on threshold
+                silence_frames: 6,
+                min_speech_frames: 1, // fire SpeechStart on the first positive frame
+                lookback_frames: 0,
+                context_size: 0,
+            },
+        )
+    }
+
+    /// prob=0.80 should fire SpeechStart at the idle threshold (0.70) but be
+    /// treated as silence at the playback threshold (0.85).
+    #[test]
+    fn threshold_controls_speech_detection() {
+        let frame = make_frame(0.1);
+
+        // At idle threshold: 0.80 >= 0.70 → speech
+        let mut vad = make_vad(VAD_THRESHOLD_IDLE);
+        let result = vad.process_with_prob(0.80, &frame);
+        assert_eq!(result, Some(VadEvent::SpeechStart));
+
+        // At playback threshold: 0.80 < 0.85 → silence, no event
+        let mut vad = make_vad(VAD_THRESHOLD_PLAYBACK);
+        let result = vad.process_with_prob(0.80, &frame);
+        assert_eq!(result, None);
+    }
+
+    /// set_threshold mid-stream updates the comparison boundary immediately.
+    #[test]
+    fn set_threshold_takes_effect_immediately() {
+        let frame = make_frame(0.1);
+        let mut vad = make_vad(VAD_THRESHOLD_IDLE);
+
+        // Prime with sub-threshold prob so is_speaking stays false
+        vad.process_with_prob(0.50, &frame);
+        assert!(!vad.is_speaking());
+
+        // Elevate to playback threshold — 0.80 should now be below the gate
+        vad.set_threshold(VAD_THRESHOLD_PLAYBACK);
+        let result = vad.process_with_prob(0.80, &frame);
+        assert_eq!(
+            result, None,
+            "prob 0.80 should be below playback threshold 0.85"
+        );
+
+        // Drop back to idle — same prob should now trigger
+        vad.set_threshold(VAD_THRESHOLD_IDLE);
+        let result = vad.process_with_prob(0.80, &frame);
+        assert_eq!(result, Some(VadEvent::SpeechStart));
     }
 }

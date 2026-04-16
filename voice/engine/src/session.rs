@@ -455,7 +455,6 @@ async fn run_native_multimodal(
     let mut hangup_target: Option<tokio::time::Instant> = None;
     let mut hangup_max_target: Option<tokio::time::Instant> = None;
 
-
     // ── Main event loop ────────────────────────────────────────────
     loop {
         tokio::select! {
@@ -496,6 +495,19 @@ async fn run_native_multimodal(
                         // Frame-align for VAD; collect audio to push async afterward.
                         let mut pending_pcm: Vec<Vec<i16>> = Vec::new();
                         let mut vad_event: Option<crate::types::VadEvent> = None;
+
+                        // Threshold is a packet-level decision: bot_speaking doesn't change
+                        // within a process_frames batch, so set it once here.
+                        // Raw (undenoised) audio goes to Gemini — raise threshold during playback
+                        // to suppress background noise from falsely triggering a local barge-in.
+                        if vad_ok {
+                            vad.set_threshold(if bot_speaking {
+                                crate::audio_ml::vad::VAD_THRESHOLD_PLAYBACK_RAW
+                            } else {
+                                crate::audio_ml::vad::VAD_THRESHOLD_IDLE
+                            });
+                        }
+
                         ring.process_frames(&resampled, |frame| {
                             if recording_enabled {
                                 tracer.emit(Event::UserAudio {

@@ -14,6 +14,14 @@ pub struct VadStage {
 }
 
 impl VadStage {
+    pub fn set_threshold(&mut self, threshold: f32) {
+        // Safe to use != here: callers always supply named constants (VAD_THRESHOLD_*).
+        // See the note in SileroVad::set_threshold if arithmetic thresholds are ever added.
+        if self.inner.threshold() != threshold {
+            self.inner.set_threshold(threshold);
+        }
+    }
+
     pub fn new(model_path: &str, config: VadConfig) -> Self {
         Self {
             inner: SileroVad::new(model_path, config),
