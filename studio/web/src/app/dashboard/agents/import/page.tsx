@@ -69,11 +69,7 @@ export default function ImportAgentPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const handleParsedChange = useCallback(
-    (
-      nextParsed: unknown,
-      nextError: string | null,
-      nextStatus: ImportConfigParseStatus
-    ) => {
+    (nextParsed: unknown, nextError: string | null, nextStatus: ImportConfigParseStatus) => {
       if (!nextParsed || nextError) {
         setFullConfig(null);
         setParsedConfig(null);
@@ -103,10 +99,7 @@ export default function ImportAgentPage() {
     () => allIssues.filter((issue) => issue.blocking && issue.severity === "error"),
     [allIssues]
   );
-  const fulfillmentIssues = useMemo(
-    () => validation?.fulfillment_issues ?? [],
-    [validation]
-  );
+  const fulfillmentIssues = useMemo(() => validation?.fulfillment_issues ?? [], [validation]);
   const hasFulfillmentIssues = fulfillmentIssues.length > 0;
 
   const mappingRows = useMemo(
@@ -118,10 +111,7 @@ export default function ImportAgentPage() {
           fromValue: String(
             validation?.normalized_config?.[issue.path as keyof AgentGraphConfig] ?? ""
           ),
-          mappedTo:
-            mappings[issue.path as string] ||
-            issue.suggested_value ||
-            "",
+          mappedTo: mappings[issue.path as string] || issue.suggested_value || "",
         })),
     [fulfillmentIssues, mappings, validation]
   );
@@ -137,8 +127,7 @@ export default function ImportAgentPage() {
     [blockingIssues, mappings]
   );
 
-  const canProceedFromStep2 =
-    blockingIssues.length === 0 || canResolveBlockingViaMappings;
+  const canProceedFromStep2 = blockingIssues.length === 0 || canResolveBlockingViaMappings;
 
   const runValidation = async () => {
     if (!parsedConfig) return;
@@ -191,9 +180,7 @@ export default function ImportAgentPage() {
         full_config: {
           $schema: fullConfig?.$schema ?? FULL_CONFIG_SCHEMA_URL,
           name: fullConfig?.name ?? name.trim(),
-          description:
-            fullConfig?.description ??
-            (description.trim() ? description.trim() : null),
+          description: fullConfig?.description ?? (description.trim() ? description.trim() : null),
           config: validation.normalized_config,
           mermaid_diagram: fullConfig?.mermaid_diagram ?? null,
           connections: fullConfig?.connections ?? [],
@@ -208,14 +195,8 @@ export default function ImportAgentPage() {
       if (error instanceof ApiError && error.detail && typeof error.detail === "object") {
         const detail = error.detail as { issues?: unknown };
         if (Array.isArray(detail.issues)) {
-          const parsedIssues = detail.issues.filter(
-            (item): item is ImportIssue =>
-              Boolean(
-                item &&
-                  typeof item === "object" &&
-                  "message" in item &&
-                  "code" in item
-              )
+          const parsedIssues = detail.issues.filter((item): item is ImportIssue =>
+            Boolean(item && typeof item === "object" && "message" in item && "code" in item)
           );
           setSubmitIssueDetails(parsedIssues);
         }
@@ -226,9 +207,7 @@ export default function ImportAgentPage() {
 
   const renderSchemaIssues = (issues: ImportIssue[]) => (
     <div className="space-y-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Schema
-      </p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Schema</p>
       {issues.length === 0 ? (
         <div className="rounded-lg border border-success/20 bg-success/5 px-3 py-2 text-sm text-success">
           <span className="inline-flex items-center gap-1.5">
@@ -239,7 +218,10 @@ export default function ImportAgentPage() {
       ) : (
         <div className="space-y-2">
           {issues.map((issue, index) => (
-            <div key={`${issue.code}-${issue.path || index}`} className="rounded-lg border bg-muted/30 px-3 py-2">
+            <div
+              key={`${issue.code}-${issue.path || index}`}
+              className="rounded-lg border bg-muted/30 px-3 py-2"
+            >
               <p className="text-sm font-medium">{issue.message}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {issue.code}
@@ -269,7 +251,10 @@ export default function ImportAgentPage() {
         <>
           <div className="space-y-2">
             {issues.map((issue, index) => (
-              <div key={`${issue.code}-${issue.path || index}`} className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div
+                key={`${issue.code}-${issue.path || index}`}
+                className="rounded-lg border bg-muted/30 px-3 py-2"
+              >
                 <p className="text-sm font-medium">{issue.message}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {issue.code}
@@ -290,11 +275,18 @@ export default function ImportAgentPage() {
                   <li key={`${row.property}-${index}`} className="text-muted-foreground">
                     <span className="mr-3 font-bold text-foreground">{row.property}</span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className={`font-mono ${row.fromValue ? "text-foreground" : "text-destructive"}`}>
+                      <span
+                        className={`font-mono ${row.fromValue ? "text-foreground" : "text-destructive"}`}
+                      >
                         {row.fromValue || "unknown"}
                       </span>
-                      <HugeiconsIcon icon={ArrowRight02Icon} className="size-3.5 text-muted-foreground" />
-                      <span className={`font-mono ${row.mappedTo ? "text-foreground" : "text-destructive"}`}>
+                      <HugeiconsIcon
+                        icon={ArrowRight02Icon}
+                        className="size-3.5 text-muted-foreground"
+                      />
+                      <span
+                        className={`font-mono ${row.mappedTo ? "text-foreground" : "text-destructive"}`}
+                      >
                         {row.mappedTo || "no default"}
                       </span>
                     </span>
@@ -326,7 +318,10 @@ export default function ImportAgentPage() {
             <p className="text-muted-foreground mt-1">
               Validate imported config, resolve issues, and finalize metadata.
             </p>
-            <HugeiconsIcon icon={AudioWave01Icon} className="size-52 absolute text-primary/10 -right-8 -bottom-16" />
+            <HugeiconsIcon
+              icon={AudioWave01Icon}
+              className="size-52 absolute text-primary/10 -right-8 -bottom-16"
+            />
           </div>
 
           <CardContent className="space-y-6 p-8 pt-6">
@@ -361,10 +356,10 @@ export default function ImportAgentPage() {
                       parseError
                         ? "text-destructive"
                         : parseStatus === "invalid"
-                        ? "text-destructive"
-                        : parseStatus === "valid"
-                          ? "text-success"
-                          : "text-muted-foreground"
+                          ? "text-destructive"
+                          : parseStatus === "valid"
+                            ? "text-success"
+                            : "text-muted-foreground"
                     }`}
                   >
                     {parseError ? parseError : null}
@@ -389,7 +384,11 @@ export default function ImportAgentPage() {
                       disabled={!parsedConfig || Boolean(parseError) || validating}
                       className="h-8"
                     >
-                      {validating ? <Spinner className="size-4" /> : <HugeiconsIcon icon={FileValidationIcon} />}
+                      {validating ? (
+                        <Spinner className="size-4" />
+                      ) : (
+                        <HugeiconsIcon icon={FileValidationIcon} />
+                      )}
                       Validate config
                     </Button>
                   </div>
@@ -403,10 +402,19 @@ export default function ImportAgentPage() {
                 {renderFulfillmentSection(validation.fulfillment_issues)}
 
                 <div className="flex items-center justify-between">
-                  <Button type="button" variant="outline" onClick={() => setStep(1)} className="gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep(1)}
+                    className="gap-1.5"
+                  >
                     <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" /> Back
                   </Button>
-                  <Button onClick={() => setStep(3)} disabled={!canProceedFromStep2} className="gap-1.5">
+                  <Button
+                    onClick={() => setStep(3)}
+                    disabled={!canProceedFromStep2}
+                    className="gap-1.5"
+                  >
                     Continue <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
                   </Button>
                 </div>
@@ -440,11 +448,24 @@ export default function ImportAgentPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <Button type="button" variant="outline" onClick={() => setStep(2)} className="gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep(2)}
+                    className="gap-1.5"
+                  >
                     <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" /> Back
                   </Button>
-                  <Button onClick={handleSubmit} disabled={!name.trim() || submitting} className="gap-2">
-                    {submitting ? <Spinner className="size-4" /> : <HugeiconsIcon icon={AiScanIcon} className="size-4" />}
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={!name.trim() || submitting}
+                    className="gap-2"
+                  >
+                    {submitting ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <HugeiconsIcon icon={AiScanIcon} className="size-4" />
+                    )}
                     Import agent
                   </Button>
                 </div>
@@ -459,7 +480,12 @@ export default function ImportAgentPage() {
                     {submitIssueDetails.map((issue, index) => (
                       <li key={`${issue.code}-${issue.path || index}`}>
                         <span className="font-mono">{issue.code}</span>
-                        {issue.path ? <span> • <span className="font-mono">{issue.path}</span></span> : null}
+                        {issue.path ? (
+                          <span>
+                            {" "}
+                            • <span className="font-mono">{issue.path}</span>
+                          </span>
+                        ) : null}
                         <span> • {issue.message}</span>
                         {issue.suggested_value ? (
                           <span>

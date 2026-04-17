@@ -56,7 +56,9 @@ async def validate_import_config(
     )
 
     return ImportValidationResponse(
-        schema_valid=not any(i.blocking and i.severity == "error" for i in schema_issues),
+        schema_valid=not any(
+            i.blocking and i.severity == "error" for i in schema_issues
+        ),
         schema_issues=schema_issues,
         fulfillable=not any(
             i.blocking and i.severity == "error" for i in fulfillment_issues
@@ -147,7 +149,9 @@ def _base_suggested_mappings(
     language = str(config.get("language", "en")).split("-")[0].lower()
     default_provider = defaults.provider or ""
     suggested_model = _pick_model(default_provider, language, defaults.model)
-    suggested_voice = defaults.voice_id or _pick_voice(default_provider, suggested_model, language)
+    suggested_voice = defaults.voice_id or _pick_voice(
+        default_provider, suggested_model, language
+    )
 
     out: dict[str, str] = {}
     if default_provider:
@@ -156,7 +160,8 @@ def _base_suggested_mappings(
         out["tts_model"] = suggested_model
     if suggested_voice and (
         not suggested_model
-        or suggested_voice in _valid_voice_ids(default_provider, suggested_model, language)
+        or suggested_voice
+        in _valid_voice_ids(default_provider, suggested_model, language)
     ):
         out["voice_id"] = suggested_voice
     return out
