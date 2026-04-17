@@ -7,24 +7,30 @@ RUST_DIR    := voice
 API_DIR     := studio/api
 WEB_DIR     := studio/web
 
+ifeq (, $(shell command -v uvx 2> /dev/null))
+$(error "uvx could not be found. Please install uv (https://docs.astral.sh/uv/) before proceeding")
+endif
+
+PROTOC      := uvx --python 3.12 --from grpcio-tools==1.80.0 python -m grpc_tools.protoc
+
 # ── Protobuf ─────────────────────────────────────────────────────
 .PHONY: proto
 proto: ## Generate Python, TS, and ML stubs from proto definitions
 	# ML layer
 	mkdir -p $(ML_DIR)/stt
-	protoc \
+	$(PROTOC) \
 		--python_out=$(ML_DIR)/stt \
 		--pyi_out=$(ML_DIR)/stt \
 		--proto_path=$(PROTO_DIR) \
 		$(PROTO_DIR)/stt.proto
 	# Studio API layer
-	protoc \
+	$(PROTOC) \
 		--python_out=$(API_DIR)/app/schemas \
 		--pyi_out=$(API_DIR)/app/schemas \
 		--proto_path=$(PROTO_DIR) \
 		$(PROTO_DIR)/agent.proto
 	# Studio Web layer (TS interfaces)
-	protoc \
+	$(PROTOC) \
 		--plugin=protoc-gen-ts_proto=$(WEB_DIR)/node_modules/.bin/protoc-gen-ts_proto \
 		--ts_proto_out=$(WEB_DIR)/src/lib/api \
 		--ts_proto_opt=esModuleInterop=true,forceLong=string,outputServices=false,outputJsonMethods=false,outputClientImpl=false,outputEncodeMethods=false,outputPartialMethods=false,outputTypeRegistry=false,onlyTypes=true,snakeToCamel=false \
