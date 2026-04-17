@@ -121,6 +121,14 @@ impl TransportControl {
     pub fn close(&self) {
         let _ = self.tx.send(TransportCommand::Close);
     }
+
+    /// Forward the active telephony call to a new destination.
+    ///
+    /// Only meaningful for telephony transports (Twilio/Telnyx). For WebSocket/WebRTC,
+    /// this is a no-op. The transport cmd loop handles the actual REST call.
+    pub fn transfer(&self, destination: String) {
+        let _ = self.tx.send(TransportCommand::Transfer { destination });
+    }
 }
 
 // ── Agent Audio Cursor ────────────────────────────────────────────
@@ -286,7 +294,10 @@ pub struct Reactor {
     // ── Session lifecycle ─────────────────────────────────────
     /// High-level session phase. Replaces `had_first_interaction` and
     /// `greeting_in_progress` with a compile-time-safe 3-variant enum.
-    pub(super) session_phase: SessionPhase,
+    pub(crate) session_phase: SessionPhase,
+    /// Call is holding waiting for transfer success/failure
+    pub(crate) holding: bool,
+    pub(crate) hold_phase: f32,
 
     // ── LLM generation phase (LLM → TTS streaming state) ────────────────
     /// Tracks the current LLM output-to-TTS streaming state.
@@ -326,6 +337,8 @@ pub struct Reactor {
     pub(super) should_exit: bool,
 
     // ── Transport control ─────────────────────────────────────
+    /// Receives events (like TransferResult) from the transport layer.
+    pub(super) control_rx: tokio::sync::mpsc::UnboundedReceiver<voice_transport::TransportEvent>,
     /// Sends commands (e.g. Close) back to the transport layer.
     /// Used to trigger telephony hangup via REST API.
     pub(super) transport: TransportControl,
@@ -362,6 +375,11 @@ pub struct Reactor {
     pub(super) session_ended_emitted: bool,
     /// Temporary observability state for the opening greeting TTS.
     pub(super) greeting_observability: Option<GreetingObservability>,
+
+    // ── Call Escalation ───────────────────────────────────
+    /// When set, `initiate_shutdown` will send `TransportCommand::Transfer`
+    /// with this destination before `Close`. Only meaningful for telephony.
+    pub(super) pending_transfer_destination: Option<String>,
 }
 
 pub(super) struct GreetingObservability {
@@ -379,6 +397,7 @@ impl Reactor {
         config: SessionConfig,
         backend: Box<dyn AgentBackend>,
         audio_rx: mpsc::UnboundedReceiver<Bytes>,
+        control_rx: tokio::sync::mpsc::UnboundedReceiver<voice_transport::TransportEvent>,
         mut tracer: Tracer,
         stt_config: SttProviderConfig,
         tts_config: TtsProviderConfig,
@@ -451,6 +470,8 @@ impl Reactor {
             audio_rx,
             tracer,
             session_phase: SessionPhase::Nascent,
+            holding: false,
+            hold_phase: 0.0,
             llm_turn: session::LlmTurnPhase::Idle,
             hang_up: session::HangUpPhase::Idle,
             tts_provider_config: tts_config,
@@ -459,6 +480,7 @@ impl Reactor {
             bot_audio_sent: false,
             playback: PlaybackTracker::new(output_sample_rate),
             should_exit: false,
+            control_rx,
             transport,
             vad_silence_ms,
             turn_text_len: 0,
@@ -468,6 +490,7 @@ impl Reactor {
             tts_cursor: AgentAudioCursor::new(output_sample_rate),
             session_ended_emitted: false,
             greeting_observability: None,
+            pending_transfer_destination: None,
         }
     }
 
@@ -686,6 +709,68 @@ impl Reactor {
                         self.tts.push_ws_chunk(chunk);
                     }
                     // else: stale chunk (cancelled context) — drop silently
+                }
+
+                _ = tokio::time::sleep(tokio::time::Duration::from_millis(20)), if self.holding => {
+                    let hold_rate = self.config.output_sample_rate;
+                    let pcm_bytes = crate::utils::generate_transfer_hold_tone(&mut self.hold_phase, hold_rate);
+
+                    let offset = self.tts_cursor.stamp(pcm_bytes.len());
+
+                    self.tracer.emit(voice_trace::Event::AgentAudio {
+                        pcm: bytes::Bytes::from(pcm_bytes),
+                        sample_rate: hold_rate,
+                        offset_samples: offset,
+                    });
+                }
+
+                ctrl_event_res = async {
+                    if self.holding {
+                        tokio::time::timeout(std::time::Duration::from_secs(30), self.control_rx.recv()).await.map_err(|_| ())
+                    } else {
+                        Ok(self.control_rx.recv().await)
+                    }
+                } => {
+                    match ctrl_event_res {
+                        Ok(Some(voice_transport::TransportEvent::TransferResult { succeeded, destination, reason })) => {
+                            info!("[reactor] Transfer complete: succeeded={}, destination={:?}, reason={:?}", succeeded, destination, reason);
+                            if succeeded {
+                                info!("[reactor] Call transferred successfully. Hanging up.");
+                                self.should_exit = true; // exit normally
+                            } else {
+                                self.holding = false;
+                                let fail_reason = reason.unwrap_or_else(|| "Unknown Provider Error".into());
+                                // Inject the failure back into the conversation so the LLM
+                                // knows the transfer did not complete and can retry or apologise.
+                                let failure_msg = format!(
+                                    "[SYSTEM] Call transfer to {} failed: {}. Please inform the caller and offer alternatives.",
+                                    destination, fail_reason
+                                );
+                                self.llm.add_user_message(failure_msg);
+                                self.cancel_pipeline();
+                                self.start_idle_timer();
+                            }
+                        }
+                        Ok(Some(voice_transport::TransportEvent::Disconnected { reason })) => {
+                            info!("[reactor] Transport disconnected: {}", reason);
+                            self.should_exit = true;
+                        }
+                        Ok(Some(_)) => {}
+                        Ok(None) => {
+                            info!("[reactor] Transport control channel closed. Terminating.");
+                            self.should_exit = true;
+                        }
+                        Err(_) => {
+                            if self.holding {
+                                info!("[reactor] Call transfer timed out after 30s. Automatically failing transfer.");
+                                self.holding = false;
+                                let failure_msg = "[SYSTEM] Call transfer timed out. Please inform the caller and offer alternatives.".to_string();
+                                self.llm.add_user_message(failure_msg);
+                                self.cancel_pipeline();
+                                self.start_idle_timer();
+                            }
+                        }
+                    }
                 }
 
                 // ── Timers (DelayQueue — one source for all timers) ──

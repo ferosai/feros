@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use crate::providers::LlmProviderError;
 use serde::{Deserialize, Serialize};
 
-use crate::swarm::{HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME, TRANSFER_TOOL_NAME};
+use crate::swarm::{ESCALATE_CALL_TOOL_NAME, HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME, TRANSFER_TOOL_NAME};
 
 // ── Public Types ────────────────────────────────────────────────
 
@@ -104,6 +104,17 @@ pub enum AgentEvent {
     HangUp {
         reason: String,
         content: Option<String>,
+    },
+    /// The agent has requested call escalation / human handoff.
+    ///
+    /// Only meaningful for telephony sessions (Twilio/Telnyx). The voice engine
+    /// should drain TTS first, then issue a `TransportCommand::Transfer` before
+    /// closing the session.
+    EscalateCall {
+        /// E.164 phone number or SIP URI to forward the call to.
+        destination: String,
+        /// Human-readable reason for the escalation (for telemetry/logs).
+        reason: String,
     },
     /// The user asked to hold / pause — suppress idle shutdown until they return.
     OnHold { duration_secs: u32 },
@@ -317,4 +328,9 @@ pub fn is_hang_up_tool(name: &str) -> bool {
 /// Check if a tool call is the synthetic `on_hold` tool.
 pub fn is_on_hold_tool(name: &str) -> bool {
     name == ON_HOLD_TOOL_NAME
+}
+
+/// Check if a tool call is the synthetic `escalate_call` tool.
+pub fn is_escalate_call_tool(name: &str) -> bool {
+    name == ESCALATE_CALL_TOOL_NAME
 }

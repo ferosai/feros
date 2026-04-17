@@ -44,9 +44,10 @@ async fn main() {
         twilio_account_sid: settings.twilio_account_sid,
         twilio_auth_token: settings.twilio_auth_token,
         telnyx_api_key: settings.telnyx_api_key,
+        telnyx_connection_id: settings.telnyx_connection_id,
     };
     let auth_secret_key = std::env::var("AUTH__SECRET_KEY").unwrap_or_default();
-    let state = ServerState::new(providers, telephony, auth_secret_key);
+    let state = ServerState::new(providers, telephony, settings.telnyx_public_key, auth_secret_key);
 
     let addr: SocketAddr = format!("{}:{}", settings.listen_host, settings.listen_port)
         .parse()

@@ -97,8 +97,16 @@ class NodeDef(_message.Message):
     greeting: str
     def __init__(self, system_prompt: _Optional[str] = ..., tools: _Optional[_Iterable[str]] = ..., edges: _Optional[_Iterable[str]] = ..., model: _Optional[str] = ..., temperature: _Optional[float] = ..., max_tokens: _Optional[int] = ..., voice_id: _Optional[str] = ..., greeting: _Optional[str] = ...) -> None: ...
 
+class EscalationDestination(_message.Message):
+    __slots__ = ("name", "phone_number")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PHONE_NUMBER_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    phone_number: str
+    def __init__(self, name: _Optional[str] = ..., phone_number: _Optional[str] = ...) -> None: ...
+
 class AgentGraphDef(_message.Message):
-    __slots__ = ("entry", "nodes", "tools", "language", "timezone", "voice_id", "tts_provider", "tts_model", "recording", "config_schema_version", "gemini_live_model")
+    __slots__ = ("entry", "nodes", "tools", "language", "timezone", "voice_id", "tts_provider", "tts_model", "recording", "config_schema_version", "escalation_destinations", "gemini_live_model")
     class NodesEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -123,6 +131,7 @@ class AgentGraphDef(_message.Message):
     TTS_MODEL_FIELD_NUMBER: _ClassVar[int]
     RECORDING_FIELD_NUMBER: _ClassVar[int]
     CONFIG_SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ESCALATION_DESTINATIONS_FIELD_NUMBER: _ClassVar[int]
     GEMINI_LIVE_MODEL_FIELD_NUMBER: _ClassVar[int]
     entry: str
     nodes: _containers.MessageMap[str, NodeDef]
@@ -134,5 +143,6 @@ class AgentGraphDef(_message.Message):
     tts_model: str
     recording: RecordingConfig
     config_schema_version: str
+    escalation_destinations: _containers.RepeatedCompositeFieldContainer[EscalationDestination]
     gemini_live_model: str
-    def __init__(self, entry: _Optional[str] = ..., nodes: _Optional[_Mapping[str, NodeDef]] = ..., tools: _Optional[_Mapping[str, ToolDef]] = ..., language: _Optional[str] = ..., timezone: _Optional[str] = ..., voice_id: _Optional[str] = ..., tts_provider: _Optional[str] = ..., tts_model: _Optional[str] = ..., recording: _Optional[_Union[RecordingConfig, _Mapping]] = ..., config_schema_version: _Optional[str] = ..., gemini_live_model: _Optional[str] = ...) -> None: ...
+    def __init__(self, entry: _Optional[str] = ..., nodes: _Optional[_Mapping[str, NodeDef]] = ..., tools: _Optional[_Mapping[str, ToolDef]] = ..., language: _Optional[str] = ..., timezone: _Optional[str] = ..., voice_id: _Optional[str] = ..., tts_provider: _Optional[str] = ..., tts_model: _Optional[str] = ..., recording: _Optional[_Union[RecordingConfig, _Mapping]] = ..., config_schema_version: _Optional[str] = ..., escalation_destinations: _Optional[_Iterable[_Union[EscalationDestination, _Mapping]]] = ..., gemini_live_model: _Optional[str] = ...) -> None: ...

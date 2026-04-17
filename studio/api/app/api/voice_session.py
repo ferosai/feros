@@ -158,6 +158,7 @@ async def text_test_socket(
     )
     greeting = "Hello! How can I help you today?"
     graph_json: str | None = None
+    escalation_destinations_json: str | None = None
 
     try:
         agent_uuid = uuid.UUID(agent_id)
@@ -183,6 +184,8 @@ async def text_test_socket(
                 else:
                     system_prompt = cfg.get("system_prompt", system_prompt)
                     greeting = cfg.get("greeting", greeting)
+                if destinations := cfg.get("escalation_destinations"):
+                    escalation_destinations_json = json.dumps(destinations)
     except Exception:
         logger.warning("Text test: failed to resolve agent config for {}", agent_id)
 
@@ -214,6 +217,7 @@ async def text_test_socket(
             temperature=float(getattr(llm_cfg, "temperature", 0.7)),
             max_tokens=int(getattr(llm_cfg, "max_tokens", 512)),
             secrets=secrets or None,
+            escalation_destinations_json=escalation_destinations_json,
         )
 
     runner = _build_runner()

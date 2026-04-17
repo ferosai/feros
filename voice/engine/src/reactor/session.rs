@@ -758,7 +758,38 @@ impl Reactor {
                 // any preceding text), close immediately
                 if !self.tts.is_active() {
                     info!("[reactor] hang_up: TTS not active — shutting down immediately");
-                    self.initiate_shutdown("no pending TTS");
+                    self.finalize_hang_up("no pending TTS");
+                }
+            }
+
+            LlmEvent::EscalateCall {
+                destination,
+                reason,
+            } => {
+                info!(
+                    "[reactor] Agent escalate_call: {} → {} (tts_active={})",
+                    reason,
+                    destination,
+                    self.tts.is_active()
+                );
+                self.tracer.trace("EscalateCall");
+                self.tracer.emit(Event::ToolActivity {
+                    tool_call_id: None,
+                    tool_name: "escalate_call".into(),
+                    status: "executing".into(),
+                    error_message: None,
+                });
+
+                // Store the destination; initiate_shutdown will send Transfer before Close.
+                self.pending_transfer_destination = Some(destination);
+
+                // Reuse the hang-up state machine: drain TTS first, then shutdown.
+                self.tts.flush();
+                self.hang_up = HangUpPhase::WaitingForTts;
+
+                if !self.tts.is_active() {
+                    info!("[reactor] escalate_call: TTS not active — transferring immediately");
+                    self.finalize_hang_up("escalate_call (no pending TTS)");
                 }
             }
 
@@ -865,9 +896,7 @@ impl Reactor {
                 if matches!(self.hang_up, HangUpPhase::WaitingForTts) {
                     let delay = remaining;
                     if delay.is_zero() {
-                        self.initiate_shutdown(
-                            "TTS finished after hang_up (no playback remaining)",
-                        );
+                        self.finalize_hang_up("TTS finished after hang_up (no playback remaining)");
                     } else {
                         info!(
                             "[reactor] hang_up: delaying shutdown by {:?} for client playback",
@@ -1044,12 +1073,13 @@ impl Reactor {
         info!("[reactor] Pipeline cancelled");
     }
 
-    /// Initiate a clean session shutdown (agent-initiated hang-up).
+    /// Initiate a clean session shutdown (agent-initiated hang-up or escalation).
     ///
     /// 1. Emits `SessionEnded` for all subscribers (UI, OTel, etc.)
     /// 2. Cancels the active pipeline (LLM + TTS)
-    /// 3. Tells the transport layer to close (triggers telephony REST hangup)
-    /// 4. Sets `should_exit` to break the reactor loop on the next iteration
+    /// 3. If a call escalation is pending, sends `TransportCommand::Transfer` first.
+    /// 4. Tells the transport layer to close (triggers telephony REST hangup)
+    /// 5. Sets `should_exit` to break the reactor loop on the next iteration
     pub(super) fn initiate_shutdown(&mut self, reason: &str) {
         info!("[reactor] Initiating shutdown: {}", reason);
         self.notify_hooks(|p| p.on_session_end());
@@ -1060,6 +1090,20 @@ impl Reactor {
         self.cancel_pipeline();
         self.transport.close();
         self.should_exit = true;
+    }
+
+    /// Actually tear down the session OR initiate a transfer if one is pending.
+    /// Called when the HangUpPhase has completed waiting for the client to drain.
+    pub(super) fn finalize_hang_up(&mut self, reason: &str) {
+        if let Some(dest) = self.pending_transfer_destination.take() {
+            info!("[reactor] Escalation: transferring call to {}", dest);
+            self.transport.transfer(dest);
+            // Do NOT shut down. The transport will report TransferResult via control_rx.
+            // If it succeeds, reactor terminates. If it fails, session resumes.
+            self.holding = true;
+        } else {
+            self.initiate_shutdown(reason);
+        }
     }
 
     // ── TTS turn management ───────────────────────────────────────

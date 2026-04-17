@@ -5,7 +5,7 @@
 
 use agent_kit::agent_backends::native::{NativeAgentEvent, NativeMultimodalBackend};
 use agent_kit::providers::gemini_live::{GeminiLiveProvider, OUTPUT_SAMPLE_RATE};
-use agent_kit::swarm::AgentGraphDef;
+use agent_kit::swarm::{AgentGraphDef, EscalationDestination};
 use agent_kit::AgentBackend as _;
 use agent_kit::AgentBackendConfig;
 use bytes::Bytes;
@@ -21,10 +21,7 @@ use crate::reactor::proc::vad::VadStage;
 use crate::reactor::AgentAudioCursor;
 use crate::session::NativeMultimodalConfig;
 use crate::types::VadEvent;
-use crate::utils::{AudioRingBuffer, PlaybackTracker, SAMPLE_RATE};
-
-/// WebRTC Opus clock rate.
-const WEBRTC_RATE: u32 = 48_000;
+use crate::utils::{AudioRingBuffer, PlaybackTracker, SAMPLE_RATE, WEBRTC_RATE};
 
 /// Self-contained event loop for Gemini Live native audio sessions.
 ///
@@ -50,13 +47,14 @@ pub(crate) async fn run_native_multimodal(
     voice_id: String,
     backend_config: AgentBackendConfig,
     mut mic_rx: UnboundedReceiver<Bytes>,
-    transport: TransportHandle,
+    mut transport: TransportHandle,
     mut tracer: Tracer,
     input_sample_rate: u32,
     models_dir: String,
     recording_enabled: bool,
     language: String,
     greeting: Option<String>,
+    escalation_destinations: Vec<EscalationDestination>,
 ) {
     tracer.emit(Event::SessionReady);
 
@@ -88,7 +86,8 @@ pub(crate) async fn run_native_multimodal(
         agent_graph.as_ref(),
         backend_config,
         voice_id.clone(),
-    );
+    )
+    .with_telephony_escalation(transport.is_telephony, escalation_destinations);
     let mut final_system_prompt = system_prompt;
     if let Some(mut greet) = greeting {
         greet = greet.trim().to_string();
@@ -135,9 +134,51 @@ pub(crate) async fn run_native_multimodal(
     let mut hangup_target: Option<tokio::time::Instant> = None;
     let mut hangup_max_target: Option<tokio::time::Instant> = None;
 
+    let mut holding = false;
+    let mut hold_phase: f32 = 0.0;
+
     // ── Main event loop ────────────────────────────────────────────
     loop {
         tokio::select! {
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(20)), if holding => {
+                let hold_rate = if transport.is_telephony { 8000 } else { WEBRTC_RATE };
+                let pcm_bytes = crate::utils::generate_transfer_hold_tone(&mut hold_phase, hold_rate);
+
+                let offset = tts_cursor.stamp(pcm_bytes.len());
+                tracer.emit(Event::AgentAudio {
+                    pcm: Bytes::from(pcm_bytes),
+                    sample_rate: hold_rate,
+                    offset_samples: offset,
+                });
+            }
+
+            ctrl_event = transport.control_rx.recv() => {
+                match ctrl_event {
+                    Some(voice_transport::TransportEvent::TransferResult { succeeded, destination, reason }) => {
+                        info!("[native] Transfer complete: succeeded={}, destination={:?}, reason={:?}", succeeded, destination, reason);
+                        if succeeded {
+                            info!("[native] Call transferred successfully. Hanging up.");
+                            let _ = transport.control_tx.send(voice_transport::TransportCommand::Close);
+                            break;
+                        } else {
+                            holding = false;
+                            let fail_reason = reason.unwrap_or_else(|| "Unknown Provider Error".into());
+                            if let Err(e) = backend.push_transfer_failure_result(destination, fail_reason).await {
+                                warn!("[native] Failed to send transfer failure to Gemini: {}", e);
+                            }
+                        }
+                    }
+                    Some(voice_transport::TransportEvent::Disconnected { reason }) => {
+                        info!("[native] Transport disconnected: {}", reason);
+                        break;
+                    }
+                    Some(_) => {}
+                    None => {
+                        info!("[native] Transport control channel closed. Terminating.");
+                        break;
+                    }
+                }
+            }
             _ = async {
                 if let Some(target) = hangup_target {
                     tokio::time::sleep_until(target).await;
@@ -207,9 +248,11 @@ pub(crate) async fn run_native_multimodal(
                             pending_pcm.push(samples);
                         });
 
-                        for samples in pending_pcm {
-                            if let Err(e) = backend.push_audio(&samples).await {
-                                warn!("[native] push_audio error: {}", e);
+                        if !holding {
+                            for samples in pending_pcm {
+                                if let Err(e) = backend.push_audio(&samples).await {
+                                    warn!("[native] push_audio error: {}", e);
+                                }
                             }
                         }
 
@@ -270,10 +313,17 @@ pub(crate) async fn run_native_multimodal(
             // Gemini events: audio out, transcripts, tool calls.
             event = backend.recv() => {
                 match event {
-                    Some(ev) => match ev {
-                        NativeAgentEvent::BotAudio(samples) => {
-                            if !bot_speaking {
-                                bot_speaking = true;
+                    Some(ev) => {
+                        // Once we are holding (escalated), ignore all further backend events
+                        // to prevent stray LLM audio, tool calls, or duplicate escalate_call attempts
+                        // while the telephony provider routes the transfer.
+                        if holding {
+                            continue;
+                        }
+                        match ev {
+                            NativeAgentEvent::BotAudio(samples) => {
+                                if !bot_speaking {
+                                    bot_speaking = true;
                                 // Snap the cursor to wall-clock on the first chunk of each
                                 // new turn. This encodes the real inter-turn gap (user speech
                                 // + STT + LLM + TTS TTFB) so recording is wall-clock accurate.
@@ -453,6 +503,35 @@ pub(crate) async fn run_native_multimodal(
                             }
                         }
 
+                        NativeAgentEvent::EscalateCall { destination, reason } => {
+                            info!("[native] Agent escalate_call (destination={}, reason={}) intercepted. Commencing transfer...", destination, reason);
+
+                            // Send the Transfer command to the transport layer.
+                            // The transport is responsible for handling the SIP/PSTN mechanics.
+                            let _ = transport.control_tx.send(voice_transport::TransportCommand::Transfer {
+                                destination: destination.clone()
+                            });
+
+                            // Suppress all further backend events (audio, tool calls, etc.)
+                            // while the telephony provider routes the transfer.
+                            // NOTE: Do NOT call backend.interrupt() here. Gemini has just
+                            // received the escalate_call tool result and is in the middle of
+                            // generating a farewell audio turn. Sending activityStart races
+                            // with that turn generation and causes Gemini to emit an empty
+                            // response ("model output must contain either output text or tool
+                            // calls"). The holding guard below is sufficient to drain and
+                            // discard all further events without disrupting the provider.
+                            holding = true;
+                            bot_speaking = false;
+
+                            tracer.emit(Event::ToolActivity {
+                                tool_call_id: None,
+                                tool_name: "escalate_call".into(),
+                                status: "completed".into(),
+                                error_message: None,
+                            });
+                        }
+
                         NativeAgentEvent::Error(msg) => {
                             warn!("[native] Provider error: {}", msg);
                             tracer.emit(Event::Error {
@@ -460,6 +539,7 @@ pub(crate) async fn run_native_multimodal(
                                 message: msg,
                             });
                         }
+                    }
                     }
                     None => {
                         // Stream ended — attempt reconnect with exponential backoff.

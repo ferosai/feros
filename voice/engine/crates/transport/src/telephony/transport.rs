@@ -72,7 +72,7 @@ impl TelephonyTransport {
         socket: WebSocket,
         config: TelephonyConfig,
         bus_sender_rx: oneshot::Receiver<broadcast::Sender<Event>>,
-    ) -> (TransportHandle, oneshot::Receiver<Option<String>>) {
+    ) -> (TransportHandle, oneshot::Receiver<(Option<String>, Option<String>)>) {
         let (ws_sink, ws_stream) = socket.split();
         let (audio_in_tx, audio_rx) = mpsc::unbounded_channel::<Bytes>();
         let (control_event_tx, control_rx) = mpsc::unbounded_channel();
@@ -110,10 +110,11 @@ impl TelephonyTransport {
             fwd_provider,
         ));
 
-        // ── Task 3: Handle control commands (hangup on close) ──────
+        // ── Task 3: Handle control commands (hangup on close, supervised transfer) ──
         let cmd_config = Arc::clone(&config);
         let cmd_provider = Arc::clone(&provider);
-        let cmd_handle = tokio::spawn(telephony_cmd_loop(control_cmd_rx, cmd_config, cmd_provider));
+        let cmd_event_tx = control_event_tx.clone();
+        let cmd_handle = tokio::spawn(telephony_cmd_loop(control_cmd_rx, cmd_config, cmd_provider, cmd_event_tx));
 
         // ── Audio sink (sends encoded G.711 as JSON WS frames) ─────
         let audio_sink = TelephonyAudioSink {
@@ -126,9 +127,11 @@ impl TelephonyTransport {
             audio_rx,
             audio_tx: Box::new(audio_sink),
             control_rx,
+            event_tx: control_event_tx.clone(),
             control_tx: control_cmd_tx,
             input_sample_rate: config.sample_rate,
             _background_tasks: vec![recv_handle, forward_handle, cmd_handle],
+            is_telephony: true,
         };
 
         (handle, session_id_rx)
@@ -149,7 +152,7 @@ async fn telephony_recv_loop(
     control_tx: mpsc::UnboundedSender<TransportEvent>,
     config: Arc<TelephonyConfig>,
     provider: Arc<Box<dyn TelephonyProviderImpl>>,
-    session_id_tx: oneshot::Sender<Option<String>>,
+    session_id_tx: oneshot::Sender<(Option<String>, Option<String>)>,
 ) {
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD;
@@ -202,9 +205,9 @@ async fn telephony_recv_loop(
                     custom_session_id
                 );
 
-                // Send session_id from customParameters to the server (once)
+                // Send session_id and call_id from start event to the server (once)
                 if let Some(tx) = session_id_tx.take() {
-                    let _ = tx.send(custom_session_id);
+                    let _ = tx.send((custom_session_id, call_id.clone()));
                 }
 
                 // Store the provider-assigned IDs so outbound frames can use them
@@ -384,6 +387,7 @@ async fn telephony_cmd_loop(
     mut cmd_rx: mpsc::UnboundedReceiver<TransportCommand>,
     config: Arc<TelephonyConfig>,
     provider: Arc<Box<dyn TelephonyProviderImpl>>,
+    control_tx: mpsc::UnboundedSender<crate::TransportEvent>,
 ) {
     while let Some(cmd) = cmd_rx.recv().await {
         match cmd {
@@ -428,6 +432,106 @@ async fn telephony_cmd_loop(
             }
             TransportCommand::SendMessage(msg) => {
                 info!("[telephony:{}] Control message: {:?}", provider.name(), msg);
+            }
+            TransportCommand::Transfer { destination } => {
+                info!("[telephony:{}] Supervised transfer command received → {}", provider.name(), destination);
+
+                let call_id = config.get_call_id();
+                let from_number = config.from_number.clone();
+                let public_url = config.public_url.clone();
+
+                match (call_id, from_number, public_url) {
+                    (Some(call_id), Some(from_number), Some(public_url)) => {
+                        // Build a unique conference name from the original call SID.
+                        let conference_name = format!("feros-transfer-{}", call_id);
+                        // Transfer ID is the original call SID — used as the lookup key in transfer_waiters.
+                        // The original call_id is used as the transfer_waiters lookup key.
+                        let callback_url = format!(
+                            "{}/telephony/{}/transfer-status",
+                            public_url.trim_end_matches('/'),
+                            provider.name().to_lowercase()
+                        );
+
+                        info!(
+                            "[telephony:{}] Initiating supervised transfer: call_id={}, from={}, conference={}, callback={}",
+                            provider.name(), call_id, from_number, conference_name, callback_url
+                        );
+
+                        const MAX_ATTEMPTS: u32 = 3;
+                        let mut transfer_initiated = false;
+                        for attempt in 1..=MAX_ATTEMPTS {
+                            match provider
+                                .initiate_supervised_transfer(
+                                    &config,
+                                    &call_id,
+                                    &destination,
+                                    &from_number,
+                                    &conference_name,
+                                    &callback_url,
+                                )
+                                .await
+                            {
+                                Ok(new_call_sid) => {
+                                    info!(
+                                        "[telephony:{}] Outbound transfer leg created: {}",
+                                        provider.name(),
+                                        new_call_sid
+                                    );
+                                    transfer_initiated = true;
+                                    break;
+                                }
+                                Err(e) => {
+                                    if attempt < MAX_ATTEMPTS {
+                                        warn!(
+                                            "[telephony:{}] Transfer attempt {}/{} failed: {} — retrying",
+                                            provider.name(), attempt, MAX_ATTEMPTS, e
+                                        );
+                                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                    } else {
+                                        warn!(
+                                            "[telephony:{}] Transfer failed after {} attempts: {}",
+                                            provider.name(), attempt, e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if !transfer_initiated {
+                            // Emit a failure event so the AI can tell the user.
+                            let _ = control_tx.send(crate::TransportEvent::TransferResult {
+                                succeeded: false,
+                                destination: destination.clone(),
+                                reason: Some("Failed to place outbound transfer call".into()),
+                            });
+                        }
+                        // Do NOT break — we wait for TransferResult from the webhook or a Close command.
+                    }
+                    (None, _, _) => {
+                        warn!("[telephony:{}] Transfer requested but no call_id available", provider.name());
+                        let _ = control_tx.send(crate::TransportEvent::TransferResult {
+                            succeeded: false,
+                            destination,
+                            reason: Some("No call_id available for transfer".into()),
+                        });
+                    }
+                    (_, None, _) => {
+                        warn!("[telephony:{}] Transfer requested but no from_number configured — cannot place outbound call", provider.name());
+                        let _ = control_tx.send(crate::TransportEvent::TransferResult {
+                            succeeded: false,
+                            destination,
+                            reason: Some("No from_number configured".into()),
+                        });
+                    }
+                    (_, _, None) => {
+                        warn!("[telephony:{}] Transfer requested but no public_url configured — cannot build callback URL", provider.name());
+                        let _ = control_tx.send(crate::TransportEvent::TransferResult {
+                            succeeded: false,
+                            destination,
+                            reason: Some("No public_url configured".into()),
+                        });
+                    }
+                }
             }
             #[cfg(feature = "webrtc")]
             TransportCommand::AddIceCandidate(_) => {

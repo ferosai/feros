@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent as PydanticAiAgent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_core import to_jsonable_python
@@ -577,6 +577,11 @@ async def delete_agent(
     await db.delete(agent)
 
 
+class EscalationDestination(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    phone_number: str = Field(..., min_length=4, max_length=100, pattern=r'^(?:\+?[0-9\s\-\(\)]+|sips?:.+)$')
+
+
 class AgentConfigPatch(BaseModel):
     """Fields that can be patched directly on the agent's active config."""
 
@@ -589,6 +594,7 @@ class AgentConfigPatch(BaseModel):
     # tool_id -> true/false
     # null means "unset" (falls back to default truncate behavior)
     tool_summarize_overrides: dict[str, bool | None] | None = None
+    escalation_destinations: list[EscalationDestination] | None = None
     regenerate_greeting: bool = False
 
 

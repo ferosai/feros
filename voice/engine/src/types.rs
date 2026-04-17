@@ -6,7 +6,7 @@
 //! - Tool execution types (`ToolCallRequest`, `ToolResult`)
 
 use bytes::Bytes;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use voice_trace::LlmCompletionData;
 
 // ── Session Types ────────────────────────────────────────────────
@@ -190,6 +190,16 @@ pub enum LlmEvent {
         reason: String,
         content: Option<String>,
     },
+    /// The agent has requested call escalation / human handoff.
+    ///
+    /// The reactor should drain TTS, then send `TransportCommand::Transfer { destination }`
+    /// to the telephony transport before closing the session.
+    EscalateCall {
+        /// E.164 phone number or SIP URI to forward the call to.
+        destination: String,
+        /// Human-readable reason (for telemetry/logs).
+        reason: String,
+    },
     /// The user asked to hold / pause — suppress idle shutdown until they return.
     OnHold { duration_secs: u32 },
     /// An LLM generation has completed (for observability).
@@ -286,4 +296,15 @@ mod tests {
         let (tc, _) = TurnCompletion::detect("◐").unwrap();
         assert_eq!(tc, TurnCompletion::IncompleteLong);
     }
+}
+/// A pre-configured escalation destination (PSTN number or SIP URI).
+///
+/// Agents inject these into the `escalate_call` tool schema so the LLM can
+/// choose the appropriate destination by name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EscalationDestination {
+    /// Human-readable label shown to the LLM (e.g. "Support Team", "Billing").
+    pub name: String,
+    /// E.164 phone number (e.g. "+18005551234") or SIP URI.
+    pub phone_number: String,
 }

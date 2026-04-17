@@ -53,6 +53,8 @@ pub struct WebRtcConnection {
     pub(crate) audio_rx: Option<mpsc::UnboundedReceiver<Bytes>>,
     /// Channel for transport lifecycle events.
     pub(crate) control_rx: Option<mpsc::UnboundedReceiver<TransportEvent>>,
+    /// Channel for sending events back to the session.
+    pub(crate) event_tx: Option<mpsc::UnboundedSender<TransportEvent>>,
     /// Channel for sending commands to the connection loop.
     pub(crate) control_tx: Option<mpsc::UnboundedSender<TransportCommand>>,
     /// Channel for sending PCM audio to the str0m event loop for Opus encoding.
@@ -183,6 +185,7 @@ impl WebRtcConnection {
         let (audio_out_tx, audio_out_rx) = mpsc::unbounded_channel();
 
         let id_for_task = id.clone();
+        let control_event_tx_task = control_event_tx.clone();
 
         // Spawn the str0m event loop as a tokio task
         let task_handle = tokio::spawn(async move {
@@ -192,7 +195,7 @@ impl WebRtcConnection {
                 socket,
                 host_addr,
                 audio_tx,
-                control_event_tx,
+                control_event_tx_task,
                 control_cmd_rx,
                 audio_out_rx,
             )
@@ -206,6 +209,7 @@ impl WebRtcConnection {
             id,
             audio_rx: Some(audio_rx),
             control_rx: Some(control_rx),
+            event_tx: Some(control_event_tx.clone()),
             control_tx: Some(control_cmd_tx),
             audio_out_tx: Some(audio_out_tx),
             task_handle: Some(task_handle),
@@ -401,6 +405,9 @@ async fn run_rtc_loop(
                             Ok(c) => rtc.add_remote_candidate(c),
                             Err(e) => warn!("[webrtc:{tag}] Failed to parse ICE candidate {}: {}", candidate, e)
                         }
+                    }
+                    Some(TransportCommand::Transfer { destination }) => {
+                        warn!("[webrtc:{tag}] Transfer command unsupported in WebRTC (destination: {})", destination);
                     }
                     None => {
                         info!("[webrtc:{}] Control channel closed", tag);

@@ -18,9 +18,10 @@ pub mod swarm;
 
 // Re-exports for convenience
 pub use agent_backends::{
-    default::DefaultAgentBackend, is_hang_up_tool, is_transfer_tool, AfterToolCallAction,
-    AgentBackend, AgentBackendConfig, AgentCommand, AgentEvent, AgentOutput, BeforeToolCallAction,
-    ChatMessage, LlmCommand, LlmOutput, SecretMap, SharedSecretMap, ToolInterceptor,
+    default::DefaultAgentBackend, is_escalate_call_tool, is_hang_up_tool, is_transfer_tool,
+    AfterToolCallAction, AgentBackend, AgentBackendConfig, AgentCommand, AgentEvent, AgentOutput,
+    BeforeToolCallAction, ChatMessage, LlmCommand, LlmOutput, SecretMap, SharedSecretMap,
+    ToolInterceptor,
 };
 
 pub use artifact_store::{ArtifactInterceptor, ArtifactStore};

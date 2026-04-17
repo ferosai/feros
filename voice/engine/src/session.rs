@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use agent_kit::swarm::AgentGraphDef;
+use agent_kit::swarm::{AgentGraphDef, EscalationDestination};
 use tracing::info;
 use voice_trace::Tracer;
 use voice_transport::TransportHandle;
@@ -97,6 +97,10 @@ pub struct SessionConfig {
     /// When `Some`, the session bypasses STT/LLM/TTS entirely and uses
     /// Gemini Live's bidirectional audio WebSocket instead.
     pub native_multimodal: Option<NativeMultimodalConfig>,
+
+    // ── Telephony Handoff ───────────────────────────────────────
+    /// SIP/Phone numbers the agent is allowed to escalate the call to.
+    pub escalation_destinations: Vec<EscalationDestination>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -150,6 +154,7 @@ impl Default for SessionConfig {
             tts_model: String::new(),
             recording: RecordingConfig::default(),
             native_multimodal: None,
+            escalation_destinations: vec![],
         }
     }
 }
@@ -250,6 +255,7 @@ impl VoiceSession {
                     recording_enabled,
                     config.language.clone(),
                     config.greeting.clone(),
+                    config.escalation_destinations.clone(),
                 )
                 .await;
             });
@@ -268,6 +274,7 @@ impl VoiceSession {
         }
 
         let audio_in_rx = transport.take_audio_rx();
+        let control_rx = transport.take_control_rx();
 
         let agent_graph = config.agent_graph.clone();
         let task = AgentTaskSettings::get();
@@ -282,9 +289,14 @@ impl VoiceSession {
 
         let llm_provider: Arc<dyn LlmProvider> = Arc::from(llm_provider);
         let backend: Box<dyn AgentBackend> = Box::new(
-            DefaultAgentBackend::new(llm_provider, agent_graph, backend_config).with_interceptor(
-                std::sync::Arc::new(ArtifactInterceptor::new(ArtifactStore::new())),
-            ),
+            DefaultAgentBackend::new(llm_provider, agent_graph, backend_config)
+                .with_telephony_escalation(
+                    transport.is_telephony,
+                    config.escalation_destinations.clone(),
+                )
+                .with_interceptor(std::sync::Arc::new(ArtifactInterceptor::new(
+                    ArtifactStore::new(),
+                ))),
         );
 
         let transport_control_tx = transport.control_tx.clone();
@@ -293,6 +305,7 @@ impl VoiceSession {
             config,
             backend,
             audio_in_rx,
+            control_rx,
             tracer,
             stt_config,
             tts_config,

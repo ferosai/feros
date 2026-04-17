@@ -368,7 +368,7 @@ impl Reactor {
                     self.hang_up = HangUpPhase::Idle;
                 }
                 info!("[reactor] HangUpDelay expired — client playback should be done");
-                self.initiate_shutdown("hang_up playback delay expired");
+                self.finalize_hang_up("hang_up playback delay expired");
             }
         }
     }

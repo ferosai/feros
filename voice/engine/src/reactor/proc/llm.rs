@@ -43,6 +43,13 @@ fn agent_event_to_llm(event: AgentEvent) -> LlmEvent {
         AgentEvent::Error(e) => LlmEvent::Error(e),
         AgentEvent::HangUp { reason, content } => LlmEvent::HangUp { reason, content },
         AgentEvent::OnHold { duration_secs } => LlmEvent::OnHold { duration_secs },
+        AgentEvent::EscalateCall {
+            destination,
+            reason,
+        } => LlmEvent::EscalateCall {
+            destination,
+            reason,
+        },
         AgentEvent::LlmComplete {
             provider,
             model,

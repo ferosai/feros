@@ -25,7 +25,7 @@ fn main() {
         .expect("Protobuf compilation failed.");
 
     let descriptor_set = std::fs::read(&descriptor_path).unwrap();
-    
+
     Builder::new()
         .register_descriptors(&descriptor_set)
         .unwrap()

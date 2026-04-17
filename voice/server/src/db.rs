@@ -30,6 +30,8 @@ pub struct AgentConfig {
     pub agent_id: String,
     /// Parsed agent graph — None for legacy config format or if parsing fails.
     pub agent_graph: Option<AgentGraphDef>,
+    /// Parsed escalation destinations for telephony handoff.
+    pub escalation_destinations: Vec<agent_kit::swarm::EscalationDestination>,
     // LLM (from provider_configs)
     pub llm_provider: String,
     pub llm_model: String,
@@ -214,10 +216,10 @@ pub async fn agent_by_id(
     agent_config_for_id(pool, engine, agent_id, active_version).await
 }
 
-/// Fetch the public voice-server URL from the DB, or from the SERVER__PUBLIC_URL env var if set.
+/// Fetch the public voice-server URL from the DB, or from the VOICE_SERVER__PUBLIC_URL env var if set.
 /// Defaults to `http://localhost:8300` if not yet configured.
 pub async fn voice_server_url(pool: &PgPool) -> String {
-    if let Ok(env_url) = std::env::var("SERVER__PUBLIC_URL") {
+    if let Ok(env_url) = std::env::var("VOICE_SERVER__PUBLIC_URL") {
         if !env_url.is_empty() {
             return env_url;
         }
@@ -402,12 +404,18 @@ pub async fn phone_number_credentials(
                 .unwrap_or("")
                 .to_string(),
             telnyx_api_key: String::new(),
+            telnyx_connection_id: String::new(),
         }),
         "telnyx" => Some(voice_engine::server::TelephonyCredentials {
             twilio_account_sid: String::new(),
             twilio_auth_token: String::new(),
             telnyx_api_key: creds
                 .get("telnyx_api_key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            telnyx_connection_id: creds
+                .get("telnyx_connection_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
@@ -450,7 +458,7 @@ async fn agent_config_for_id(
         .unwrap_or("");
 
     let agent_graph: Option<AgentGraphDef> = if schema == "v3_graph" {
-        match serde_json::from_value(config_json) {
+        match serde_json::from_value(config_json.clone()) {
             Ok(g) => Some(g),
             Err(e) => {
                 warn!("Failed to parse AgentGraphDef for agent {agent_id}: {e}");
@@ -460,6 +468,28 @@ async fn agent_config_for_id(
     } else {
         None
     };
+
+    // escalation_destinations is now a first-class field on AgentGraphDef (proto tag 11).
+    // Read it from the parsed graph; fall back to direct JSON extraction for agents
+    // serialized before the proto field was added.
+    let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> = agent_graph
+        .as_ref()
+        .map(|g| {
+            g.escalation_destinations
+                .iter()
+                .map(|d| agent_kit::swarm::EscalationDestination {
+                    name: d.name.clone(),
+                    phone_number: d.phone_number.clone(),
+                })
+                .collect()
+        })
+        .filter(|v: &Vec<_>| !v.is_empty())
+        .unwrap_or_else(|| {
+            config_json
+                .get("escalation_destinations")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default()
+        });
 
     // Fetch voice provider settings in a single round-trip.
     // This is faster than tokio::join! (which requires 3 connections) and
@@ -500,6 +530,7 @@ async fn agent_config_for_id(
     Some(AgentConfig {
         agent_id: agent_id.to_string(),
         agent_graph,
+        escalation_destinations,
         llm_provider: llm.provider.clone(),
         llm_model: llm.model.clone(),
         llm_base_url: llm.base_url.clone(),

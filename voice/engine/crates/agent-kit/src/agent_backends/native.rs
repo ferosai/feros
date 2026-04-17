@@ -81,6 +81,9 @@ pub enum NativeAgentEvent {
     /// The agent called hang_up — session should end gracefully.
     HangUp { reason: String },
 
+    /// The agent escalated the call to a human destination.
+    EscalateCall { destination: String, reason: String },
+
     /// The model finished speaking (turn boundary).
     TurnComplete {
         /// Prompt token count reported by the provider (0 = not available).
@@ -132,6 +135,9 @@ pub struct NativeMultimodalBackend {
 
     // Cached resumption handle from the last successful session.
     last_resumption_handle: Option<String>,
+
+    // Saved escalation destinations for resolving names to phone numbers.
+    escalation_destinations: Vec<crate::swarm::EscalationDestination>,
 }
 
 impl NativeMultimodalBackend {
@@ -164,7 +170,7 @@ impl NativeMultimodalBackend {
         let tool_schemas: Vec<Value> = agent_graph
             .and_then(|g| {
                 g.nodes.get(&g.entry)
-                    .map(|node| build_node_tool_schemas(node, &g.tools))
+                    .map(|node| build_node_tool_schemas(node, &g.tools, false, &[]))
             })
             .unwrap_or_default();
 
@@ -181,7 +187,22 @@ impl NativeMultimodalBackend {
             tool_schemas,
             connected: false,
             last_resumption_handle: None,
+            escalation_destinations: Vec::new(),
         }
+    }
+
+    /// Appends telephony-specific tools (like `escalate_call`) to the backend if configured.
+    pub fn with_telephony_escalation(
+        mut self,
+        is_telephony: bool,
+        destinations: Vec<crate::swarm::EscalationDestination>,
+    ) -> Self {
+        if is_telephony && !destinations.is_empty() {
+            let schema = crate::swarm::make_escalate_call_tool_schema(&destinations);
+            self.tool_schemas.push(schema);
+            self.escalation_destinations = destinations;
+        }
+        self
     }
 
     /// Open (or re-open) the WebSocket connection to the realtime backend.
@@ -230,6 +251,24 @@ impl NativeMultimodalBackend {
     /// emitting audio immediately and start listening again.
     pub async fn interrupt(&mut self) -> Result<(), LlmProviderError> {
         self.provider.interrupt().await
+    }
+
+    /// Push a transfer failure to the model.
+    pub async fn push_transfer_failure_result(&mut self, destination: String, reason: String) -> Result<(), LlmProviderError> {
+        let msg = if destination.is_empty() {
+            format!(
+                "System notification: Call transfer failed. The telephony provider returned: {}. \
+                 Please inform the user and ask how they would like to proceed.",
+                reason
+            )
+        } else {
+            format!(
+                "System notification: Call transfer to {} failed. The telephony provider returned: {}. \
+                 Please inform the user and ask how they would like to proceed.",
+                destination, reason
+            )
+        };
+        self.provider.push_client_content(msg).await
     }
 
     /// Poll for the next event from the model.
@@ -330,6 +369,40 @@ impl NativeMultimodalBackend {
                         serde_json::json!({"result": "Hang up initiated."}),
                     ).await;
                     return Some(NativeAgentEvent::HangUp { reason });
+                }
+
+                if name == crate::swarm::ESCALATE_CALL_TOOL_NAME {
+                    // Extract payload correctly
+                    let args_json = serde_json::from_str::<serde_json::Value>(&arguments).unwrap_or_default();
+                    let destination_name = args_json.get("destination_name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                    let reason = args_json.get("reason").and_then(|v| v.as_str()).unwrap_or("agent_initiated").to_string();
+                    
+                    let Some(actual_destination) = self
+                        .escalation_destinations
+                        .iter()
+                        .find(|d| d.name == destination_name)
+                        .map(|d| d.phone_number.clone())
+                    else {
+                        warn!(
+                            "[native-backend] escalate_call: unknown destination '{}' — rejecting (not in configured list)",
+                            destination_name
+                        );
+                        let _ = self.provider.send_tool_result(
+                            &call_id,
+                            &name,
+                            serde_json::json!({"error": format!("Unknown escalation destination: {}", destination_name)}),
+                        ).await;
+                        return None;
+                    };
+
+                    info!("[native-backend] escalate_call intercepted (name={}, dest={}, reason={})", destination_name, actual_destination, reason);
+                    // Send a synthetic success result back to the model so it doesn't retry.
+                    let _ = self.provider.send_tool_result(
+                        &call_id,
+                        &name,
+                        serde_json::json!({"result": format!("Forwarding call to {}...", destination_name)}),
+                    ).await;
+                    return Some(NativeAgentEvent::EscalateCall { destination: actual_destination, reason });
                 }
 
                 self.dispatch_tool(call_id, name, arguments).await

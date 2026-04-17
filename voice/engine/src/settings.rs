@@ -181,6 +181,14 @@ pub struct Settings {
     /// Telnyx API Key (for call control).
     #[serde(default)]
     pub telnyx_api_key: String,
+
+    /// Telnyx Public Key (for webhook signature verification).
+    #[serde(default)]
+    pub telnyx_public_key: String,
+
+    /// Telnyx Connection ID / App ID.
+    #[serde(default)]
+    pub telnyx_connection_id: String,
 }
 
 impl Settings {
