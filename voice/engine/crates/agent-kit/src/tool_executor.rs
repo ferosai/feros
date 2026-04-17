@@ -227,7 +227,11 @@ pub(super) fn spawn_tool_task(
             }
         };
 
-        // Execution Timeout limit (25 seconds)
+        // Execution timeout: 25 seconds.
+        // If post-processing (summarization) is enabled, add up to
+        // TOOL_SUMMARY_TIMEOUT (8 s) for a worst-case total of ~33 s.
+        // Both limits are enforced inside this detached tokio::spawn,
+        // so neither blocks the reactor's select! loop directly.
         let mut result =
             match tokio::time::timeout(std::time::Duration::from_secs(25), result_fut).await {
                 Ok(r) => r,

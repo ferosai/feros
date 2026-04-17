@@ -812,9 +812,12 @@ async def _inject_config_change_event(
         )
         changes.append(f"conversation mode set to {mode}")
     if tool_result_modes:
-        mode_label = {1: "summary", 2: "truncate", 3: "full"}
-        for tool_id, mode in tool_result_modes.items():
-            label = "auto" if mode is None else mode_label.get(mode, str(mode))
+        mode_label: dict[int, str] = {1: "summary", 2: "truncate", 3: "full"}
+        for tool_id, result_mode in tool_result_modes.items():
+            if result_mode is None:
+                label = "auto"
+            else:
+                label = mode_label.get(result_mode, str(result_mode))
             changes.append(f"{tool_id} result_mode set to {label}")
 
     if not changes:
