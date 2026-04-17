@@ -593,7 +593,7 @@ export const api = {
         voice_id?: string;
         tts_provider?: string;
         tts_model?: string;
-        tool_result_modes?: Record<string, number | null>;
+        tool_summarize_overrides?: Record<string, boolean | null>;
         regenerate_greeting?: boolean;
       }
     ) =>

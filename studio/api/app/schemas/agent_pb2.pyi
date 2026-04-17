@@ -18,23 +18,12 @@ class AudioFormat(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     AUDIO_FORMAT_UNSPECIFIED: _ClassVar[AudioFormat]
     AUDIO_FORMAT_OPUS: _ClassVar[AudioFormat]
     AUDIO_FORMAT_WAV: _ClassVar[AudioFormat]
-
-class ToolResultMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    TOOL_RESULT_MODE_UNSPECIFIED: _ClassVar[ToolResultMode]
-    TOOL_RESULT_MODE_SUMMARIZE: _ClassVar[ToolResultMode]
-    TOOL_RESULT_MODE_TRUNCATE: _ClassVar[ToolResultMode]
-    TOOL_RESULT_MODE_NONE: _ClassVar[ToolResultMode]
 AUDIO_LAYOUT_UNSPECIFIED: AudioLayout
 AUDIO_LAYOUT_STEREO: AudioLayout
 AUDIO_LAYOUT_MONO: AudioLayout
 AUDIO_FORMAT_UNSPECIFIED: AudioFormat
 AUDIO_FORMAT_OPUS: AudioFormat
 AUDIO_FORMAT_WAV: AudioFormat
-TOOL_RESULT_MODE_UNSPECIFIED: ToolResultMode
-TOOL_RESULT_MODE_SUMMARIZE: ToolResultMode
-TOOL_RESULT_MODE_TRUNCATE: ToolResultMode
-TOOL_RESULT_MODE_NONE: ToolResultMode
 
 class RecordingConfig(_message.Message):
     __slots__ = ("enabled", "output_uri", "audio_layout", "sample_rate", "audio_format", "max_duration_secs", "save_transcript", "include_tool_details", "include_llm_metadata")
@@ -73,20 +62,20 @@ class ParamDef(_message.Message):
     def __init__(self, name: _Optional[str] = ..., type: _Optional[str] = ..., description: _Optional[str] = ..., required: bool = ..., options: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ToolDef(_message.Message):
-    __slots__ = ("description", "script", "params", "cancel_on_barge_in", "side_effect", "result_mode")
+    __slots__ = ("description", "script", "params", "cancel_on_barge_in", "side_effect", "summarize_result")
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     SCRIPT_FIELD_NUMBER: _ClassVar[int]
     PARAMS_FIELD_NUMBER: _ClassVar[int]
     CANCEL_ON_BARGE_IN_FIELD_NUMBER: _ClassVar[int]
     SIDE_EFFECT_FIELD_NUMBER: _ClassVar[int]
-    RESULT_MODE_FIELD_NUMBER: _ClassVar[int]
+    SUMMARIZE_RESULT_FIELD_NUMBER: _ClassVar[int]
     description: str
     script: str
     params: _containers.RepeatedCompositeFieldContainer[ParamDef]
     cancel_on_barge_in: bool
     side_effect: bool
-    result_mode: ToolResultMode
-    def __init__(self, description: _Optional[str] = ..., script: _Optional[str] = ..., params: _Optional[_Iterable[_Union[ParamDef, _Mapping]]] = ..., cancel_on_barge_in: bool = ..., side_effect: bool = ..., result_mode: _Optional[_Union[ToolResultMode, str]] = ...) -> None: ...
+    summarize_result: bool
+    def __init__(self, description: _Optional[str] = ..., script: _Optional[str] = ..., params: _Optional[_Iterable[_Union[ParamDef, _Mapping]]] = ..., cancel_on_barge_in: bool = ..., side_effect: bool = ..., summarize_result: bool = ...) -> None: ...
 
 class NodeDef(_message.Message):
     __slots__ = ("system_prompt", "tools", "edges", "model", "temperature", "max_tokens", "voice_id", "greeting")

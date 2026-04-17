@@ -5,7 +5,6 @@ use tracing::{info, warn};
 use crate::agent_backends::{AfterToolCallAction, BeforeToolCallAction, ToolInterceptor};
 use crate::micro_tasks;
 use crate::providers::LlmProvider;
-use crate::swarm::ToolResultMode;
 use crate::ScriptEngine;
 
 // ── Types ───────────────────────────────────────────────────────
@@ -88,31 +87,6 @@ pub(super) struct ToolTaskResult {
 const TOOL_SUMMARY_MIN_LENGTH: usize = 500;
 const TOOL_RESULT_HARD_CAP_CHARS: usize = 8000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ToolPostProcessMode {
-    Summarize,
-    Truncate,
-    None,
-}
-
-pub(super) fn resolve_tool_post_process_mode(
-    global_summarizer_enabled: bool,
-    tool_result_mode: i32,
-) -> ToolPostProcessMode {
-    match ToolResultMode::try_from(tool_result_mode).unwrap_or(ToolResultMode::Unspecified) {
-        ToolResultMode::Summarize => ToolPostProcessMode::Summarize,
-        ToolResultMode::Truncate => ToolPostProcessMode::Truncate,
-        ToolResultMode::None => ToolPostProcessMode::None,
-        ToolResultMode::Unspecified => {
-            if global_summarizer_enabled {
-                ToolPostProcessMode::Summarize
-            } else {
-                ToolPostProcessMode::Truncate
-            }
-        }
-    }
-}
-
 fn cap_tool_result(result: &str, max_chars: usize) -> String {
     let char_count = result.chars().count();
     if char_count <= max_chars {
@@ -136,7 +110,7 @@ pub(super) fn spawn_tool_task(
     name: String,
     args: String,
     side_effect: bool,
-    post_process_mode: ToolPostProcessMode,
+    summarize: bool,
     script_engine_opt: Option<Arc<ScriptEngine>>,
     interceptor_opt: Option<Arc<dyn ToolInterceptor>>,
     summary_provider_opt: Option<Arc<dyn LlmProvider>>,
@@ -243,7 +217,7 @@ pub(super) fn spawn_tool_task(
             };
 
         if result.success {
-            if post_process_mode == ToolPostProcessMode::Summarize {
+            if summarize {
                 if let Some(provider) = summary_provider_opt.as_deref() {
                     result.result = micro_tasks::summarize_tool_result(
                         provider,
@@ -255,20 +229,18 @@ pub(super) fn spawn_tool_task(
                 }
             }
 
-            if post_process_mode != ToolPostProcessMode::None {
-                let capped = cap_tool_result(&result.result, TOOL_RESULT_HARD_CAP_CHARS);
-                if capped.len() != result.result.len() {
-                    info!(
-                        tool.name = %task_name,
-                        tool.call_id = %call_id,
-                        tool.before_chars = result.result.len(),
-                        tool.after_chars = capped.len(),
-                        tool.post_process_mode = ?post_process_mode,
-                        "[agent_backend] Tool result capped before enqueue"
-                    );
-                }
-                result.result = capped;
+            let capped = cap_tool_result(&result.result, TOOL_RESULT_HARD_CAP_CHARS);
+            if capped.len() != result.result.len() {
+                info!(
+                    tool.name = %task_name,
+                    tool.call_id = %call_id,
+                    tool.before_chars = result.result.len(),
+                    tool.after_chars = capped.len(),
+                    tool.summarize = summarize,
+                    "[agent_backend] Tool result capped before enqueue"
+                );
             }
+            result.result = capped;
         }
 
         info!(
@@ -393,20 +365,17 @@ mod tests {
     }
 
     #[test]
-    fn resolve_mode_defaults_to_summarize_when_global_enabled() {
-        let mode = resolve_tool_post_process_mode(true, ToolResultMode::Unspecified as i32);
-        assert_eq!(mode, ToolPostProcessMode::Summarize);
+    fn cap_tool_result_exact_boundary() {
+        let input = "a".repeat(8000);
+        let output = cap_tool_result(&input, 8000);
+        assert_eq!(output, input); // no truncation notice
     }
 
     #[test]
-    fn resolve_mode_defaults_to_truncate_when_global_disabled() {
-        let mode = resolve_tool_post_process_mode(false, ToolResultMode::Unspecified as i32);
-        assert_eq!(mode, ToolPostProcessMode::Truncate);
-    }
-
-    #[test]
-    fn resolve_mode_explicit_none_wins_over_global() {
-        let mode = resolve_tool_post_process_mode(true, ToolResultMode::None as i32);
-        assert_eq!(mode, ToolPostProcessMode::None);
+    fn cap_tool_result_exceeds_boundary() {
+        let input = "a".repeat(8001);
+        let output = cap_tool_result(&input, 8000);
+        assert!(output.starts_with(&"a".repeat(8000)));
+        assert!(output.ends_with("[tool result truncated: 1 chars omitted]"));
     }
 }

@@ -103,23 +103,9 @@
               "side_effect": {
                 "type": "boolean"
               },
-              "result_mode": {
-                "description": "Optional per-tool post-processing mode for tool results.",
-                "oneOf": [
-                  {
-                    "type": "integer",
-                    "enum": [0, 1, 2, 3]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "TOOL_RESULT_MODE_UNSPECIFIED",
-                      "TOOL_RESULT_MODE_SUMMARIZE",
-                      "TOOL_RESULT_MODE_TRUNCATE",
-                      "TOOL_RESULT_MODE_NONE"
-                    ]
-                  }
-                ]
+              "summarize_result": {
+                "type": "boolean",
+                "description": "When true, long tool output is summarized by AI instead of being truncated."
               }
             }
           }

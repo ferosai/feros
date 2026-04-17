@@ -227,7 +227,6 @@ impl VoiceSession {
                 max_tokens: config.max_tokens,
                 max_tool_rounds: 5,
                 secrets,
-                tool_summarizer: task.agent_tool_summarizer,
                 context_summarizer: task.agent_context_summarizer,
                 tool_filler: task.agent_tool_filler,
             };
@@ -277,7 +276,6 @@ impl VoiceSession {
             max_tokens: config.max_tokens,
             max_tool_rounds: 5,
             secrets,
-            tool_summarizer: task.agent_tool_summarizer,
             context_summarizer: task.agent_context_summarizer,
             tool_filler: task.agent_tool_filler,
         };

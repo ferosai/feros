@@ -204,8 +204,6 @@ pub struct AgentBackendConfig {
     /// swap in fresh credentials mid-session, while QuickJS `secret()` reads
     /// always see the latest value via a non-blocking read lock.
     pub secrets: SharedSecretMap,
-    /// Summarize long tool results before feeding them to the main LLM.
-    pub tool_summarizer: bool,
     /// Compress conversation history when it grows too long.
     pub context_summarizer: bool,
     /// Speak a brief filler phrase while side-effecting tools run.
@@ -226,7 +224,6 @@ impl std::fmt::Debug for AgentBackendConfig {
                     self.secrets.read().map(|s| s.len()).unwrap_or(0)
                 ),
             )
-            .field("tool_summarizer", &self.tool_summarizer)
             .field("context_summarizer", &self.context_summarizer)
             .field("tool_filler", &self.tool_filler)
             .finish()
@@ -240,7 +237,6 @@ impl Default for AgentBackendConfig {
             max_tokens: 32768,
             max_tool_rounds: 5,
             secrets: std::sync::Arc::new(std::sync::RwLock::new(SecretMap::new())),
-            tool_summarizer: false,
             context_summarizer: false,
             tool_filler: false,
         }

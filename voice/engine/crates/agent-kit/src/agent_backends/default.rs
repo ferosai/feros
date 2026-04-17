@@ -24,7 +24,7 @@ use crate::swarm::{
     make_on_hold_tool_schema, AgentGraphDef, SwarmState, HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME,
 };
 use crate::tool_executor::{
-    resolve_tool_post_process_mode, spawn_tool_task, ToolPostProcessMode, ToolTaskResult,
+    spawn_tool_task, ToolTaskResult,
 };
 use crate::ScriptEngine;
 
@@ -560,7 +560,7 @@ impl DefaultAgentBackend {
         name: String,
         args: String,
         side_effect: bool,
-        post_process_mode: ToolPostProcessMode,
+        summarize: bool,
     ) {
         // Some streaming providers can emit duplicate tool-call events for the same
         // call_id (e.g. retry/delta edge cases). Guard against double-counting, which
@@ -612,7 +612,7 @@ impl DefaultAgentBackend {
             name,
             args,
             side_effect,
-            post_process_mode,
+            summarize,
             self.script_engine.clone(),
             self.interceptor.clone(),
             Some(Arc::clone(&self.provider)),
@@ -738,26 +738,12 @@ impl DefaultAgentBackend {
                         ..tc.clone()
                     });
 
-                    let (side_effect, post_process_mode) = self
+                    let (side_effect, summarize) = self
                         .swarm
                         .as_ref()
                         .and_then(|s| s.graph.tools.get(&tc.name))
-                        .map(|t| {
-                            (
-                                t.side_effect,
-                                resolve_tool_post_process_mode(
-                                    self.config.tool_summarizer,
-                                    t.result_mode,
-                                ),
-                            )
-                        })
-                        .unwrap_or((
-                            false,
-                            resolve_tool_post_process_mode(
-                                self.config.tool_summarizer,
-                                crate::swarm::ToolResultMode::Unspecified as i32,
-                            ),
-                        ));
+                        .map(|t| (t.side_effect, t.summarize_result))
+                        .unwrap_or((false, false));
 
                     if side_effect {
                         tracing::debug!("[agent_backend] Tool '{}' marked as side-effect", tc.name);
@@ -770,7 +756,7 @@ impl DefaultAgentBackend {
                         tc.name.clone(),
                         tc.arguments.clone(),
                         side_effect,
-                        post_process_mode,
+                        summarize,
                     );
 
                     return Some(AgentEvent::ToolCallStarted {
