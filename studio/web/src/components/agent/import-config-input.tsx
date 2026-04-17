@@ -19,11 +19,7 @@ interface ImportConfigInputProps {
   rawValue: string;
   mode: "file" | "manual";
   onRawValueChange: (value: string) => void;
-  onParsedChange: (
-    config: unknown,
-    error: string | null,
-    status: ImportConfigParseStatus
-  ) => void;
+  onParsedChange: (config: unknown, error: string | null, status: ImportConfigParseStatus) => void;
 }
 
 export function ImportConfigInput({
@@ -169,7 +165,6 @@ export function ImportConfigInput({
           className="field-sizing-fixed min-h-[280px] max-h-[66vh] overflow-y-auto font-mono text-xs"
         />
       )}
-
     </div>
   );
 }

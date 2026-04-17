@@ -305,7 +305,9 @@ async def import_agent(
                 "code": "import_validation_failed",
                 "message": "Imported config has unresolved blocking issues.",
                 "issues": [issue.model_dump() for issue in blocking_issues],
-                "schema_issues": [issue.model_dump() for issue in final_result.schema_issues],
+                "schema_issues": [
+                    issue.model_dump() for issue in final_result.schema_issues
+                ],
                 "fulfillment_issues": [
                     issue.model_dump() for issue in final_result.fulfillment_issues
                 ],

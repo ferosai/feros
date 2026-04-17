@@ -100,7 +100,8 @@ export interface ImportedConnection {
   status: "connected" | "inherited" | "missing";
 }
 
-export const FULL_CONFIG_SCHEMA_URL = "https://feros.ai/schemas/agent-config-v1.schema.json" as const;
+export const FULL_CONFIG_SCHEMA_URL =
+  "https://feros.ai/schemas/agent-config-v1.schema.json" as const;
 
 export interface AgentFullConfig {
   $schema: typeof FULL_CONFIG_SCHEMA_URL;
@@ -563,8 +564,7 @@ export const api = {
         }).toString()}`
       ),
     get: (id: string) => apiFetch<Agent>(`/agents/${id}`),
-    export: (id: string) =>
-      apiFetch<AgentFullConfig>(`/agents/${id}/export`),
+    export: (id: string) => apiFetch<AgentFullConfig>(`/agents/${id}/export`),
     create: (data: { name: string; description?: string }) =>
       apiFetch<Agent>("/agents", {
         method: "POST",

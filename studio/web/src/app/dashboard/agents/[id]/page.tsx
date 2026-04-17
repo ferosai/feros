@@ -955,52 +955,50 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
                   </div>
                 ))}
               </div>
-            ) : (
-              importedConnections.length > 0 ? (
-                <div className="space-y-2">
-                  {importedConnections.map((conn, idx) => (
-                    <div
-                      key={`${conn.provider}-${idx}`}
-                      className="flex items-center justify-between p-3 rounded-xl border border-border bg-background"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="relative size-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                          <IntegrationIcon
-                            name={conn.provider}
-                            iconHint="shield"
-                            size="size-4"
-                            brandSize="size-7"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-xs font-medium">
-                            {conn.name || conn.provider}
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                              {conn.provider}
-                            </Badge>
-                            <span className="text-[10px] text-muted-foreground">
-                              {conn.status}
-                            </span>
-                          </div>
+            ) : importedConnections.length > 0 ? (
+              <div className="space-y-2">
+                {importedConnections.map((conn, idx) => (
+                  <div
+                    key={`${conn.provider}-${idx}`}
+                    className="flex items-center justify-between p-3 rounded-xl border border-border bg-background"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative size-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                        <IntegrationIcon
+                          name={conn.provider}
+                          iconHint="shield"
+                          size="size-4"
+                          brandSize="size-7"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium">{conn.name || conn.provider}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            {conn.provider}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">{conn.status}</span>
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 text-[10px] px-2 rounded-md gap-1 text-foreground"
-                        onClick={() => openCredentialForProvider(conn.provider)}
-                      >
-                        <HugeiconsIcon icon={Settings03Icon} className="size-2.5" />
-                        Connect
-                      </Button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />} title="No credentials" desc="Connect integrations from the chat or configure defaults in Integrations." />
-              )
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 rounded-md gap-1 text-foreground"
+                      onClick={() => openCredentialForProvider(conn.provider)}
+                    >
+                      <HugeiconsIcon icon={Settings03Icon} className="size-2.5" />
+                      Connect
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<HugeiconsIcon icon={Key02Icon} className="size-5 opacity-30" />}
+                title="No credentials"
+                desc="Connect integrations from the chat or configure defaults in Integrations."
+              />
             )}
           </div>
         )}

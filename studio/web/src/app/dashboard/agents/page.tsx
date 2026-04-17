@@ -1,7 +1,13 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, AiScanIcon, HardDriveUploadIcon, Robot01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  AiScanIcon,
+  HardDriveUploadIcon,
+  Robot01Icon,
+  Search01Icon,
+} from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { api, type Agent } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";

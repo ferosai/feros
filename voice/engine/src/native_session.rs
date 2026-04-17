@@ -17,8 +17,8 @@ use voice_trace::{Event, Tracer};
 use voice_transport::TransportHandle;
 
 use crate::audio_ml::vad::{VadConfig, VAD_THRESHOLD_IDLE, VAD_THRESHOLD_PLAYBACK_RAW};
-use crate::reactor::AgentAudioCursor;
 use crate::reactor::proc::vad::VadStage;
+use crate::reactor::AgentAudioCursor;
 use crate::session::NativeMultimodalConfig;
 use crate::types::VadEvent;
 use crate::utils::{AudioRingBuffer, PlaybackTracker, SAMPLE_RATE};
@@ -114,9 +114,8 @@ pub(crate) async fn run_native_multimodal(
 
     // ── Resamplers ─────────────────────────────────────────────────
     // Input: client rate (e.g. 48kHz) → 16kHz (Gemini input requirement).
-    let mut in_resampler =
-        SoxrStreamResampler::new(input_sample_rate, SAMPLE_RATE)
-            .expect("Native in-resampler creation failed");
+    let mut in_resampler = SoxrStreamResampler::new(input_sample_rate, SAMPLE_RATE)
+        .expect("Native in-resampler creation failed");
 
     // Output: Gemini 24kHz → WebRTC 48kHz.
     let mut out_resampler = SoxrStreamResampler::new(OUTPUT_SAMPLE_RATE, WEBRTC_RATE)
@@ -124,10 +123,7 @@ pub(crate) async fn run_native_multimodal(
 
     // ── Local VAD for barge-in ─────────────────────────────────────
     let vad_path = format!("{}/silero_vad/silero_vad.onnx", models_dir);
-    let mut vad = VadStage::new(
-        &vad_path,
-        VadConfig::default(),
-    );
+    let mut vad = VadStage::new(&vad_path, VadConfig::default());
     let vad_ok = vad.initialize().is_ok();
     if !vad_ok {
         warn!("[native] VAD init failed — barge-in disabled");
