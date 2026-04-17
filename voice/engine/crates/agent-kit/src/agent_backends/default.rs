@@ -13,17 +13,19 @@ use tokio::sync::mpsc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::agent_backends::ChatMessage;
 use crate::agent_backends::{AgentBackend, AgentBackendConfig, AgentEvent, ToolInterceptor};
 use crate::context_summarizer::{trim_history, ContextSummarizationConfig, ContextSummarizer};
 use crate::micro_tasks;
 use crate::providers::{LlmCallConfig, LlmProvider, LlmProviderError};
+use crate::providers::{LlmEvent as InnerLlmEvent, ToolCallEvent};
 use crate::swarm::{
     build_node_tool_schemas, make_artifact_tool_schemas, make_hang_up_tool_schema,
     make_on_hold_tool_schema, AgentGraphDef, SwarmState, HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME,
 };
-use crate::tool_executor::{spawn_tool_task, ToolTaskResult};
-use crate::agent_backends::ChatMessage;
-use crate::providers::{LlmEvent as InnerLlmEvent, ToolCallEvent};
+use crate::tool_executor::{
+    resolve_tool_post_process_mode, spawn_tool_task, ToolPostProcessMode, ToolTaskResult,
+};
 use crate::ScriptEngine;
 
 // ── Runtime system prompt suffix ────────────────────────────────
@@ -219,9 +221,6 @@ pub struct DefaultAgentBackend {
     /// Optional interceptor for intercepting tool calls (testing, observability).
     interceptor: Option<Arc<dyn ToolInterceptor>>,
 
-    /// Optional async summarizer for tool results before feeding to LLM.
-    tool_result_transformer: Option<micro_tasks::ToolResultSummarizer>,
-
     // ── Context summarization ──
     /// Optional context summarizer for background conversation compression.
     context_summarizer: Option<ContextSummarizer>,
@@ -305,16 +304,6 @@ impl DefaultAgentBackend {
         // Flags are set by the calling binary (voice-engine reads env vars via
         // envy and populates AgentBackendConfig directly).
 
-        let tool_transformer: Option<micro_tasks::ToolResultSummarizer> = if config.tool_summarizer
-        {
-            Some(micro_tasks::ToolResultSummarizer::new(
-                Arc::clone(&provider),
-                500, // min chars before summarization kicks in
-            ))
-        } else {
-            None
-        };
-
         let ctx_summarizer: Option<ContextSummarizer> = if config.context_summarizer {
             Some(ContextSummarizer::new(Arc::clone(&provider)))
         } else {
@@ -325,7 +314,6 @@ impl DefaultAgentBackend {
             provider,
             script_engine,
             interceptor: None,
-            tool_result_transformer: tool_transformer,
             context_summarizer: ctx_summarizer,
             context_summarization_config: ContextSummarizationConfig::default(),
             filler_task: None,
@@ -566,7 +554,25 @@ impl DefaultAgentBackend {
     /// If a `ToolInterceptor` is set, it is consulted before and after execution:
     /// - `before_tool_call` can return `Stub(result)` to skip execution entirely.
     /// - `after_tool_call` can return `Override(result)` to replace the real result.
-    fn spawn_tool(&mut self, call_id: String, name: String, args: String, side_effect: bool) {
+    fn spawn_tool(
+        &mut self,
+        call_id: String,
+        name: String,
+        args: String,
+        side_effect: bool,
+        post_process_mode: ToolPostProcessMode,
+    ) {
+        // Some streaming providers can emit duplicate tool-call events for the same
+        // call_id (e.g. retry/delta edge cases). Guard against double-counting, which
+        // would leave `tools_remaining` stuck > 0 forever.
+        if self.pending_tool_info.contains_key(&call_id) {
+            warn!(
+                "[agent_backend] duplicate tool call id ignored: {} ({})",
+                call_id, name
+            );
+            return;
+        }
+
         // Spawn filler generator for side-effecting tools only when enabled.
         // We ensure only one filler task runs per wait-batch by checking `.is_none()`.
         if side_effect && self.config.tool_filler && self.filler_task.is_none() {
@@ -589,16 +595,27 @@ impl DefaultAgentBackend {
             }));
         }
 
+        let before = self.tools_remaining;
         self.pending_tool_info.insert(call_id.clone(), name.clone());
         self.tools_remaining += 1;
+        info!(
+            "[agent_backend] spawn_tool: id={} name={} tools_remaining {}->{} pending_info={}",
+            call_id,
+            name,
+            before,
+            self.tools_remaining,
+            self.pending_tool_info.len()
+        );
 
         spawn_tool_task(
             call_id,
             name,
             args,
             side_effect,
+            post_process_mode,
             self.script_engine.clone(),
             self.interceptor.clone(),
+            Some(Arc::clone(&self.provider)),
             self.tool_result_tx.clone(),
         );
     }
@@ -621,8 +638,14 @@ impl DefaultAgentBackend {
             .and_then(|v| v.get("reason").and_then(|r| r.as_str()).map(String::from))
             .unwrap_or_else(|| "agent_initiated".to_string());
 
-        info!("[agent_backend] hang_up deferred (tools_remaining={}): {}", self.tools_remaining, reason);
-        self.pending_hang_up = Some(PendingHangUp { reason, content: None });
+        info!(
+            "[agent_backend] hang_up deferred (tools_remaining={}): {}",
+            self.tools_remaining, reason
+        );
+        self.pending_hang_up = Some(PendingHangUp {
+            reason,
+            content: None,
+        });
         // Do NOT touch llm_event_rx, pending_tokens, or phase here.
         // The stream continues; hang_up is resolved at stream-end.
     }
@@ -715,12 +738,26 @@ impl DefaultAgentBackend {
                         ..tc.clone()
                     });
 
-                    let side_effect = self
+                    let (side_effect, post_process_mode) = self
                         .swarm
                         .as_ref()
                         .and_then(|s| s.graph.tools.get(&tc.name))
-                        .map(|t| t.side_effect)
-                        .unwrap_or(false);
+                        .map(|t| {
+                            (
+                                t.side_effect,
+                                resolve_tool_post_process_mode(
+                                    self.config.tool_summarizer,
+                                    t.result_mode,
+                                ),
+                            )
+                        })
+                        .unwrap_or((
+                            false,
+                            resolve_tool_post_process_mode(
+                                self.config.tool_summarizer,
+                                crate::swarm::ToolResultMode::Unspecified as i32,
+                            ),
+                        ));
 
                     if side_effect {
                         tracing::debug!("[agent_backend] Tool '{}' marked as side-effect", tc.name);
@@ -733,6 +770,7 @@ impl DefaultAgentBackend {
                         tc.name.clone(),
                         tc.arguments.clone(),
                         side_effect,
+                        post_process_mode,
                     );
 
                     return Some(AgentEvent::ToolCallStarted {
@@ -763,8 +801,13 @@ impl DefaultAgentBackend {
                         self.phase = Phase::Idle;
                         // Pending hang_up takes priority over Finished.
                         if let Some(ph) = self.pending_hang_up.take() {
-                            info!("[agent_backend] hang_up resolved at stream-end (no pending tools)");
-                            return Some(AgentEvent::HangUp { reason: ph.reason, content: ph.content });
+                            info!(
+                                "[agent_backend] hang_up resolved at stream-end (no pending tools)"
+                            );
+                            return Some(AgentEvent::HangUp {
+                                reason: ph.reason,
+                                content: ph.content,
+                            });
                         }
                         // Normal turn completion.
                         if let Some(ctx) = self.context_summarizer.as_mut() {
@@ -784,6 +827,10 @@ impl DefaultAgentBackend {
     }
 
     async fn handle_waiting_for_tools_phase(&mut self) -> Option<AgentEvent> {
+        tracing::debug!(
+            "[agent_backend] WaitingForTools: pending={} waiting for next tool result",
+            self.tools_remaining
+        );
         let rx = &mut self.tool_result_rx;
         let result = if let Some(mut filler_task) = self.filler_task.take() {
             tokio::select! {
@@ -806,15 +853,26 @@ impl DefaultAgentBackend {
             rx.recv().await?
         };
 
-        // Remove from pending info
-        self.pending_tool_info.remove(&result.call_id);
+        info!(
+            "[agent_backend] WaitingForTools: received tool result id={} name={} success={}",
+            result.call_id, result.name, result.success
+        );
 
-        // Apply tool-result summarization if enabled
-        let content = if let Some(ref transformer) = self.tool_result_transformer {
-            transformer.transform(&result.name, &result.result).await
-        } else {
-            result.result
-        };
+        // Remove from pending info (best-effort).
+        let removed = self.pending_tool_info.remove(&result.call_id).is_some();
+        if !removed {
+            warn!(
+                "[agent_backend] received tool result for unknown call_id={} (name={})",
+                result.call_id, result.name
+            );
+        }
+
+        // IMPORTANT:
+        // Do not await additional async work (e.g. tool summarizer) here.
+        // This phase runs inside a recv loop that can be cancelled/repolled by
+        // the reactor select loop; keeping this path await-free ensures
+        // `tools_remaining` accounting is atomic once a result is received.
+        let content = result.result.clone();
 
         let error_msg = (!result.success).then(|| content.clone());
 
@@ -826,7 +884,23 @@ impl DefaultAgentBackend {
             tool_call_id: Some(result.call_id.clone()),
         });
 
-        self.tools_remaining -= 1;
+        let before = self.tools_remaining;
+        if self.tools_remaining == 0 {
+            warn!(
+                "[agent_backend] tools_remaining already zero when result arrived: id={} name={}",
+                result.call_id, result.name
+            );
+        } else {
+            self.tools_remaining -= 1;
+        }
+        info!(
+            "[agent_backend] tool_result_accounting: id={} removed={} tools_remaining {}->{} pending_info={}",
+            result.call_id,
+            removed,
+            before,
+            self.tools_remaining,
+            self.pending_tool_info.len()
+        );
 
         let event = AgentEvent::ToolCallCompleted {
             id: result.call_id,
@@ -888,7 +962,10 @@ impl AgentBackend for DefaultAgentBackend {
         let tz = self.timezone();
         self.conversation = vec![ChatMessage {
             role: "system".to_string(),
-            content: Some(serde_json::Value::String(with_suffix(&prompt, tz.as_deref()))),
+            content: Some(serde_json::Value::String(with_suffix(
+                &prompt,
+                tz.as_deref(),
+            ))),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -914,6 +991,11 @@ impl AgentBackend for DefaultAgentBackend {
     }
 
     async fn start_turn(&mut self) -> Result<(), LlmProviderError> {
+        info!(
+            "[agent_backend] start_turn: reset counters (prev tools_remaining={} pending_info={})",
+            self.tools_remaining,
+            self.pending_tool_info.len()
+        );
         self.tool_rounds = 0;
         self.tools_remaining = 0;
         self.pending_tool_info.clear();
@@ -971,7 +1053,9 @@ impl AgentBackend for DefaultAgentBackend {
         for (call_id, _name) in std::mem::take(&mut self.pending_tool_info) {
             self.conversation.push(ChatMessage {
                 role: "tool".to_string(),
-                content: Some(serde_json::Value::String("Tool execution was interrupted by the user.".to_string())),
+                content: Some(serde_json::Value::String(
+                    "Tool execution was interrupted by the user.".to_string(),
+                )),
                 tool_calls: None,
                 tool_call_id: Some(call_id),
             });
@@ -1004,7 +1088,10 @@ impl AgentBackend for DefaultAgentBackend {
                     if let Some(first_msg) = self.conversation.first_mut() {
                         if first_msg.role == "system" {
                             let tz = swarm.graph.timezone.as_deref();
-                            first_msg.content = Some(serde_json::Value::String(with_suffix(&node.system_prompt, tz)));
+                            first_msg.content = Some(serde_json::Value::String(with_suffix(
+                                &node.system_prompt,
+                                tz,
+                            )));
                         }
                     }
                 }

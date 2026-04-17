@@ -3,6 +3,9 @@ use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 use crate::agent_backends::{AfterToolCallAction, BeforeToolCallAction, ToolInterceptor};
+use crate::micro_tasks;
+use crate::providers::LlmProvider;
+use crate::swarm::ToolResultMode;
 use crate::ScriptEngine;
 
 // ── Types ───────────────────────────────────────────────────────
@@ -82,6 +85,47 @@ pub(super) struct ToolTaskResult {
     pub result: String,
 }
 
+const TOOL_SUMMARY_MIN_LENGTH: usize = 500;
+const TOOL_RESULT_HARD_CAP_CHARS: usize = 8000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ToolPostProcessMode {
+    Summarize,
+    Truncate,
+    None,
+}
+
+pub(super) fn resolve_tool_post_process_mode(
+    global_summarizer_enabled: bool,
+    tool_result_mode: i32,
+) -> ToolPostProcessMode {
+    match ToolResultMode::try_from(tool_result_mode).unwrap_or(ToolResultMode::Unspecified) {
+        ToolResultMode::Summarize => ToolPostProcessMode::Summarize,
+        ToolResultMode::Truncate => ToolPostProcessMode::Truncate,
+        ToolResultMode::None => ToolPostProcessMode::None,
+        ToolResultMode::Unspecified => {
+            if global_summarizer_enabled {
+                ToolPostProcessMode::Summarize
+            } else {
+                ToolPostProcessMode::Truncate
+            }
+        }
+    }
+}
+
+fn cap_tool_result(result: &str, max_chars: usize) -> String {
+    let char_count = result.chars().count();
+    if char_count <= max_chars {
+        return result.to_string();
+    }
+    let truncated: String = result.chars().take(max_chars).collect();
+    format!(
+        "{}\n\n[tool result truncated: {} chars omitted]",
+        truncated,
+        char_count.saturating_sub(max_chars)
+    )
+}
+
 // ── Pipeline ────────────────────────────────────────────────────
 
 /// Spawns a background task to execute a tool call, routing through hooks and engines.
@@ -92,8 +136,10 @@ pub(super) fn spawn_tool_task(
     name: String,
     args: String,
     side_effect: bool,
+    post_process_mode: ToolPostProcessMode,
     script_engine_opt: Option<Arc<ScriptEngine>>,
     interceptor_opt: Option<Arc<dyn ToolInterceptor>>,
+    summary_provider_opt: Option<Arc<dyn LlmProvider>>,
     tx: mpsc::UnboundedSender<ToolTaskResult>,
 ) {
     tokio::spawn(async move {
@@ -182,7 +228,7 @@ pub(super) fn spawn_tool_task(
         };
 
         // Execution Timeout limit (25 seconds)
-        let result =
+        let mut result =
             match tokio::time::timeout(std::time::Duration::from_secs(25), result_fut).await {
                 Ok(r) => r,
                 Err(_) => {
@@ -191,6 +237,44 @@ pub(super) fn spawn_tool_task(
                     ToolOutcome::failure(error_message)
                 }
             };
+
+        if result.success {
+            if post_process_mode == ToolPostProcessMode::Summarize {
+                if let Some(provider) = summary_provider_opt.as_deref() {
+                    result.result = micro_tasks::summarize_tool_result(
+                        provider,
+                        &task_name,
+                        &result.result,
+                        TOOL_SUMMARY_MIN_LENGTH,
+                    )
+                    .await;
+                }
+            }
+
+            if post_process_mode != ToolPostProcessMode::None {
+                let capped = cap_tool_result(&result.result, TOOL_RESULT_HARD_CAP_CHARS);
+                if capped.len() != result.result.len() {
+                    info!(
+                        tool.name = %task_name,
+                        tool.call_id = %call_id,
+                        tool.before_chars = result.result.len(),
+                        tool.after_chars = capped.len(),
+                        tool.post_process_mode = ?post_process_mode,
+                        "[agent_backend] Tool result capped before enqueue"
+                    );
+                }
+                result.result = capped;
+            }
+        }
+
+        info!(
+            tool.name = %task_name,
+            tool.call_id = %call_id,
+            tool.side_effect = side_effect,
+            tool.success = result.success,
+            tool.result_chars = result.result.len(),
+            "[agent_backend] Tool task finished; sending result to backend channel"
+        );
 
         if tx
             .send(ToolTaskResult {
@@ -208,6 +292,12 @@ pub(super) fn spawn_tool_task(
                 tool.side_effect = side_effect,
                 tool.result_chars = result.result.len(),
                 "[agent_backend] Tool completed after session ended (result orphaned)"
+            );
+        } else {
+            info!(
+                tool.name = %task_name,
+                tool.call_id = %call_id,
+                "[agent_backend] Tool result sent to backend channel"
             );
         }
     });
@@ -293,9 +383,26 @@ mod tests {
 
     #[test]
     fn classify_whitespace_trimmed_before_parsing() {
-        let out =
-            ToolOutcome::classify_script_result("  {\"result\": \"trimmed\"}  ".to_string());
+        let out = ToolOutcome::classify_script_result("  {\"result\": \"trimmed\"}  ".to_string());
         assert!(out.success);
         assert_eq!(out.result, "trimmed");
+    }
+
+    #[test]
+    fn resolve_mode_defaults_to_summarize_when_global_enabled() {
+        let mode = resolve_tool_post_process_mode(true, ToolResultMode::Unspecified as i32);
+        assert_eq!(mode, ToolPostProcessMode::Summarize);
+    }
+
+    #[test]
+    fn resolve_mode_defaults_to_truncate_when_global_disabled() {
+        let mode = resolve_tool_post_process_mode(false, ToolResultMode::Unspecified as i32);
+        assert_eq!(mode, ToolPostProcessMode::Truncate);
+    }
+
+    #[test]
+    fn resolve_mode_explicit_none_wins_over_global() {
+        let mode = resolve_tool_post_process_mode(true, ToolResultMode::None as i32);
+        assert_eq!(mode, ToolPostProcessMode::None);
     }
 }

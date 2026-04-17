@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 
-
 use serde_json::json;
 
 // ── Graph Definition ────────────────────────────────────────────
@@ -48,7 +47,7 @@ use serde_json::json;
 // Re-export canonical recording type definitions from common.
 pub use common::{AudioFormat, AudioLayout, RecordingConfig};
 
-pub use proto::agent::{AgentGraphDef, NodeDef, ToolDef, ParamDef};
+pub use proto::agent::{AgentGraphDef, NodeDef, ParamDef, ToolDef, ToolResultMode};
 
 // ── Runtime State ───────────────────────────────────────────────
 
@@ -460,8 +459,7 @@ mod tests {
     #[test]
     fn node_tool_schemas_include_transfer() {
         let graph = sample_graph();
-        let schemas =
-            build_node_tool_schemas(&graph.nodes["receptionist"], &graph.tools);
+        let schemas = build_node_tool_schemas(&graph.nodes["receptionist"], &graph.tools);
 
         // Base tools + transfer_to + hang_up + on_hold + artifacts
         assert!(
