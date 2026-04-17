@@ -25,7 +25,106 @@
     "config": {
       "type": "object",
       "description": "Agent runtime config (v3_graph).",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "system_prompt": {
+                "type": "string"
+              },
+              "greeting": {
+                "type": "string"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "script": {
+                "type": "string"
+              },
+              "params": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "cancel_on_barge_in": {
+                "type": "boolean"
+              },
+              "side_effect": {
+                "type": "boolean"
+              },
+              "result_mode": {
+                "description": "Optional per-tool post-processing mode for tool results.",
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "enum": [0, 1, 2, 3]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "TOOL_RESULT_MODE_UNSPECIFIED",
+                      "TOOL_RESULT_MODE_SUMMARIZE",
+                      "TOOL_RESULT_MODE_TRUNCATE",
+                      "TOOL_RESULT_MODE_NONE"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     },
     "mermaid_diagram": {
       "type": ["string", "null"]

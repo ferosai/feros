@@ -20,6 +20,14 @@ export enum AudioFormat {
   UNRECOGNIZED = -1,
 }
 
+export enum ToolResultMode {
+  TOOL_RESULT_MODE_UNSPECIFIED = 0,
+  TOOL_RESULT_MODE_SUMMARIZE = 1,
+  TOOL_RESULT_MODE_TRUNCATE = 2,
+  TOOL_RESULT_MODE_NONE = 3,
+  UNRECOGNIZED = -1,
+}
+
 /** Session recording configuration */
 export interface RecordingConfig {
   enabled: boolean;
@@ -53,6 +61,8 @@ export interface ToolDef {
   cancel_on_barge_in: boolean;
   /** If true, this tool has side effects */
   side_effect: boolean;
+  /** Optional post-tool output handling mode */
+  result_mode: ToolResultMode;
 }
 
 /** A single node in the graph */

@@ -40,6 +40,12 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ConfigViewer from "@/components/agent/config-viewer";
 import ConfigDiff from "@/components/agent/config-diff";
 import ShikiCodeBlock from "@/components/ui/shiki-code-block";
@@ -180,12 +186,29 @@ interface ConfigTool {
   description?: string;
   side_effect?: boolean;
   script?: string;
+  result_mode?: number | string;
 }
 
 interface FullConfig extends Record<string, unknown> {
   entry?: string;
   nodes?: Record<string, ConfigNode>;
   tools?: Record<string, ConfigTool>;
+}
+
+type ToolResultModeUi = "auto" | "summary" | "truncate" | "full";
+
+function modeToUi(mode: unknown): ToolResultModeUi {
+  if (mode === 1 || mode === "TOOL_RESULT_MODE_SUMMARIZE") return "summary";
+  if (mode === 2 || mode === "TOOL_RESULT_MODE_TRUNCATE") return "truncate";
+  if (mode === 3 || mode === "TOOL_RESULT_MODE_NONE") return "full";
+  return "auto";
+}
+
+function uiToMode(ui: ToolResultModeUi): number | null {
+  if (ui === "summary") return 1;
+  if (ui === "truncate") return 2;
+  if (ui === "full") return 3;
+  return null;
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -288,9 +311,10 @@ export default function AgentConfigEditor({
   }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model]);
 
   const patchField = useCallback(
-    async (payload: Record<string, string | boolean | null>) => {
+    async (payload: Record<string, unknown>) => {
       const primaryField = Object.keys(payload).find((k) => k !== "regenerate_greeting");
-      if (!primaryField && !payload.regenerate_greeting) return;
+      const shouldRegen = Boolean(payload["regenerate_greeting"]);
+      if (!primaryField && !shouldRegen) return;
       const trackField = primaryField ?? "language";
       const showGlobalSyncToast = !["voice_id", "language", "timezone"].includes(trackField);
 
@@ -912,15 +936,60 @@ export default function AgentConfigEditor({
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-foreground/50 group-hover/tool:text-foreground group-hover/tool:bg-accent/60 border border-transparent group-hover/tool:border-border/60 transition-all shrink-0">
-                                  <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
-                                  Audit
-                                </div>
                               </div>
 
                               <p className="text-xs text-foreground/70 leading-relaxed font-medium line-clamp-3">
                                 {tool.description || "—"}
                               </p>
+
+                              <div className="mt-4 flex items-center gap-3">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="w-full flex-1 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-foreground/60 hover:text-foreground hover:bg-accent/60 border border-border/60 transition-all"
+                                      onClick={(e) => e.stopPropagation()}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                      aria-label={`Result mode for ${id}`}
+                                    >
+                                      <HugeiconsIcon icon={Settings03Icon} className="size-3.5" />
+                                      Result Mode: {modeToUi(tool.result_mode).replace(/^./, (c) => c.toUpperCase())}
+                                      <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="start"
+                                    className="w-44"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {(["auto", "summary", "truncate", "full"] as const).map(
+                                      (mode) => (
+                                        <DropdownMenuItem
+                                          key={mode}
+                                          className={cn(
+                                            "text-xs font-semibold",
+                                            modeToUi(tool.result_mode) === mode &&
+                                              "text-primary bg-primary/5"
+                                          )}
+                                          onSelect={() =>
+                                            patchField({
+                                              tool_result_modes: { [id]: uiToMode(mode) },
+                                            })
+                                          }
+                                        >
+                                          {mode.replace(/^./, (c) => c.toUpperCase())}
+                                        </DropdownMenuItem>
+                                      )
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <div className="w-full flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-foreground/60 group-hover/tool:text-foreground group-hover/tool:bg-accent/60 border border-border/60 transition-all">
+                                  <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
+                                  View Code
+                                </div>
+                              </div>
                             </div>
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-[980px] w-[90vw] p-0 overflow-hidden rounded-3xl border-border bg-background shadow-2xl">

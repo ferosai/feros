@@ -30,7 +30,13 @@ _NODE_FIELD_ALLOWED = {"system_prompt", "greeting", "tools", "edges"}
 
 # ── Tool field whitelist ─────────────────────────────────────────
 
-_TOOL_FIELD_ALLOWED = {"description", "params", "script", "side_effect"}
+_TOOL_FIELD_ALLOWED = {
+    "description",
+    "params",
+    "script",
+    "side_effect",
+    "result_mode",
+}
 
 # ── Canonical field ordering ─────────────────────────────────────
 
@@ -46,7 +52,14 @@ _TOP_LEVEL_ORDER = [
 
 _NODE_FIELD_ORDER = ["system_prompt", "greeting", "tools", "edges"]
 
-_TOOL_FIELD_ORDER = ["description", "params", "script", "side_effect"]
+_TOOL_FIELD_ORDER = ["description", "params", "script", "side_effect", "result_mode"]
+
+_TOOL_RESULT_MODES = {
+    "TOOL_RESULT_MODE_UNSPECIFIED",
+    "TOOL_RESULT_MODE_SUMMARIZE",
+    "TOOL_RESULT_MODE_TRUNCATE",
+    "TOOL_RESULT_MODE_NONE",
+}
 
 
 def _validate_string_list(value: Any, field_name: str) -> None:
@@ -158,6 +171,21 @@ class UpsertTool(BaseModel):
             self.fields["side_effect"], bool
         ):
             raise ValueError("'side_effect' must be a boolean")
+        if "result_mode" in self.fields:
+            value = self.fields["result_mode"]
+            if isinstance(value, int):
+                if value < 0 or value > 3:
+                    raise ValueError(
+                        "'result_mode' integer must be in [0, 3] "
+                        "(UNSPECIFIED, SUMMARIZE, TRUNCATE, NONE)"
+                    )
+            elif isinstance(value, str):
+                if value not in _TOOL_RESULT_MODES:
+                    raise ValueError(
+                        f"'result_mode' must be one of {sorted(_TOOL_RESULT_MODES)}"
+                    )
+            else:
+                raise ValueError("'result_mode' must be a string enum name or integer")
         return self
 
 

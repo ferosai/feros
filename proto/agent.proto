@@ -38,6 +38,17 @@ message ParamDef {
   repeated string options = 5; // Valid values for enum types
 }
 
+// Per-tool output handling mode after execution.
+enum ToolResultMode {
+  TOOL_RESULT_MODE_UNSPECIFIED = 0;
+  // LLM summarize long tool output (uses global tool_summarizer gate).
+  TOOL_RESULT_MODE_SUMMARIZE = 1;
+  // Deterministically truncate tool output to runtime hard cap.
+  TOOL_RESULT_MODE_TRUNCATE = 2;
+  // Keep raw tool output as-is (no summarize, no truncate).
+  TOOL_RESULT_MODE_NONE = 3;
+}
+
 // A tool definition (always a JS script)
 message ToolDef {
   string description = 1;
@@ -47,6 +58,9 @@ message ToolDef {
   bool cancel_on_barge_in = 4;
   // If true, this tool has side effects
   bool side_effect = 5;
+  // Optional post-tool output handling mode.
+  // If UNSPECIFIED, runtime falls back to global config behavior.
+  ToolResultMode result_mode = 6;
 }
 
 // A single node in the graph

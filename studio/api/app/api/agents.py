@@ -1,6 +1,7 @@
 """Agent CRUD API routes."""
 
 import asyncio
+import copy
 import uuid
 from typing import Any
 
@@ -583,6 +584,10 @@ class AgentConfigPatch(BaseModel):
     tts_provider: str | None = None
     tts_model: str | None = None
     gemini_live_model: str | None = None
+    # tool_id -> mode
+    # null means "auto" (unset result_mode)
+    # 1 = summarize, 2 = truncate, 3 = full/none
+    tool_result_modes: dict[str, int | None] | None = None
     regenerate_greeting: bool = False
 
 
@@ -610,10 +615,15 @@ async def patch_agent_config(
     if not version:
         raise HTTPException(status_code=404, detail="Active version not found")
 
-    config = dict(version.config_json)
-    patch = body.model_dump(exclude_unset=True, exclude={"regenerate_greeting"})
+    # Deep copy is required: shallow copy can mutate nested JSON objects in-place,
+    # which may prevent SQLAlchemy from detecting a JSONB change.
+    config = copy.deepcopy(version.config_json)
+    patch = body.model_dump(
+        exclude_unset=True, exclude={"regenerate_greeting", "tool_result_modes"}
+    )
+    tool_result_modes = body.tool_result_modes
     force_regen = body.regenerate_greeting
-    if not patch and not force_regen:
+    if not patch and not force_regen and not tool_result_modes:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     # ── Language validation ──────────────────────────────────────────────
@@ -670,6 +680,40 @@ async def patch_agent_config(
     for key, value in patch.items():
         config[key] = value
 
+    # ── Per-tool result_mode patch ───────────────────────────────────────
+    if tool_result_modes is not None:
+        tools_obj = config.get("tools")
+        if not isinstance(tools_obj, dict):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid config: top-level 'tools' must be an object",
+            )
+
+        for tool_id, mode in tool_result_modes.items():
+            tool_def = tools_obj.get(tool_id)
+            if not isinstance(tool_def, dict):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown tool '{tool_id}' in tool_result_modes",
+                )
+
+            # "auto" => remove field and let runtime default behavior apply
+            if mode is None:
+                tool_def.pop("result_mode", None)
+                continue
+
+            # Valid explicit runtime enum values:
+            # 1 summarize, 2 truncate, 3 none/full.
+            if mode not in {1, 2, 3}:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Invalid result_mode {mode} for tool '{tool_id}'. "
+                        "Expected null (auto) or 1/2/3."
+                    ),
+                )
+            tool_def["result_mode"] = mode
+
     # ── Greeting regeneration ──────────────────────────────────────────
     greeting_updated = False
     new_greeting: str | None = None
@@ -704,6 +748,7 @@ async def patch_agent_config(
         db,
         agent_id=agent.id,
         patch=patch,
+        tool_result_modes=tool_result_modes,
         greeting_updated=greeting_updated,
         new_greeting=new_greeting,
     )
@@ -733,7 +778,8 @@ async def patch_agent_config(
 async def _inject_config_change_event(
     db: AsyncSession,
     agent_id: uuid.UUID,
-    patch: dict[str, str],
+    patch: dict[str, Any],
+    tool_result_modes: dict[str, int | None] | None = None,
     greeting_updated: bool = False,
     new_greeting: str | None = None,
 ) -> None:
@@ -765,6 +811,11 @@ async def _inject_config_change_event(
             else "Standard Pipeline"
         )
         changes.append(f"conversation mode set to {mode}")
+    if tool_result_modes:
+        mode_label = {1: "summary", 2: "truncate", 3: "full"}
+        for tool_id, mode in tool_result_modes.items():
+            label = "auto" if mode is None else mode_label.get(mode, str(mode))
+            changes.append(f"{tool_id} result_mode set to {label}")
 
     if not changes:
         return

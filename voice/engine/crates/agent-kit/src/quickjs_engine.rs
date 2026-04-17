@@ -685,6 +685,7 @@ mod tests {
             params,
             cancel_on_barge_in: true,
             side_effect: false,
+            result_mode: crate::swarm::ToolResultMode::Unspecified as i32,
         }
     }
 
