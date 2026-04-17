@@ -89,6 +89,8 @@ export default function AgentListItemCard({ agent, href, className }: AgentListI
   const timezone = getTimezoneFromConfig(agent.current_config);
   const language = rawLanguage ? formatLanguageLabel(rawLanguage) : null;
 
+  const hasExtraDetails = Boolean(description || language || timezone);
+
   return (
     <Link href={href} className="block">
       <div
@@ -96,7 +98,7 @@ export default function AgentListItemCard({ agent, href, className }: AgentListI
           className ?? ""
         }`}
       >
-        <div className="min-w-0 flex items-start gap-3">
+        <div className={`min-w-0 flex gap-3 ${hasExtraDetails ? "items-start" : "items-center"}`}>
           <div className="size-9 shrink-0 rounded-lg bg-secondary text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors flex items-center justify-center">
             <HugeiconsIcon icon={Robot01Icon} className="size-4" />
           </div>

@@ -49,6 +49,11 @@ impl WebRtcTransport {
             .control_tx
             .take()
             .expect("control_tx already consumed");
+        let event_tx = connection
+            .event_tx
+            .take()
+            .expect("event_tx already consumed");
+
         let audio_out_tx = connection
             .audio_out_tx
             .take()
@@ -79,9 +84,11 @@ impl WebRtcTransport {
             audio_rx,
             audio_tx: Box::new(audio_sink),
             control_rx,
+            event_tx,
             control_tx,
             input_sample_rate: OPUS_SAMPLE_RATE,
             _background_tasks: tasks,
+            is_telephony: false,
         }
     }
 }

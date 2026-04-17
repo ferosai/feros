@@ -79,6 +79,14 @@ export interface NodeDef {
   greeting?: string | undefined;
 }
 
+/** A pre-configured escalation destination for the escalate_call tool */
+export interface EscalationDestination {
+  /** Human-readable label shown to the LLM (e.g. "Support Team") */
+  name: string;
+  /** E.164 phone number or SIP URI */
+  phone_number: string;
+}
+
 /** A complete agent graph */
 export interface AgentGraphDef {
   /** The ID of the node to start with */
@@ -115,6 +123,8 @@ export interface AgentGraphDef {
   config_schema_version?:
     | string
     | undefined;
+  /** Pre-configured escalation destinations for the escalate_call tool */
+  escalation_destinations?: EscalationDestination[];
   /**
    * -- Native multimodal (Gemini Live) --
    * When set, the session bypasses STT/LLM/TTS and uses Gemini Live's native

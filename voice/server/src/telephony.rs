@@ -144,6 +144,7 @@ async fn twilio_incoming(
         vault_token,
         telephony_creds,
         "inbound",
+        Some(params.to.clone()),
     )
     .await;
 
@@ -323,6 +324,7 @@ async fn telnyx_inbound(
         vault_token,
         telephony_creds,
         "inbound",
+        params.to.clone(),
     )
     .await;
 
@@ -365,6 +367,7 @@ pub async fn register_session(
     vault_token: Option<String>,
     telephony_creds: Option<TelephonyCredentials>,
     direction: &str,
+    from_number: Option<String>,
 ) {
     let providers = ProviderConfig {
         stt_url: agent.stt_base_url.clone(),
@@ -385,6 +388,7 @@ pub async fn register_session(
     let mut config = SessionConfig {
         agent_id: agent.agent_id.clone(),
         agent_graph: agent.agent_graph.clone(),
+        escalation_destinations: agent.escalation_destinations.clone(),
         // Seed voice_id from provider_configs (TTS row) as the default.
         // The agent graph may override this below.
         voice_id: agent.tts_voice_id.clone(),
@@ -661,6 +665,8 @@ pub async fn register_session(
             created_at: Instant::now(),
             tracer: Some(tracer_cell),
             telephony_creds,
+            webhook_base_url: Some(state.public_url.clone()),
+            from_number,
         },
     );
 }

@@ -43,8 +43,10 @@ use voice_trace::{Event, Tracer};
 use voice_transport::websocket::WebSocketTransport;
 use voice_transport::{TransportCommand, TransportHandle};
 
+#[cfg(any(feature = "webrtc", feature = "telephony"))]
+use axum::routing::post;
 #[cfg(feature = "webrtc")]
-use axum::{routing::post, Json};
+use axum::Json;
 #[cfg(feature = "webrtc")]
 use voice_transport::webrtc::{
     ice_provider_from_config, IceConfig, IceProvider, WebRtcConnection, WebRtcTransport,
@@ -52,6 +54,8 @@ use voice_transport::webrtc::{
 #[cfg(feature = "webrtc")]
 use voice_transport::TransportEvent;
 
+#[cfg(feature = "telephony")]
+use voice_transport::telephony::providers::create_provider as create_telephony_provider;
 #[cfg(feature = "telephony")]
 use voice_transport::telephony::{
     TelephonyConfig, TelephonyCredentials as TelephonyTransportCredentials, TelephonyEncoding,
@@ -105,6 +109,7 @@ pub struct TelephonyCredentials {
     pub twilio_account_sid: String,
     pub twilio_auth_token: String,
     pub telnyx_api_key: String,
+    pub telnyx_connection_id: String,
 }
 
 // ── Registered Session ──────────────────────────────────────────
@@ -149,6 +154,16 @@ pub struct RegisteredSession {
     /// to build `TelephonyConfig` instead of falling back to the global
     /// `ServerState.telephony_creds` (which is always empty in new deployments).
     pub telephony_creds: Option<TelephonyCredentials>,
+    /// Webhook base URL for provider callbacks (e.g., transfers).
+    ///
+    /// Populated by voice-server during session registration from the database.
+    pub webhook_base_url: Option<String>,
+    /// The E.164 phone number that received this call (e.g. `"+18005551234"`).
+    ///
+    /// Required for supervised conference-based transfer: the transport places
+    /// a new outbound call *from* this number to the destination. Populated by
+    /// voice-server from the Twilio/Telnyx webhook `To` parameter.
+    pub from_number: Option<String>,
 }
 
 impl RegisteredSession {
@@ -228,6 +243,24 @@ type HmacSha256 = Hmac<Sha256>;
 
 // ── Hybrid Session Entry ─────────────────────────────────────────
 
+/// Bound state for a telephony supervised transfer in progress.
+///
+/// Stored in `ServerState::transfer_waiters`, keyed by the original call SID.
+/// When the destination call leg fires a StatusCallback webhook, this struct
+/// provides everything needed to either:
+/// - bridge the original caller into the Conference (on success), or
+/// - report failure back to the AI session (on busy/no-answer/failed).
+#[cfg(feature = "telephony")]
+pub struct TransferWaiter {
+    /// Channel to deliver a `TransferResult` event to the active AI session.
+    pub event_tx: tokio::sync::mpsc::UnboundedSender<voice_transport::TransportEvent>,
+    /// Twilio/Telnyx credentials needed to call the bridge REST endpoint.
+    pub credentials: TelephonyTransportCredentials,
+    /// Name of the Conference room (e.g. `"feros-transfer-CA…"`).
+    /// Used in `bridge_call_to_conference` when the destination answers.
+    pub conference_name: String,
+}
+
 /// Bound state for a hybrid WebRTC+WS voice session.
 ///
 /// In hybrid mode the WebRTC connection carries audio and the UI WebSocket
@@ -256,10 +289,23 @@ pub struct ServerState {
     /// Consumed by `forward_ws_events` on UI WebSocket close to send a
     /// clean shutdown signal to the reactor via `TransportCommand::Close`.
     pub(crate) hybrid_sessions: Arc<DashMap<String, HybridSession>>,
+    /// Active telephony transfer waiters (webhook bridging).
+    ///
+    /// Keyed by the **original call SID** (e.g. Twilio `CallSid`).
+    /// Each entry stores everything needed to:
+    /// (a) route a `TransferResult` back to the active AI session, and
+    /// (b) bridge the original caller into the Conference when the destination
+    ///     answers (via `provider.bridge_call_to_conference`).
+    #[cfg(feature = "telephony")]
+    pub transfer_waiters: Arc<DashMap<String, TransferWaiter>>,
     /// Fallback provider URLs (used when session is configured inline).
     pub default_providers: ProviderConfig,
-    /// Telephony credentials (Twilio/Telnyx).
+    /// Telephony credentials (Twilio/Telnyx API keys, connection IDs).
     pub telephony_creds: TelephonyCredentials,
+    /// Telnyx Ed25519 public key for webhook signature validation.
+    /// Server-global — all Telnyx webhooks are verified with this single key.
+    /// Empty string disables signature validation (dev mode).
+    pub telnyx_public_key: String,
     /// Shared secret for HMAC-SHA256 session token validation.
     /// Python signs `HMAC(secret, session_id)` → Rust re-derives and compares.
     pub auth_secret_key: Arc<String>,
@@ -291,6 +337,7 @@ impl ServerState {
     pub fn new(
         providers: ProviderConfig,
         telephony: TelephonyCredentials,
+        telnyx_public_key: String,
         auth_secret_key: String,
     ) -> Self {
         // Install rustls (idempotent — no-op if already installed)
@@ -313,8 +360,11 @@ impl ServerState {
         Self {
             sessions: Arc::new(DashMap::new()),
             hybrid_sessions: Arc::new(DashMap::new()),
+            #[cfg(feature = "telephony")]
+            transfer_waiters: Arc::new(DashMap::new()),
             default_providers: providers,
             telephony_creds: telephony,
+            telnyx_public_key,
             auth_secret_key: Arc::new(auth_secret_key),
             session_ttl_secs,
             #[cfg(feature = "webrtc")]
@@ -404,7 +454,15 @@ pub fn build_router(state: ServerState) -> Router {
     {
         app = app
             .route("/telephony/twilio", get(telephony_twilio_handler))
-            .route("/telephony/telnyx", get(telephony_telnyx_handler));
+            .route(
+                "/telephony/twilio/transfer-status",
+                post(telephony_twilio_transfer_status_handler),
+            )
+            .route("/telephony/telnyx", get(telephony_telnyx_handler))
+            .route(
+                "/telephony/telnyx/transfer-status",
+                post(telephony_telnyx_transfer_status_handler),
+            );
         info!("Telephony WS enabled at /telephony/twilio, /telephony/telnyx");
     }
 
@@ -435,6 +493,17 @@ pub async fn run_server(addr: SocketAddr, state: ServerState) {
                 if removed > 0 {
                     info!("Cleaned up {} expired session(s)", removed);
                 }
+                // Also evict any transfer waiters whose session is gone.
+                // This handles the edge case where a session expires before
+                // the Twilio transfer-status callback ever fires.
+                #[cfg(feature = "telephony")]
+                state.transfer_waiters.retain(|id, tx| {
+                    let alive = !tx.event_tx.is_closed();
+                    if !alive {
+                        info!("Removing closed transfer waiter for session {}", id);
+                    }
+                    alive
+                });
             }
         });
     }
@@ -1318,6 +1387,460 @@ async fn telephony_twilio_handler(
 }
 
 #[cfg(feature = "telephony")]
+pub async fn telephony_twilio_transfer_status_handler(
+    State(state): State<ServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::OriginalUri(uri): axum::extract::OriginalUri,
+    axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
+    axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    // Extract host from the standard HTTP `Host` header (present in every HTTP/1.1 request).
+    // This replaces the deprecated `axum_extra::extract::Host` extractor (removed in axum-extra 0.9).
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost");
+    // Twilio's StatusCallback for the *outbound* transfer leg sends:
+    //   CallSid        = SID of the outbound transfer call leg
+    //   CallStatus     = initiated | ringing | in-progress | completed | busy | no-answer | failed
+    //   ParentCallSid  = original caller's CallSid (the one in transfer_waiters)
+    //
+    // We key our waiters on the *original* caller's SID (ParentCallSid), not the
+    // SID of the outbound transfer leg.
+    let outbound_call_sid = form.get("CallSid").cloned().unwrap_or_default();
+    let call_status = form.get("CallStatus").cloned().unwrap_or_default();
+    
+    // ParentCallSid is set by Twilio ONLY when the outbound call was placed by us via <Dial> in TwiML.
+    // For REST API initiated calls, it is omitted, so we rely on the custom query parameter injected.
+    let mut original_call_sid = query.get("original_call_id").cloned().unwrap_or_default();
+    if original_call_sid.is_empty() {
+        original_call_sid = form.get("ParentCallSid").cloned().unwrap_or_default();
+    }
+
+    if original_call_sid.is_empty() {
+        warn!("[telephony] No ParentCallSid or query parameter in transfer status callback — cannot route result");
+        return StatusCode::OK.into_response();
+    }
+
+    // ── Twilio Webhook Security (Signature Validation) ──
+    let auth_token = if let Some(waiter) = state.transfer_waiters.get(&original_call_sid) {
+        match &waiter.credentials {
+            voice_transport::telephony::config::TelephonyCredentials::Twilio { auth_token, .. } => auth_token.clone(),
+            _ => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    } else {
+        // Fallback to global config if waiter expired/missing
+        state.telephony_creds.twilio_auth_token.clone()
+    };
+
+    if !auth_token.is_empty() {
+        let signature = headers.get("x-twilio-signature").and_then(|v| v.to_str().ok()).unwrap_or_default();
+        
+        let scheme = headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()).unwrap_or("https");
+        let url = format!("{}://{}{}", scheme, host, uri);
+        
+        let mut sorted_keys: Vec<_> = form.keys().collect();
+        sorted_keys.sort();
+        let mut payload = url;
+        for k in sorted_keys {
+            payload.push_str(k);
+            payload.push_str(&form[k]);
+        }
+
+        use hmac::{Hmac, Mac};
+        use sha1::Sha1;
+        use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+
+        type HmacSha1 = Hmac<Sha1>;
+        if let Ok(mut mac) = HmacSha1::new_from_slice(auth_token.as_bytes()) {
+            mac.update(payload.as_bytes());
+            let computed = B64.encode(mac.finalize().into_bytes());
+            if computed != signature {
+                warn!("[telephony/twilio] Invalid Twilio webhook signature: expected {} got {}", computed, signature);
+                return StatusCode::UNAUTHORIZED.into_response();
+            }
+        }
+    }
+
+    info!(
+        "[telephony] Transfer status callback: original={} outbound={} status={}",
+        original_call_sid, outbound_call_sid, call_status
+    );
+
+    // Ignore transient states; only react to terminal / bridge events.
+    match call_status.as_str() {
+        "initiated" | "ringing" => {
+            // Still ringing — nothing to do yet.
+            info!(
+                "[telephony] Transfer outbound call {} is {}",
+                outbound_call_sid, call_status
+            );
+            return StatusCode::OK.into_response();
+        }
+        _ => {}
+    }
+
+    let waiter_opt = state.transfer_waiters.get(&original_call_sid);
+    let Some(waiter) = waiter_opt else {
+        warn!(
+            "[telephony] Transfer status callback for unknown original call {}",
+            original_call_sid
+        );
+        return StatusCode::OK.into_response();
+    };
+
+    match call_status.as_str() {
+        "in-progress" => {
+            // Destination answered and is now in the Conference.
+            // Step: bridge the original caller into the same Conference room.
+            let provider = create_telephony_provider(&waiter.credentials);
+
+            // Build a minimal TelephonyConfig with just credentials for the REST call.
+            let bridge_config = TelephonyConfig {
+                credentials: waiter.credentials.clone(),
+                ..TelephonyConfig::default()
+            };
+
+            info!(
+                "[telephony] Destination answered — bridging original call {} → conference {}",
+                original_call_sid, waiter.conference_name
+            );
+
+            match provider
+                .bridge_call_to_conference(
+                    &bridge_config,
+                    &original_call_sid,
+                    &waiter.conference_name,
+                )
+                .await
+            {
+                Ok(_) => {
+                    info!(
+                        "[telephony] Bridge succeeded for call {} → conference {}",
+                        original_call_sid, waiter.conference_name
+                    );
+                    let event = voice_transport::TransportEvent::TransferResult {
+                        succeeded: true,
+                        destination: outbound_call_sid,
+                        reason: None,
+                    };
+                    if let Err(e) = waiter.event_tx.send(event) {
+                        warn!(
+                            "[telephony] Failed to send TransferResult to session: {}",
+                            e
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "[telephony] Conference bridge failed for call {}: {}",
+                        original_call_sid, e
+                    );
+                    let event = voice_transport::TransportEvent::TransferResult {
+                        succeeded: false,
+                        destination: outbound_call_sid,
+                        reason: Some(format!("Conference bridge failed: {}", e)),
+                    };
+                    let _ = waiter.event_tx.send(event);
+                }
+            }
+            // Bridge attempt complete (success or failure) — remove the waiter.
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        "completed" => {
+            // Outbound leg completed in one of two scenarios:
+            //   (a) Destination answered, joined the conference, then hung up — normal terminal state.
+            //   (b) Caller hung up while the transfer leg was still ringing, before
+            //       bridge_call_to_conference was ever called.
+            // Either way we signal failure so the reactor can clean up the holding state.
+            info!(
+                "[telephony] Transfer outbound leg {} completed normally",
+                outbound_call_sid
+            );
+            let event = voice_transport::TransportEvent::TransferResult {
+                succeeded: false,
+                destination: outbound_call_sid,
+                reason: Some("completed-before-bridge".into()),
+            };
+            let _ = waiter.event_tx.send(event);
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        "busy" => {
+            info!("[telephony] Transfer to {} — busy", outbound_call_sid);
+            let event = voice_transport::TransportEvent::TransferResult {
+                succeeded: false,
+                destination: outbound_call_sid,
+                reason: Some("busy".into()),
+            };
+            let _ = waiter.event_tx.send(event);
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        "no-answer" => {
+            info!("[telephony] Transfer to {} — no answer", outbound_call_sid);
+            let event = voice_transport::TransportEvent::TransferResult {
+                succeeded: false,
+                destination: outbound_call_sid,
+                reason: Some("no-answer".into()),
+            };
+            let _ = waiter.event_tx.send(event);
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        "failed" | _ => {
+            warn!(
+                "[telephony] Transfer to {} failed with status={}",
+                outbound_call_sid, call_status
+            );
+            let event = voice_transport::TransportEvent::TransferResult {
+                succeeded: false,
+                destination: outbound_call_sid,
+                reason: Some(call_status),
+            };
+            let _ = waiter.event_tx.send(event);
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+    }
+
+    StatusCode::OK.into_response()
+}
+
+#[cfg(feature = "telephony")]
+pub async fn telephony_telnyx_transfer_status_handler(
+    State(state): State<ServerState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    let json: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let event_type = json
+        .pointer("/data/event_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    use base64::Engine;
+
+    // ── Telnyx Webhook Security (Signature Validation) ──
+    if !state.telnyx_public_key.is_empty() {
+        let signature_b64 = headers
+            .get("telnyx-signature-ed25519")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        let timestamp = headers
+            .get("telnyx-timestamp")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+
+        let payload_str = std::str::from_utf8(&body).unwrap_or_default();
+        let payload_to_sign = format!("{}|{}", timestamp, payload_str);
+
+        use ed25519_dalek::{Verifier, VerifyingKey, Signature};
+        
+        let pub_key_bytes = match base64::engine::general_purpose::STANDARD.decode(&state.telnyx_public_key) {
+            Ok(b) => b,
+            Err(_) => {
+                warn!("[telephony:telnyx] Invalid base64 in telnyx_public_key config");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
+
+        let sig_bytes = match base64::engine::general_purpose::STANDARD.decode(signature_b64) {
+            Ok(b) => b,
+            Err(_) => {
+                warn!("[telephony:telnyx] Invalid base64 in webhook signature");
+                return StatusCode::UNAUTHORIZED.into_response();
+            }
+        };
+
+        if let (Ok(pub_key_arr), Ok(sig_arr)) = (<[u8; 32]>::try_from(pub_key_bytes), <[u8; 64]>::try_from(sig_bytes)) {
+            if let Ok(verifying_key) = VerifyingKey::from_bytes(&pub_key_arr) {
+                let signature = Signature::from_bytes(&sig_arr);
+                if verifying_key.verify(payload_to_sign.as_bytes(), &signature).is_err() {
+                    warn!("[telephony:telnyx] Invalid Ed25519 signature");
+                    return StatusCode::UNAUTHORIZED.into_response();
+                }
+            } else {
+                warn!("[telephony:telnyx] Invalid Ed25519 public key format");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        } else {
+            warn!("[telephony:telnyx] Invalid Ed25519 byte lengths");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    }
+
+    // Extract the original caller SID from client_state
+    let client_state_b64 = json
+        .pointer("/data/payload/client_state")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    let state_json: serde_json::Value = base64::engine::general_purpose::STANDARD
+        .decode(client_state_b64)
+        .ok()
+        .and_then(|decoded| serde_json::from_slice(&decoded).ok())
+        .unwrap_or_default();
+
+    let original_call_sid = state_json
+        .get("original_call_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let outbound_call_sid = json
+        .pointer("/data/payload/call_control_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    info!(
+        "[telephony:telnyx] Transfer webhook: original={} outbound={} event={}",
+        original_call_sid, outbound_call_sid, event_type
+    );
+
+    if original_call_sid.is_empty() {
+        return StatusCode::OK.into_response();
+    }
+
+    // Ignore noise.
+    match event_type {
+        "call.initiated" | "call.ringing" => {
+            return StatusCode::OK.into_response();
+        }
+        _ => {}
+    }
+
+    let waiter_opt = state.transfer_waiters.get(&original_call_sid);
+    let Some(waiter) = waiter_opt else {
+        warn!(
+            "[telephony:telnyx] Transfer status callback for unknown original call {}",
+            original_call_sid
+        );
+        return StatusCode::OK.into_response();
+    };
+
+    match event_type {
+        "call.answered" => {
+            let provider = create_telephony_provider(&waiter.credentials);
+            let bridge_config = TelephonyConfig {
+                credentials: waiter.credentials.clone(),
+                ..TelephonyConfig::default()
+            };
+
+            info!(
+                "[telephony:telnyx] Destination answered — bridging outbound {} and original {} → conference {}",
+                outbound_call_sid, original_call_sid, waiter.conference_name
+            );
+
+            let res_outbound = provider
+                .bridge_call_to_conference(
+                    &bridge_config,
+                    &outbound_call_sid,
+                    &waiter.conference_name,
+                )
+                .await;
+
+            let conf_id_to_join = match res_outbound {
+                Ok(cid) => cid,
+                Err(e) => {
+                    error!(
+                        "[telephony:telnyx] Failed to bridge outbound call {}: {:?}",
+                        outbound_call_sid, e
+                    );
+                    let event = voice_transport::TransportEvent::TransferResult {
+                        succeeded: false,
+                        destination: outbound_call_sid.clone(),
+                        reason: Some("bridge-outbound-failed".into()),
+                    };
+                    let _ = waiter.event_tx.send(event);
+                    drop(waiter);
+                    state.transfer_waiters.remove(&original_call_sid);
+                    return StatusCode::OK.into_response();
+                }
+            };
+
+            let res_original = provider
+                .bridge_call_to_conference(
+                    &bridge_config,
+                    &original_call_sid,
+                    &conf_id_to_join,
+                )
+                .await;
+
+            match res_original {
+                Ok(_) => {
+                    info!(
+                        "[telephony:telnyx] Bridge succeeded for both calls → conference {}",
+                        waiter.conference_name
+                    );
+                    let event = voice_transport::TransportEvent::TransferResult {
+                        succeeded: true,
+                        destination: outbound_call_sid,
+                        reason: None,
+                    };
+                    if let Err(e) = waiter.event_tx.send(event) {
+                        warn!(
+                            "[telephony:telnyx] Failed to send TransferResult to session: {}",
+                            e
+                        );
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "[telephony:telnyx] Failed to bridge original call: {:?}",
+                        e
+                    );
+                    // Hang up the outbound leg — it's in a conference nobody will join
+                    if let Err(hangup_err) = provider.hangup(&bridge_config, &outbound_call_sid).await {
+                        warn!("[telephony:telnyx] Failed to hang up outbound leg {} after bridge failure: {:?}", outbound_call_sid, hangup_err);
+                    }
+                    let event = voice_transport::TransportEvent::TransferResult {
+                        succeeded: false,
+                        destination: outbound_call_sid.clone(),
+                        reason: Some("bridge-original-failed".into()),
+                    };
+                    let _ = waiter.event_tx.send(event);
+                }
+            }
+            // Bridge attempt complete \u2014 remove the waiter regardless of outcome.
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        "call.hangup" => {
+            let hangup_cause = json
+                .pointer("/data/payload/sip_hangup_cause")
+                .and_then(|v| v.as_str())
+                .unwrap_or("failed");
+
+            info!(
+                "[telephony:telnyx] Transfer to {} hung up. Cause: {}",
+                outbound_call_sid, hangup_cause
+            );
+
+            // For now, treat any hangup before call.answered as a failure.
+            // (If they hung up AFTER answering, the bridge would have happened already and session closed).
+            let event = voice_transport::TransportEvent::TransferResult {
+                succeeded: false,
+                destination: outbound_call_sid,
+                reason: Some(hangup_cause.into()),
+            };
+            let _ = waiter.event_tx.send(event);
+            drop(waiter);
+            state.transfer_waiters.remove(&original_call_sid);
+        }
+        _ => {}
+    }
+
+    StatusCode::OK.into_response()
+}
+
+#[cfg(feature = "telephony")]
 async fn telephony_telnyx_handler(
     ws: WebSocketUpgrade,
     axum::extract::Query(params): axum::extract::Query<telephony_handlers::TelephonyQueryParams>,
@@ -1439,13 +1962,41 @@ async fn handle_telephony_session(
                     }
                 })
                 .unwrap_or_default();
-            TelephonyTransportCredentials::Telnyx { api_key }
+            let connection_id = session_telephony_creds
+                .as_ref()
+                .map(|c| c.telnyx_connection_id.clone())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| state.telephony_creds.telnyx_connection_id.clone());
+            TelephonyTransportCredentials::Telnyx {
+                api_key,
+                connection_id,
+            }
         }
     };
 
-    // Build the telephony config from resolved credentials
+    // Resolve webhook base URL from registered session (populated by voice-server from DB).
+    // Resolve from_number (the called/To number) for conference-based supervised transfer.
+    // We peek the session here before the remove later — the remove happens after transport init
+    // so the peek is safe; both fields are Copy-friendly (Option<String>).
+    let resolved_public_url = params
+        .session_id
+        .as_ref()
+        .and_then(|sid| state.sessions.get(sid))
+        .and_then(|reg| reg.webhook_base_url.clone())
+        .filter(|u| !u.is_empty());
+
+    let resolved_from_number = params
+        .session_id
+        .as_ref()
+        .and_then(|sid| state.sessions.get(sid))
+        .and_then(|reg| reg.from_number.clone())
+        .filter(|s| !s.is_empty());
+
+    // Build the telephony config from resolved credentials.
     let config = TelephonyConfig {
         credentials: resolved_credentials,
+        public_url: resolved_public_url,
+        from_number: resolved_from_number,
         stream_id: std::sync::Mutex::new(String::new()), // populated by recv loop from "start" event
         call_id: std::sync::Mutex::new(None), // populated by recv loop from "start" event
         inbound_encoding: TelephonyQueryParams::parse_encoding(&params.inbound_encoding),
@@ -1468,28 +2019,49 @@ async fn handle_telephony_session(
     #[cfg(feature = "otel")]
     voice_trace::sinks::otel::spawn_otel_subscriber(&local_tracer);
 
+    // Capture credentials before config is moved into accept() — needed for TransferWaiter.
+    let config_credentials = config.credentials.clone();
+
     let (bus_tx_oneshot_tx, bus_tx_oneshot_rx) = tokio::sync::oneshot::channel();
     let (transport, session_id_rx) = TelephonyTransport::accept(socket, config, bus_tx_oneshot_rx);
 
-    // Resolve session_id: prefer query param, fall back to start message's customParameters
-    let effective_session_id = if let Some(sid) = params.session_id.clone() {
-        sid
+    // Resolve session_id and call_id
+    let (effective_session_id, call_id) = if let Some(sid) = params.session_id.clone() {
+        // We still need to wait for call_id from the start message so we can register the transfer waiter
+        let call_id =
+            match tokio::time::timeout(std::time::Duration::from_secs(10), session_id_rx).await {
+                Ok(Ok((_, cid))) => cid,
+                _ => None,
+            };
+        (sid, call_id)
     } else {
-        // Wait for the Twilio "start" message to get session_id from customParameters
+        // Wait for the provider "start" message
         match tokio::time::timeout(std::time::Duration::from_secs(10), session_id_rx).await {
-            Ok(Ok(Some(sid))) => {
+            Ok(Ok((Some(sid), cid))) => {
                 info!("[telephony] Got session_id from customParameters: {}", sid);
-                sid
+                (sid, cid)
+            }
+            Ok(Ok((None, cid))) => {
+                warn!("[telephony] No session_id from query params or customParameters, using inline session");
+                (uuid::Uuid::new_v4().to_string(), cid)
             }
             _ => {
-                warn!("[telephony] No session_id from query params or customParameters, using inline session");
-                uuid::Uuid::new_v4().to_string()
+                warn!("[telephony] Timed out waiting for start message");
+                (uuid::Uuid::new_v4().to_string(), None)
             }
         }
     };
 
     // Look up pre-registered session or use defaults
-    let (session_id, mut session_config, providers, secrets, refresh_handle, reg_tracer) = {
+    let (
+        session_id,
+        mut session_config,
+        providers,
+        secrets,
+        refresh_handle,
+        reg_tracer,
+        _reg_from_number,
+    ) = {
         if let Some((_, reg)) = state.sessions.remove(&effective_session_id) {
             // Extract the Tracer out of the Arc<Mutex<Option<...>>> wrapper.
             let reg_tracer = reg
@@ -1498,13 +2070,15 @@ async fn handle_telephony_session(
                 .and_then(|arc| arc.lock().ok().and_then(|mut guard| guard.take()));
             let secrets = reg.secrets.clone();
             let refresh_handle = reg.take_refresh_handle();
+            let from_number = reg.from_number.clone();
             (
-                effective_session_id,
+                effective_session_id.clone(),
                 reg.config,
                 reg.providers,
                 secrets,
                 refresh_handle,
                 reg_tracer,
+                from_number,
             )
         } else {
             warn!(
@@ -1512,15 +2086,32 @@ async fn handle_telephony_session(
                 effective_session_id
             );
             (
-                effective_session_id,
+                effective_session_id.clone(),
                 SessionConfig::default(),
                 state.default_providers.clone(),
                 None, // No secrets for unregistered telephony sessions
                 None, // No refresh handle
                 None, // No pre-created Tracer
+                None, // No from_number for unregistered sessions
             )
         }
     };
+
+    // Register a TransferWaiter in ServerState for inbound webhook routing.
+    // Done after session resolution so we have from_number and credentials available.
+    // Keyed by the original call SID (ParentCallSid in Twilio transfer callbacks).
+    if let Some(ref cid) = call_id {
+        // Conference name is derived deterministically from the call SID.
+        let conference_name = format!("feros-transfer-{}", cid);
+        let waiter = TransferWaiter {
+            event_tx: transport.event_tx.clone(),
+            credentials: config_credentials,
+            conference_name,
+        };
+        state.transfer_waiters.insert(cid.clone(), waiter);
+    } else {
+        warn!("[telephony] No call_id available; transfer status callback routing will be disabled for this session.");
+    }
 
     // Force 8 kHz for telephony
     session_config.input_sample_rate = 8000;
@@ -1541,7 +2132,7 @@ async fn handle_telephony_session(
     let _ = bus_tx_oneshot_tx.send(session_tracer.subscribe_sender());
 
     let summary = run_session_with_transport(
-        session_id,
+        session_id.clone(),
         session_config,
         transport,
         &providers,
@@ -1550,6 +2141,12 @@ async fn handle_telephony_session(
         session_tracer,
     )
     .await;
+
+    // Clean up the webhook waiter
+    if let Some(ref cid) = call_id {
+        state.transfer_waiters.remove(cid);
+    }
+
     info!(
         "[telephony] Session {} ended (agent={}, duration={}s)",
         summary.session_id, summary.agent_id, summary.duration_secs

@@ -137,6 +137,7 @@ function getConfigFields(config: Record<string, unknown>): {
   tts_provider: string;
   tts_model: string;
   gemini_live_model: string;
+  escalation_destinations?: { name: string; phone_number: string }[];
 } {
   return {
     language: (config?.language as string) || "en",
@@ -146,6 +147,7 @@ function getConfigFields(config: Record<string, unknown>): {
     tts_model: (config?.tts_model as string) || "",
     gemini_live_model:
       (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
+    escalation_destinations: (config?.escalation_destinations as { name: string; phone_number: string }[]),
   };
 }
 
@@ -212,6 +214,9 @@ export default function AgentConfigEditor({
   const [language, setLanguage] = useState(fields?.language ?? "en");
   const [timezone, setTimezone] = useState(fields?.timezone ?? "");
   const [voiceIdDraft, setVoiceIdDraft] = useState(fields?.voice_id ?? "");
+  const [escalationDestinations, setEscalationDestinations] = useState<{id: string, name: string, phone_number: string}[]>(
+    (fields?.escalation_destinations ?? []).map((d: any) => ({ ...d, id: Math.random().toString(36).substring(7) }))
+  );
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [tts, setTts] = useState<VoiceProviderSettings | null>(null);
@@ -282,13 +287,15 @@ export default function AgentConfigEditor({
   }, [config]);
 
   // Sync draft states when fields change from outside (e.g., initial load or full sync)
+  const escalationDestinationsJson = JSON.stringify(fields?.escalation_destinations);
   useEffect(() => {
     if (!fields) return;
     setLanguage(fields.language);
     setTimezone(fields.timezone);
     setVoiceIdDraft(fields.voice_id);
+    setEscalationDestinations((fields.escalation_destinations ?? []).map((d: any) => ({ ...d, id: Math.random().toString(36).substring(7) })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model]);
+  }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model, escalationDestinationsJson]);
 
   const patchField = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -786,6 +793,67 @@ export default function AgentConfigEditor({
                           )}
                         </SelectContent>
                       </Select>
+                    </SettingRow>
+
+                    <SettingRow
+                      icon={<HugeiconsIcon icon={Alert02Icon} className="size-4" />}
+                      label="Human Handoff / Escalation"
+                      description="Configure escalation destinations for telephony agents"
+                      className="items-start py-6 flex-col gap-4"
+                      childrenClassName="w-full ml-0 pl-12"
+                    >
+                      <div className="space-y-3">
+                        {escalationDestinations.map((dest, idx) => (
+                          <div key={dest.id} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={dest.name}
+                              onChange={(e) => {
+                                const newDests = [...escalationDestinations];
+                                newDests[idx].name = e.target.value;
+                                setEscalationDestinations(newDests);
+                              }}
+                              onBlur={() => patchField({ escalation_destinations: escalationDestinations.map(({ id, ...rest }) => rest) })}
+                              placeholder="Name (e.g. Sales)"
+                              disabled={saving === "escalation_destinations"}
+                              className="h-9 w-40 rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all"
+                            />
+                            <input
+                              type="text"
+                              value={dest.phone_number}
+                              onChange={(e) => {
+                                const newDests = [...escalationDestinations];
+                                newDests[idx].phone_number = e.target.value;
+                                setEscalationDestinations(newDests);
+                              }}
+                              onBlur={() => patchField({ escalation_destinations: escalationDestinations.map(({ id, ...rest }) => rest) })}
+                              placeholder="Phone (e.g. +1234567890)"
+                              disabled={saving === "escalation_destinations"}
+                              className="h-9 w-48 rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all font-mono"
+                            />
+                            <button
+                              onClick={() => {
+                                const newDests = escalationDestinations.filter((_, i) => i !== idx);
+                                setEscalationDestinations(newDests);
+                                patchField({ escalation_destinations: newDests.map(({ id, ...rest }) => rest) });
+                              }}
+                              className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10"
+                            >
+                              <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            const newDests = [...escalationDestinations, { id: Math.random().toString(36).substring(7), name: "", phone_number: "" }];
+                            setEscalationDestinations(newDests);
+                            patchField({ escalation_destinations: newDests.map(({ id, ...rest }) => rest) });
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground bg-accent/30 hover:bg-accent transition-all border border-transparent hover:border-border"
+                        >
+                          + Add Destination
+                        </button>
+                      </div>
                     </SettingRow>
                   </div>
                 </div>

@@ -57,9 +57,11 @@ impl WebSocketTransport {
             audio_rx,
             audio_tx: Box::new(audio_sink),
             control_rx,
+            event_tx: control_event_tx.clone(),
             control_tx: control_cmd_tx,
             input_sample_rate,
             _background_tasks: vec![recv_handle, forward_handle],
+            is_telephony: false,
         }
     }
 }

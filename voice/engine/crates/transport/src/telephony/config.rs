@@ -24,6 +24,8 @@ pub enum TelephonyCredentials {
     Telnyx {
         #[serde(default)]
         api_key: String,
+        #[serde(default)]
+        connection_id: String,
     },
 }
 
@@ -117,8 +119,6 @@ pub struct TelephonyConfig {
     #[serde(default)]
     pub outbound_encoding: TelephonyEncoding,
 
-
-
     /// Whether to automatically hang up the call when the session ends.
     #[serde(default = "default_auto_hang_up")]
     pub auto_hang_up: bool,
@@ -126,6 +126,19 @@ pub struct TelephonyConfig {
     /// Telephony sample rate. Always 8000 Hz for PSTN.
     #[serde(default = "default_telephony_sample_rate")]
     pub sample_rate: u32,
+
+    /// Publicly reachable URL for incoming webhooks (e.g. transfer status callbacks).
+    #[serde(default)]
+    pub public_url: Option<String>,
+
+    /// The provider phone number that placed / answered this call.
+    ///
+    /// Required for supervised transfer: when the AI initiates a transfer, we place
+    /// a *new* outbound call from this number to the destination. The destination
+    /// is then put into a Twilio/Telnyx Conference room; once they answer, we move
+    /// the original caller into the same room and terminate the AI leg.
+    #[serde(default)]
+    pub from_number: Option<String>,
 }
 
 fn default_auto_hang_up() -> bool {
@@ -146,6 +159,8 @@ impl Default for TelephonyConfig {
             outbound_encoding: TelephonyEncoding::default(),
             auto_hang_up: true,
             sample_rate: TELEPHONY_SAMPLE_RATE,
+            public_url: None,
+            from_number: None,
         }
     }
 }

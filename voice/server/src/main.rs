@@ -113,9 +113,11 @@ async fn main() {
     };
 
     let providers = ProviderConfig::default();
+    let telnyx_public_key = std::env::var("TELNYX__PUBLIC_KEY").unwrap_or_default();
     let engine_state = ServerState::new(
         providers,
         TelephonyCredentials::default(),
+        telnyx_public_key,
         settings.auth_secret_key.clone(),
     );
 

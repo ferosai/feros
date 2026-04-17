@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! WebRTC PCM → push_user_audio() → BidiGenerateContentRealtimeInput →──┐
-//!                                                                        │ ws
+//!                                                                      │ ws
 //! WebRTC speaker ← RealtimeEvent::BotAudioChunk ← recv_event() ←───────┘
 //!                                                        ↓
 //!                                     Also yields ToolCall, Transcription
@@ -265,16 +265,6 @@ type WsStream = tokio_tungstenite::WebSocketStream<
 // ── Gemini Live turn-phase state machine ─────────────────────────────────────
 
 /// Compile-time state machine for the Gemini Live **output** turn lifecycle.
-///
-/// Replaces the old `output_transcript_buf: String` field. By owning the
-/// accumulation buffer *inside* the `BotSpeaking` variant, the compiler
-/// makes the following bugs impossible:
-///
-/// | Old bug | Enforcement |  
-/// |---------|-------------|
-/// | `TurnComplete` after barge-in double-emits | `complete()` on `Listening` → `None`, no-op |
-/// | Reconnect leaves open streaming bubble | `cancel()` forces caller to handle partial text |
-/// | Stale chunk accumulated post-barge-in | buffer doesn't exist in `Listening` |
 #[derive(Debug, Default)]
 pub(crate) enum GeminiLivePhase {
     /// Idle — waiting for user input or between turns.
@@ -974,7 +964,6 @@ impl RealtimeProvider for GeminiLiveProvider {
             // Active start (Gemini 3.x):
             //
             // After setupComplete, send a single-space `realtimeInput` to kick off inference.
-            // This is the minimal trigger used by pipecat for Gemini 3.x models.
             // `clientContent` causes "Invalid argument" when concurrent mic audio is
             // already streaming into the socket.
             if msg.setup_complete.is_some() && self.session_resumption_handle.is_none() {
@@ -1040,6 +1029,27 @@ impl RealtimeProvider for GeminiLiveProvider {
     /// listening for new user speech.
     async fn interrupt(&mut self) -> Result<(), LlmProviderError> {
         self.trigger_vad(VadState::Started).await
+    }
+
+    /// Send a system/client text message to the backend model.
+    async fn push_client_content(&mut self, text: String) -> Result<(), LlmProviderError> {
+        let ws = self.ws.as_mut().ok_or_else(|| {
+            LlmProviderError::Transport("Not connected".to_string())
+        })?;
+
+        let msg = RealtimeInputMessage {
+            realtime_input: RealtimeInputPayload {
+                text: Some(text),
+                ..Default::default()
+            },
+        };
+
+        let json = serde_json::to_string(&msg)
+            .map_err(|e| LlmProviderError::Provider(format!("text serialize: {e}")))?;
+        ws.send(Message::Text(json.into()))
+            .await
+            .map_err(|e| LlmProviderError::Transport(format!("text send: {e}")))?;
+        Ok(())
     }
 }
 

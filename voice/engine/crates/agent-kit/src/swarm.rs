@@ -106,6 +106,10 @@ pub const HANG_UP_TOOL_NAME: &str = "hang_up";
 /// Name of the synthetic on-hold tool.
 pub const ON_HOLD_TOOL_NAME: &str = "on_hold";
 
+/// Name of the synthetic escalation/human-handoff tool.
+/// Only injected for telephony sessions with configured destinations.
+pub const ESCALATE_CALL_TOOL_NAME: &str = "escalate_call";
+
 // Re-export artifact tool names so callers don't need to depend on artifact_store directly.
 pub use crate::artifact_store::{LIST_ARTIFACTS_TOOL, READ_ARTIFACT_TOOL, SAVE_ARTIFACT_TOOL};
 
@@ -257,14 +261,75 @@ pub fn make_transfer_tool_schema(edges: &[String]) -> serde_json::Value {
     })
 }
 
+/// A pre-configured escalation destination available to the `escalate_call` tool.
+///
+/// Mirrors `EscalationDestination` from the voice-engine types — redefined here
+/// so `agent-kit` stays independent of the engine crate.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EscalationDestination {
+    /// Human-readable label shown to the LLM (e.g. "Support Team").
+    pub name: String,
+    /// E.164 phone number or SIP URI.
+    pub phone_number: String,
+}
+
+/// Generate the `escalate_call` tool schema.
+///
+/// Only injected for telephony sessions. `destinations` should contain at
+/// least one entry; the LLM picks a target by the human-readable `name`.
+pub fn make_escalate_call_tool_schema(destinations: &[EscalationDestination]) -> serde_json::Value {
+    let dest_names: Vec<&str> = destinations.iter().map(|d| d.name.as_str()).collect();
+    let dest_list = dest_names.join(", ");
+
+    json!({
+        "type": "function",
+        "function": {
+            "name": ESCALATE_CALL_TOOL_NAME,
+            "description": format!(
+                r#"Transfer this call to a human agent or specialist.
+
+Call when:
+- The caller explicitly requests to speak to a human.
+- The issue cannot be resolved by the AI (e.g. complex complaints, exceptions, urgent situations).
+- Your system instructions define specific escalation triggers.
+
+Available destinations: {dest_list}
+
+Do NOT call this to end the call — use hang_up for that.
+This is irreversible once called: the call is immediately forwarded."#
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "destination_name": {
+                        "type": "string",
+                        "description": "Name of the escalation destination to forward the call to",
+                        "enum": dest_names
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Brief reason for the escalation (e.g. 'user_request', 'complex_issue')"
+                    }
+                },
+                "required": ["destination_name", "reason"]
+            }
+        }
+    })
+}
+
 /// Build the complete tool schemas for a node: its own tools + transfer_to.
 ///
 /// Tool schemas are generated from the node's `tools` list, resolved
 /// against the graph's `tools` map. Unknown tool names are logged as warnings
 /// and skipped.
+///
+/// When `is_telephony` is `true` and `escalation_destinations` is non-empty,
+/// the `escalate_call` tool is also injected.
 pub fn build_node_tool_schemas(
     node: &NodeDef,
     graph_tools: &HashMap<String, ToolDef>,
+    is_telephony: bool,
+    escalation_destinations: &[EscalationDestination],
 ) -> Vec<serde_json::Value> {
     let mut schemas: Vec<serde_json::Value> = node
         .tools
@@ -291,6 +356,11 @@ pub fn build_node_tool_schemas(
 
     // Always add on_hold tool so the agent can pause idle detection
     schemas.push(make_on_hold_tool_schema());
+
+    // Inject escalate_call for telephony sessions with configured destinations
+    if is_telephony && !escalation_destinations.is_empty() {
+        schemas.push(make_escalate_call_tool_schema(escalation_destinations));
+    }
 
     // Always add artifact tools so the agent can persist important information
     schemas.extend(make_artifact_tool_schemas());
@@ -459,7 +529,12 @@ mod tests {
     #[test]
     fn node_tool_schemas_include_transfer() {
         let graph = sample_graph();
-        let schemas = build_node_tool_schemas(&graph.nodes["receptionist"], &graph.tools);
+        let schemas = build_node_tool_schemas(
+            &graph.nodes["receptionist"],
+            &graph.tools,
+            false,
+            &[],
+        );
 
         // Base tools + transfer_to + hang_up + on_hold + artifacts
         assert!(
@@ -491,7 +566,12 @@ mod tests {
         }"#,
         )
         .unwrap();
-        let schemas = build_node_tool_schemas(&graph.nodes["solo"], &graph.tools);
+        let schemas = build_node_tool_schemas(
+            &graph.nodes["solo"],
+            &graph.tools,
+            false,
+            &[],
+        );
         // hang_up + on_hold + artifacts (no transfer_to)
         assert!(schemas.len() >= 1, "Should have at least hang_up");
         assert_eq!(schemas[0]["function"]["name"].as_str().unwrap(), "hang_up");

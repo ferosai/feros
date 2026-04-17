@@ -63,6 +63,7 @@ impl PySessionConfig {
         min_barge_in_words = 2,
         barge_in_timeout_ms = 800,
         graph_json = None,
+        escalation_destinations_json = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -82,6 +83,7 @@ impl PySessionConfig {
         min_barge_in_words: u32,
         barge_in_timeout_ms: u32,
         graph_json: Option<String>,
+        escalation_destinations_json: Option<String>,
     ) -> PyResult<Self> {
         // Parse v3 agent graph JSON (single AgentGraphDef) if provided
         let agent_graph: Option<AgentGraphDef> = match graph_json {
@@ -91,6 +93,11 @@ impl PySessionConfig {
                 Some(graph)
             }
             None => None,
+        };
+
+        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> = match escalation_destinations_json {
+            Some(json_str) => serde_json::from_str(json_str).unwrap_or_default(),
+            None => vec![],
         };
 
         Ok(Self {
@@ -117,6 +124,7 @@ impl PySessionConfig {
                     min_barge_in_words,
                     barge_in_timeout_ms,
                     agent_graph: agent_graph.clone(),
+                    escalation_destinations,
                     // Defaults — overridden from graph below
                     ..Default::default()
                 };
@@ -194,6 +202,9 @@ pub struct PyServerConfig {
     pub default_twilio_account_sid: String,
     pub default_twilio_auth_token: String,
     pub default_telnyx_api_key: String,
+    /// Telnyx Ed25519 public key for webhook signature validation (server-global).
+    pub telnyx_public_key: String,
+    pub default_telnyx_connection_id: String,
     /// Shared secret for HMAC-SHA256 session token validation.
     /// When set, all endpoints require a valid token = HMAC(secret, session_id).
     /// When empty, token validation is skipped (dev mode).
@@ -221,6 +232,8 @@ impl PyServerConfig {
         default_twilio_account_sid = String::new(),
         default_twilio_auth_token = String::new(),
         default_telnyx_api_key = String::new(),
+        telnyx_public_key = String::new(),
+        default_telnyx_connection_id = String::new(),
         auth_secret_key = String::new(),
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -242,6 +255,8 @@ impl PyServerConfig {
         default_twilio_account_sid: String,
         default_twilio_auth_token: String,
         default_telnyx_api_key: String,
+        telnyx_public_key: String,
+        default_telnyx_connection_id: String,
         auth_secret_key: String,
     ) -> Self {
         Self {
@@ -262,6 +277,8 @@ impl PyServerConfig {
             default_twilio_account_sid,
             default_twilio_auth_token,
             default_telnyx_api_key,
+            telnyx_public_key,
+            default_telnyx_connection_id,
             auth_secret_key,
         }
     }
@@ -320,8 +337,9 @@ impl PyVoiceServer {
             twilio_account_sid: config.default_twilio_account_sid.clone(),
             twilio_auth_token: config.default_twilio_auth_token.clone(),
             telnyx_api_key: config.default_telnyx_api_key.clone(),
+            telnyx_connection_id: config.default_telnyx_connection_id.clone(),
         };
-        let state = ServerState::new(providers, telephony, config.auth_secret_key.clone());
+        let state = ServerState::new(providers, telephony, config.telnyx_public_key.clone(), config.auth_secret_key.clone());
 
         let addr: SocketAddr = format!("{}:{}", config.host, config.port)
             .parse()
@@ -746,6 +764,14 @@ impl PyAgentRunner {
                 dict.set_item("reason", reason)?;
                 dict.set_item("content", content)?;
             }
+            AgentEvent::EscalateCall {
+                destination,
+                reason,
+            } => {
+                dict.set_item("type", "escalate_call")?;
+                dict.set_item("destination", destination)?;
+                dict.set_item("reason", reason)?;
+            }
             AgentEvent::LlmComplete {
                 provider,
                 model,
@@ -791,6 +817,7 @@ impl PyAgentRunner {
         max_tokens = 32768,
         greeting = None,
         secrets = None,
+        escalation_destinations_json = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -806,6 +833,7 @@ impl PyAgentRunner {
         max_tokens: u32,
         greeting: Option<String>,
         secrets: Option<HashMap<String, String>>,
+        escalation_destinations_json: Option<&str>,
     ) -> PyResult<Self> {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
@@ -823,6 +851,12 @@ impl PyAgentRunner {
                 Some(graph)
             }
             None => None,
+        };
+
+        // Parse escalation destinations
+        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> = match escalation_destinations_json {
+            Some(json_str) => serde_json::from_str(json_str).unwrap_or_default(),
+            None => vec![],
         };
 
         // Build LLM provider
@@ -858,7 +892,9 @@ impl PyAgentRunner {
             py_hook,
             artifact: ArtifactInterceptor::new(ArtifactStore::new()),
         };
-        backend = backend.with_interceptor(Arc::new(composite));
+        backend = backend
+            .with_interceptor(Arc::new(composite))
+            .with_telephony_escalation(true, escalation_destinations);
 
         // Set system prompt
         backend.set_system_prompt(system_prompt.to_string());

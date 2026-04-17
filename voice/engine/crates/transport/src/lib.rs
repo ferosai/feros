@@ -44,6 +44,9 @@ pub struct TransportHandle {
     /// Transport lifecycle events (connected, disconnected, control messages).
     pub control_rx: mpsc::UnboundedReceiver<TransportEvent>,
 
+    /// Send events back into the session (e.g. injected webhook results).
+    pub event_tx: mpsc::UnboundedSender<TransportEvent>,
+
     /// Send control messages back to the client.
     pub control_tx: mpsc::UnboundedSender<TransportCommand>,
 
@@ -53,6 +56,11 @@ pub struct TransportHandle {
     /// Background tasks owned by this transport (event loop, forward loop, etc.).
     /// Aborted on drop so they don't leak.
     pub(crate) _background_tasks: Vec<tokio::task::JoinHandle<()>>,
+
+    /// True if this transport is a PSTN telephony connection (e.g. Twilio, Telnyx).
+    /// Used by the session layer to selectively enable telephony-specific agent tools
+    /// like call escalation / human handoff.
+    pub is_telephony: bool,
 }
 
 impl TransportHandle {
@@ -63,6 +71,11 @@ impl TransportHandle {
     pub fn take_audio_rx(&mut self) -> mpsc::UnboundedReceiver<Bytes> {
         let (_, dummy_rx) = mpsc::unbounded_channel();
         std::mem::replace(&mut self.audio_rx, dummy_rx)
+    }
+
+    pub fn take_control_rx(&mut self) -> mpsc::UnboundedReceiver<TransportEvent> {
+        let (_, dummy_rx) = mpsc::unbounded_channel();
+        std::mem::replace(&mut self.control_rx, dummy_rx)
     }
 
     /// Create a no-op transport handle that owns no resources.
@@ -82,14 +95,16 @@ impl TransportHandle {
         }
         let (_, audio_rx) = mpsc::unbounded_channel();
         let (control_tx, _) = mpsc::unbounded_channel();
-        let (_, control_rx) = mpsc::unbounded_channel();
+        let (event_tx, control_rx) = mpsc::unbounded_channel();
         Self {
             audio_rx,
             audio_tx: Box::new(NullSink),
             control_rx,
+            event_tx,
             control_tx,
             input_sample_rate: 48_000,
             _background_tasks: vec![],
+            is_telephony: false,
         }
     }
 }
@@ -111,6 +126,14 @@ pub enum TransportEvent {
     Disconnected { reason: String },
     /// Client sent a JSON control message (e.g. session config).
     ControlMessage(serde_json::Value),
+    /// Result of a telephony transfer attempt, reported by the provider
+    /// via an asynchronous status callback.
+    TransferResult {
+        succeeded: bool,
+        destination: String,
+        /// Provider error code / reason when `!succeeded`
+        reason: Option<String>,
+    },
 }
 
 /// Commands from the session to the transport.
@@ -120,6 +143,11 @@ pub enum TransportCommand {
     SendMessage(serde_json::Value),
     /// Signal the transport to close.
     Close,
+    /// Forward the active telephony call to a new destination (PSTN number or SIP URI).
+    ///
+    /// Only meaningful for telephony transports (Twilio/Telnyx). WebSocket and WebRTC
+    /// transports treat this as a no-op.
+    Transfer { destination: String },
     /// Add a remote ICE candidate.
     #[cfg(feature = "webrtc")]
     AddIceCandidate(String),

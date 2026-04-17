@@ -83,4 +83,7 @@ pub trait RealtimeProvider: Send + Sync {
 
     /// Force a disruption/cut-off of the current bot generation (barge-in).
     async fn interrupt(&mut self) -> Result<(), LlmProviderError>;
+
+    /// Send a text message to the model (ClientContent).
+    async fn push_client_content(&mut self, text: String) -> Result<(), LlmProviderError>;
 }

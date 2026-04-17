@@ -6,12 +6,30 @@ use std::time::{Duration, Instant};
 pub const SAMPLE_RATE: u32 = 16_000;
 /// TTS output sample rate.
 pub const TTS_SAMPLE_RATE: u32 = 24_000;
+/// WebRTC Opus clock rate.
+pub const WEBRTC_RATE: u32 = 48_000;
 /// 16-bit PCM = 2 bytes per sample.
 pub const SAMPLE_WIDTH: usize = 2;
 /// Silero VAD requires chunks of at least 512 samples at 16kHz.
 pub const FRAME_SIZE: usize = 512;
 /// Bytes per frame (512 samples × 2 bytes).
 pub const FRAME_BYTES: usize = FRAME_SIZE * SAMPLE_WIDTH;
+
+/// Generate 20ms of 440Hz transfer hold tone (mono PCM).
+///
+/// Updates the provided `phase` to maintain wave continuity across frames.
+pub fn generate_transfer_hold_tone(phase: &mut f32, sample_rate: u32) -> Vec<u8> {
+    let samples_per_frame = (sample_rate / 50) as usize; // 20ms
+    let hold_freq = 440.0_f32; // A4 tone
+    std::iter::from_fn(|| {
+        let sample = (*phase * std::f32::consts::TAU).sin() * 4000.0;
+        *phase = (*phase + hold_freq / sample_rate as f32).fract();
+        Some((sample as i16).to_le_bytes())
+    })
+    .take(samples_per_frame)
+    .flatten()
+    .collect()
+}
 
 // ── WAV helpers ───────────────────────────────────────────────────────────────
 

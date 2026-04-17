@@ -93,6 +93,8 @@ hex = "0.4.3"
 secrecy = "0.10.3"
 async-trait = "0.1.89"
 base64 = "0.22.1"
+sha1 = "0.10"
+ed25519-dalek = "2.2.0"
 
 [features]
 default = []

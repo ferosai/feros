@@ -21,7 +21,8 @@ use crate::providers::{LlmCallConfig, LlmProvider, LlmProviderError};
 use crate::providers::{LlmEvent as InnerLlmEvent, ToolCallEvent};
 use crate::swarm::{
     build_node_tool_schemas, make_artifact_tool_schemas, make_hang_up_tool_schema,
-    make_on_hold_tool_schema, AgentGraphDef, SwarmState, HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME,
+    make_on_hold_tool_schema, AgentGraphDef, EscalationDestination, SwarmState,
+    ESCALATE_CALL_TOOL_NAME, HANG_UP_TOOL_NAME, ON_HOLD_TOOL_NAME,
 };
 use crate::tool_executor::{
     spawn_tool_task, ToolTaskResult,
@@ -184,6 +185,14 @@ struct PendingHangUp {
     content: Option<String>,
 }
 
+/// An `escalate_call` tool call that was deferred during LLM streaming.
+/// Emitted as `AgentEvent::EscalateCall` once all sibling tools complete.
+struct PendingEscalateCall {
+    /// Resolved phone number (looked up from destination_name).
+    destination: String,
+    reason: String,
+}
+
 // ── Observability ────────────────────────────────────────────────
 
 /// Per-LLM-call observability context.
@@ -264,6 +273,18 @@ pub struct DefaultAgentBackend {
     /// other tools are still in-flight.  Cleared at turn start / cancel.
     pending_hang_up: Option<PendingHangUp>,
 
+    // ── Deferred escalate_call ──
+    /// Set when an `escalate_call` tool call is seen during LLM streaming.
+    /// Emitted as `AgentEvent::EscalateCall` after TTS drains.
+    pending_escalate_call: Option<PendingEscalateCall>,
+
+    // ── Telephony/Escalation context ──
+    /// True when this session is over a telephony transport (Twilio/Telnyx).
+    /// Controls whether `escalate_call` tool is injected.
+    is_telephony: bool,
+    /// Pre-configured escalation targets for this agent.
+    escalation_destinations: Vec<EscalationDestination>,
+
     // ── Observability (per LLM call) ──
     /// Present while an LLM stream is active; consumed by `emit_llm_complete`.
     obs: Option<LlmCallObs>,
@@ -331,6 +352,9 @@ impl DefaultAgentBackend {
             pending_tokens: Vec::new(),
             pending_tool_calls: Vec::new(),
             pending_hang_up: None,
+            pending_escalate_call: None,
+            is_telephony: false,
+            escalation_destinations: Vec::new(),
             obs: None,
         }
     }
@@ -338,6 +362,20 @@ impl DefaultAgentBackend {
     /// Get the agent-wide timezone from the graph (if set).
     fn timezone(&self) -> Option<String> {
         self.swarm.as_ref().and_then(|s| s.graph.timezone.clone())
+    }
+
+    /// Configure telephony context for this session.
+    ///
+    /// When `is_telephony` is `true` and `destinations` is non-empty,
+    /// the `escalate_call` tool is injected into the LLM tool schemas.
+    pub fn with_telephony_escalation(
+        mut self,
+        is_telephony: bool,
+        destinations: Vec<EscalationDestination>,
+    ) -> Self {
+        self.is_telephony = is_telephony;
+        self.escalation_destinations = destinations;
+        self
     }
 
     /// Set a tool interceptor for intercepting tool execution.
@@ -359,7 +397,12 @@ impl DefaultAgentBackend {
     ) -> Result<(Vec<serde_json::Value>, f64, u32, Option<String>), String> {
         if let Some(swarm) = &self.swarm {
             if let Some(node) = swarm.active_def() {
-                let schemas = build_node_tool_schemas(node, &swarm.graph.tools);
+                let schemas = build_node_tool_schemas(
+                    node,
+                    &swarm.graph.tools,
+                    self.is_telephony,
+                    &self.escalation_destinations,
+                );
                 let temp = node.temperature.unwrap_or(self.config.temperature);
                 let mt = node.max_tokens.unwrap_or(self.config.max_tokens);
                 let model = node.model.clone();
@@ -650,6 +693,51 @@ impl DefaultAgentBackend {
         // The stream continues; hang_up is resolved at stream-end.
     }
 
+    /// Record an `escalate_call` tool call as a deferred marker.
+    ///
+    /// Resolves the `destination_name` argument to its actual phone number
+    /// using the pre-configured `escalation_destinations` list.
+    /// Emitted as `AgentEvent::EscalateCall` once the stream ends and all
+    /// sibling tool tasks complete.
+    fn handle_escalate_call(&mut self, tc: &ToolCallEvent) {
+        if self.pending_escalate_call.is_some() {
+            warn!("[agent_backend] duplicate escalate_call in same response — ignoring");
+            return;
+        }
+        let args: serde_json::Value = serde_json::from_str(&tc.arguments).unwrap_or_default();
+        let destination_name = args
+            .get("destination_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let reason = args
+            .get("reason")
+            .and_then(|v| v.as_str())
+            .unwrap_or("user_request")
+            .to_string();
+
+        // Resolve destination name → phone number.
+        // Hard-reject unknown destinations: passing a human-readable label to
+        // the Telnyx/Twilio API would cause the REST call to fail silently.
+        let Some(destination) = self
+            .escalation_destinations
+            .iter()
+            .find(|d| d.name == destination_name)
+            .map(|d| d.phone_number.clone())
+        else {
+            warn!(
+                "[agent_backend] escalate_call: unknown destination '{}' — rejecting (not in configured list)",
+                destination_name
+            );
+            return;
+        };
+
+        info!(
+            "[agent_backend] escalate_call deferred: {} → {} (reason={})",
+            destination_name, destination, reason
+        );
+        self.pending_escalate_call = Some(PendingEscalateCall { destination, reason });
+    }
+
     fn handle_on_hold(&mut self, tc: &ToolCallEvent) {
         let duration_mins = serde_json::from_str::<serde_json::Value>(&tc.arguments)
             .ok()
@@ -712,10 +800,6 @@ impl DefaultAgentBackend {
                 }
                 Some(InnerLlmEvent::ToolCall(tc)) => {
                     // ── Intercept hang_up (synthetic runtime tool) ──
-                    // Defer: record the intent and continue reading the stream
-                    // so that any sibling tool calls / tokens in the same
-                    // response are not lost.  The HangUp event is emitted
-                    // after the stream closes and all tool tasks complete.
                     if tc.name == HANG_UP_TOOL_NAME {
                         self.handle_hang_up(&tc);
                         continue;
@@ -724,8 +808,13 @@ impl DefaultAgentBackend {
                     // ── Intercept on_hold (synthetic runtime tool) ──
                     if tc.name == ON_HOLD_TOOL_NAME {
                         self.handle_on_hold(&tc);
-                        // Don't interrupt the stream — let the LLM continue
-                        // generating its acknowledgement text.
+                        continue;
+                    }
+
+                    // ── Intercept escalate_call (synthetic telephony tool) ──
+                    // Defer: let the LLM finish its farewell text, then emit EscalateCall.
+                    if tc.name == ESCALATE_CALL_TOOL_NAME {
+                        self.handle_escalate_call(&tc);
                         continue;
                     }
 
@@ -785,6 +874,16 @@ impl DefaultAgentBackend {
 
                     if self.tools_remaining == 0 {
                         self.phase = Phase::Idle;
+                        // EscalateCall takes highest priority (overrides HangUp)
+                        if let Some(pe) = self.pending_escalate_call.take() {
+                            info!("[agent_backend] escalate_call resolved at stream-end");
+                            // Clear any concurrent hang_up so the reactor only gets one shutdown signal.
+                            self.pending_hang_up = None;
+                            return Some(AgentEvent::EscalateCall {
+                                destination: pe.destination,
+                                reason: pe.reason,
+                            });
+                        }
                         // Pending hang_up takes priority over Finished.
                         if let Some(ph) = self.pending_hang_up.take() {
                             info!(
@@ -896,10 +995,19 @@ impl DefaultAgentBackend {
         };
 
         if self.tools_remaining == 0 {
-            // All tools done — check for deferred hang_up first.
+            // All tools done — check for deferred escalate/hang-up first.
             self.tool_rounds += 1;
 
-            if let Some(ph) = self.pending_hang_up.take() {
+            if let Some(pe) = self.pending_escalate_call.take() {
+                // escalate_call takes priority over hang_up.
+                info!("[agent_backend] escalate_call resolved after all tools completed");
+                self.pending_hang_up = None;
+                self.phase = Phase::Idle;
+                self.event_buffer.push_back(AgentEvent::EscalateCall {
+                    destination: pe.destination,
+                    reason: pe.reason,
+                });
+            } else if let Some(ph) = self.pending_hang_up.take() {
                 // hang_up was deferred while tools were in-flight.
                 // Now that every tool has completed we can end the session.
                 // Buffer HangUp so it is emitted *after* this ToolCallCompleted.
