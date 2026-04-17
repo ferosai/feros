@@ -82,7 +82,7 @@ export default function ImportAgentPage() {
         setFullConfig(null);
         setParsedConfig(null);
         setParseError(
-          "Import expects a full config export payload with $schema set to agent-config-v1."
+          "Import expects a full config export payload with $schema set to agent-config-v3."
         );
       }
       setParseStatus(nextStatus);
