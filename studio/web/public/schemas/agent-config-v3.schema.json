@@ -1,0 +1,283 @@
+{
+  "$defs": {
+    "ImportedConnection": {
+      "description": "Connection metadata included in full config export/import.",
+      "properties": {
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "auth_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Auth Type"
+        },
+        "is_default": {
+          "default": false,
+          "title": "Is Default",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "missing",
+          "enum": [
+            "connected",
+            "inherited",
+            "missing"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider"
+      ],
+      "title": "ImportedConnection",
+      "type": "object"
+    }
+  },
+  "description": "Superset export/import payload for agent portability.",
+  "properties": {
+    "$schema": {
+      "const": "https://feros.ai/schemas/agent-config-v3.schema.json",
+      "default": "https://feros.ai/schemas/agent-config-v3.schema.json",
+      "description": "Canonical JSON Schema URL for this payload format.",
+      "title": "$Schema",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "entry": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "system_prompt": {
+                "type": "string"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "model": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": "number"
+              },
+              "max_tokens": {
+                "type": "integer"
+              },
+              "voice_id": {
+                "type": "string"
+              },
+              "greeting": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Protobuf Message: NodeDef"
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "script": {
+                "type": "string"
+              },
+              "params": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Protobuf Message: ParamDef"
+                }
+              },
+              "cancel_on_barge_in": {
+                "type": "boolean"
+              },
+              "side_effect": {
+                "type": "boolean"
+              },
+              "summarize_result": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Protobuf Message: ToolDef"
+          }
+        },
+        "language": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "voice_id": {
+          "type": "string"
+        },
+        "tts_provider": {
+          "type": "string"
+        },
+        "tts_model": {
+          "type": "string"
+        },
+        "recording": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "output_uri": {
+              "type": "string"
+            },
+            "audio_layout": {
+              "type": "string",
+              "enum": [
+                "AUDIO_LAYOUT_UNSPECIFIED",
+                "AUDIO_LAYOUT_STEREO",
+                "AUDIO_LAYOUT_MONO"
+              ],
+              "description": "Enum: AudioLayout"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "audio_format": {
+              "type": "string",
+              "enum": [
+                "AUDIO_FORMAT_UNSPECIFIED",
+                "AUDIO_FORMAT_OPUS",
+                "AUDIO_FORMAT_WAV"
+              ],
+              "description": "Enum: AudioFormat"
+            },
+            "max_duration_secs": {
+              "type": "integer"
+            },
+            "save_transcript": {
+              "type": "boolean"
+            },
+            "include_tool_details": {
+              "type": "boolean"
+            },
+            "include_llm_metadata": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Protobuf Message: RecordingConfig"
+        },
+        "config_schema_version": {
+          "type": "string"
+        },
+        "gemini_live_model": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "description": "Agent runtime config (v3_graph) automatically dumped from agent.proto."
+    },
+    "mermaid_diagram": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mermaid Diagram"
+    },
+    "connections": {
+      "items": {
+        "$ref": "#/$defs/ImportedConnection"
+      },
+      "title": "Connections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "$schema",
+    "name",
+    "config"
+  ],
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://feros.ai/schemas/agent-config-v3.schema.json",
+  "title": "Agent Config v3",
+  "$comment": "DO NOT EDIT. This file is automatically generated by running `make proto` or `make api-schema`.",
+  "additionalProperties": false
+}

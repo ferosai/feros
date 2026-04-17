@@ -36,6 +36,8 @@ proto: ## Generate Python, TS, and ML stubs from proto definitions
 		--ts_proto_opt=esModuleInterop=true,forceLong=string,outputServices=false,outputJsonMethods=false,outputClientImpl=false,outputEncodeMethods=false,outputPartialMethods=false,outputTypeRegistry=false,onlyTypes=true,snakeToCamel=false \
 		--proto_path=$(PROTO_DIR) \
 		$(PROTO_DIR)/agent.proto
+	# Generate JSON schema from compiled python stubs
+	$(MAKE) api-schema
 
 # ── Auto-Format ──────────────────────────────────────────────────
 .PHONY: format format-api format-web format-engine format-server format-integrations
@@ -99,7 +101,7 @@ inf-health: ## Check ML service health
 	@echo "── STT ──"
 
 # ── Studio API Utilities ─────────────────────────────────────────
-.PHONY: api-dev api-serve api-migrate api-migration api-clean api-env-schema
+.PHONY: api-dev api-serve api-migrate api-migration api-clean api-env-schema api-schema
 
 api-dev: ## Install Studio API dev dependencies
 	cd $(API_DIR) && uv sync
@@ -110,6 +112,9 @@ api-serve: api-clean ## Start Studio API dev server
 api-env-schema: ## Gen Studio API .env.example
 	cd $(API_DIR) && uv run python -m scripts.dump_env_schema > .env.example
 	@echo "✓ .env.example updated"
+
+api-schema: ## Regenerate JSON Schema for Agent configs (from Pydantic + Proto)
+	cd $(API_DIR) && uv run python -m scripts.generate_schema
 
 api-migrate: ## Run Studio API db migrations
 	cd $(API_DIR) && uv run alembic upgrade head

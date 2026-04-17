@@ -18,8 +18,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.agent import AgentStatus
 
-FULL_CONFIG_SCHEMA_URL = "https://feros.ai/schemas/agent-config-v1.schema.json"
-
 # ── Tool Config (used inside AgentConfig) ──────────────────────────
 
 
@@ -202,10 +200,10 @@ class ImportedConnection(BaseModel):
 class AgentFullConfig(BaseModel):
     """Superset export/import payload for agent portability."""
 
-    schema_uri: str = Field(
-        default=FULL_CONFIG_SCHEMA_URL,
+    schema_uri: Literal["https://feros.ai/schemas/agent-config-v3.schema.json"] = Field(
+        default="https://feros.ai/schemas/agent-config-v3.schema.json",
         alias="$schema",
-        description="Canonical JSON Schema URL for this payload format.",
+        description="Canonical schema URI — must match exactly for v3 payloads.",
     )
     name: str
     description: str | None = None
