@@ -105,8 +105,7 @@ system_prompt wording, tool scripts, or graph topology that was not mentioned.
       "description": "<str>",
       "params": [{{"name": "<str>", "type": "string", "required": true}}],
       "script": "<quickjs_code>",
-      "side_effect": false,
-      "result_mode": "TOOL_RESULT_MODE_UNSPECIFIED"
+      "side_effect": false
     }}
   }}
 }}
@@ -115,17 +114,7 @@ system_prompt wording, tool scripts, or graph topology that was not mentioned.
 - **entry**: The starting node of the conversation
 - **nodes**: Each node has a `system_prompt`, optional `greeting`, `tools` and `edges`
 - **greeting**: Optional. The first message spoken when the conversation starts (entry node only).
-- **tools**: Each tool has a `description`, `params`, a QuickJS `script`, a `side_effect` flag, and optional `result_mode`
-
-## Tool Result Mode
-
-Set `result_mode` per tool to control what gets fed back to the LLM after execution:
-- `TOOL_RESULT_MODE_SUMMARIZE`: summarize long output (best for verbose tools)
-- `TOOL_RESULT_MODE_TRUNCATE`: deterministic hard-cap truncate (preserves exact text prefixes/URLs)
-- `TOOL_RESULT_MODE_NONE`: no post-processing (full raw output; use sparingly)
-- `TOOL_RESULT_MODE_UNSPECIFIED`: runtime default
-
-For tools that produce identifiers/URLs consumed by follow-up tools, prefer `TRUNCATE` or `NONE` over `SUMMARIZE`.
+- **tools**: Each tool has a `description`, `params`, a QuickJS `script`, and a `side_effect` flag
 
 ## QuickJS Tool Rules
 

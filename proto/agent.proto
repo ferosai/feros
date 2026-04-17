@@ -38,17 +38,6 @@ message ParamDef {
   repeated string options = 5; // Valid values for enum types
 }
 
-// Per-tool output handling mode after execution.
-enum ToolResultMode {
-  TOOL_RESULT_MODE_UNSPECIFIED = 0;
-  // LLM summarize long tool output (uses global tool_summarizer gate).
-  TOOL_RESULT_MODE_SUMMARIZE = 1;
-  // Deterministically truncate tool output to runtime hard cap.
-  TOOL_RESULT_MODE_TRUNCATE = 2;
-  // Keep raw tool output as-is (no summarize, no truncate).
-  TOOL_RESULT_MODE_NONE = 3;
-}
-
 // A tool definition (always a JS script)
 message ToolDef {
   string description = 1;
@@ -58,9 +47,9 @@ message ToolDef {
   bool cancel_on_barge_in = 4;
   // If true, this tool has side effects
   bool side_effect = 5;
-  // Optional post-tool output handling mode.
-  // If UNSPECIFIED, runtime falls back to global config behavior.
-  ToolResultMode result_mode = 6;
+  // When true, the runtime passes the result through an LLM summarizer
+  // before feeding it back. Adds ~5-10s latency. Default false = truncate.
+  bool summarize_result = 6;
 }
 
 // A single node in the graph
@@ -68,7 +57,7 @@ message NodeDef {
   string system_prompt = 1;
   repeated string tools = 2; // keys referencing AgentGraphDef.tools
   repeated string edges = 3; // node IDs this node can transfer to
-  
+
   optional string model = 4;
   optional double temperature = 5;
   optional uint32 max_tokens = 6;
@@ -80,23 +69,23 @@ message NodeDef {
 message AgentGraphDef {
   // The ID of the node to start with
   string entry = 1;
-  
+
   // All nodes keyed by ID
   map<string, NodeDef> nodes = 2;
-  
+
   // All tool definitions keyed by tool name
   map<string, ToolDef> tools = 3;
-  
+
   // -- Agent-wide settings --
   optional string language = 4;  // ISO 639-1
   optional string timezone = 5;  // IANA timezone
   optional string voice_id = 6;  // Default TTS voice ID
   optional string tts_provider = 7; // e.g. "elevenlabs"
   optional string tts_model = 8;    // e.g. "eleven_turbo_v2"
-  
+
   // Session recording configuration
   optional RecordingConfig recording = 9;
-  
+
   // Envelope field for versions (e.g. "v3_graph")
   optional string config_schema_version = 10;
 

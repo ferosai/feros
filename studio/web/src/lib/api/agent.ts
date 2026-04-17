@@ -22,18 +22,6 @@ export enum AudioFormat {
   UNRECOGNIZED = -1,
 }
 
-/** Per-tool output handling mode after execution. */
-export enum ToolResultMode {
-  TOOL_RESULT_MODE_UNSPECIFIED = 0,
-  /** TOOL_RESULT_MODE_SUMMARIZE - LLM summarize long tool output (uses global tool_summarizer gate). */
-  TOOL_RESULT_MODE_SUMMARIZE = 1,
-  /** TOOL_RESULT_MODE_TRUNCATE - Deterministically truncate tool output to runtime hard cap. */
-  TOOL_RESULT_MODE_TRUNCATE = 2,
-  /** TOOL_RESULT_MODE_NONE - Keep raw tool output as-is (no summarize, no truncate). */
-  TOOL_RESULT_MODE_NONE = 3,
-  UNRECOGNIZED = -1,
-}
-
 /** Session recording configuration */
 export interface RecordingConfig {
   enabled: boolean;
@@ -68,10 +56,10 @@ export interface ToolDef {
   /** If true, this tool has side effects */
   side_effect: boolean;
   /**
-   * Optional post-tool output handling mode.
-   * If UNSPECIFIED, runtime falls back to global config behavior.
+   * When true, the runtime passes the result through an LLM summarizer
+   * before feeding it back. Adds ~5-10s latency. Default false = truncate.
    */
-  result_mode: ToolResultMode;
+  summarize_result: boolean;
 }
 
 /** A single node in the graph */

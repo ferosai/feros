@@ -47,7 +47,7 @@ use serde_json::json;
 // Re-export canonical recording type definitions from common.
 pub use common::{AudioFormat, AudioLayout, RecordingConfig};
 
-pub use proto::agent::{AgentGraphDef, NodeDef, ParamDef, ToolDef, ToolResultMode};
+pub use proto::agent::{AgentGraphDef, NodeDef, ParamDef, ToolDef};
 
 // ── Runtime State ───────────────────────────────────────────────
 

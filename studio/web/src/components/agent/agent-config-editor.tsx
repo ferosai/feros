@@ -36,19 +36,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import ConfigViewer from "@/components/agent/config-viewer";
 import ConfigDiff from "@/components/agent/config-diff";
 import ShikiCodeBlock from "@/components/ui/shiki-code-block";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
 // ── Language & timezone options ──────────────────────────────────
@@ -186,29 +182,13 @@ interface ConfigTool {
   description?: string;
   side_effect?: boolean;
   script?: string;
-  result_mode?: number | string;
+  summarize_result?: boolean;
 }
 
 interface FullConfig extends Record<string, unknown> {
   entry?: string;
   nodes?: Record<string, ConfigNode>;
   tools?: Record<string, ConfigTool>;
-}
-
-type ToolResultModeUi = "auto" | "summary" | "truncate" | "full";
-
-function modeToUi(mode: unknown): ToolResultModeUi {
-  if (mode === 1 || mode === "TOOL_RESULT_MODE_SUMMARIZE") return "summary";
-  if (mode === 2 || mode === "TOOL_RESULT_MODE_TRUNCATE") return "truncate";
-  if (mode === 3 || mode === "TOOL_RESULT_MODE_NONE") return "full";
-  return "auto";
-}
-
-function uiToMode(ui: ToolResultModeUi): number | null {
-  if (ui === "summary") return 1;
-  if (ui === "truncate") return 2;
-  if (ui === "full") return 3;
-  return null;
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -904,92 +884,84 @@ export default function AgentConfigEditor({
                   </div>
 
                   {tools.length > 0 ? (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                       {tools.map(([id, tool]) => (
                         <Dialog key={id}>
                           <DialogTrigger asChild>
                             <div
                               role="button"
                               tabIndex={0}
-                              className="group/tool text-left cursor-pointer outline-none flex flex-col justify-between p-5 rounded-2xl border border-border bg-background shadow-[0_8px_40px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.08)] hover:border-border/80 transition-all duration-200"
+                              className="group/tool text-left cursor-pointer outline-none flex flex-col p-4 rounded-xl border border-border bg-background shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-border/80 transition-all duration-200"
                             >
-                              <div className="flex items-start justify-between gap-4 mb-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="size-9 rounded-xl bg-accent/60 text-foreground/60 flex items-center justify-center shrink-0 ring-1 ring-border/60">
-                                    <HugeiconsIcon icon={Wrench01Icon} className="size-4" />
-                                  </div>
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold text-foreground tracking-tight leading-tight wrap-break-word line-clamp-2">
-                                      {id}
+                              <div className="flex items-center gap-2 min-w-0 mb-2">
+                                <div className="size-8 rounded-lg bg-accent/60 text-foreground/60 flex items-center justify-center shrink-0 ring-1 ring-border/60">
+                                  <HugeiconsIcon icon={Wrench01Icon} className="size-3.5" />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-sm font-bold text-foreground tracking-tight leading-tight truncate">
+                                    {id}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 mt-0.5 opacity-60">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest leading-none">
+                                      {tool.side_effect ? "Write" : "Read"}
                                     </span>
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                      <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/50 leading-none">
-                                        {tool.side_effect ? "Write" : "Read"}
-                                      </span>
-                                      <div
-                                        className={cn(
-                                          "size-1.5 rounded-full",
-                                          tool.side_effect ? "bg-amber-400" : "bg-emerald-400"
-                                        )}
-                                      />
-                                    </div>
+                                    <div
+                                      className={cn(
+                                        "size-1 rounded-full",
+                                        tool.side_effect ? "bg-amber-400" : "bg-emerald-400"
+                                      )}
+                                    />
                                   </div>
                                 </div>
-
                               </div>
 
-                              <p className="text-xs text-foreground/70 leading-relaxed font-medium line-clamp-3">
-                                {tool.description || "—"}
-                              </p>
-
-                              <div className="mt-4 flex items-center gap-3">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="w-full flex-1 shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-foreground/60 hover:text-foreground hover:bg-accent/60 border border-border/60 transition-all"
-                                      onClick={(e) => e.stopPropagation()}
-                                      onPointerDown={(e) => e.stopPropagation()}
-                                      onKeyDown={(e) => e.stopPropagation()}
-                                      aria-label={`Result mode for ${id}`}
-                                    >
-                                      <HugeiconsIcon icon={Settings03Icon} className="size-3.5" />
-                                      Result Mode: {modeToUi(tool.result_mode).replace(/^./, (c) => c.toUpperCase())}
-                                      <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent
-                                    align="start"
-                                    className="w-44"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {(["auto", "summary", "truncate", "full"] as const).map(
-                                      (mode) => (
-                                        <DropdownMenuItem
-                                          key={mode}
-                                          className={cn(
-                                            "text-xs font-semibold",
-                                            modeToUi(tool.result_mode) === mode &&
-                                              "text-primary bg-primary/5"
-                                          )}
-                                          onSelect={() =>
+                              <div className="flex items-center gap-2 mb-2">
+                                <TooltipProvider>
+                                  <Tooltip delayDuration={300}>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className="flex items-center gap-1.5"
+                                        onClick={(e) => e.stopPropagation()}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-tighter">
+                                          Summarize Result
+                                        </span>
+                                        <Switch
+                                          className="scale-75"
+                                          checked={!!tool.summarize_result}
+                                          onCheckedChange={(checked) =>
                                             patchField({
-                                              tool_result_modes: { [id]: uiToMode(mode) },
+                                              tool_summarize_overrides: {
+                                                [id]: checked || null,
+                                              },
                                             })
                                           }
-                                        >
-                                          {mode.replace(/^./, (c) => c.toUpperCase())}
-                                        </DropdownMenuItem>
-                                      )
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                        />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-[10px] font-bold py-1 px-2">
+                                      Use LLM to summarize long tool outputs
+                                    </TooltipContent>
+                                  </Tooltip>
 
-                                <div className="w-full flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-foreground/60 group-hover/tool:text-foreground group-hover/tool:bg-accent/60 border border-border/60 transition-all">
-                                  <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
-                                  View Code
-                                </div>
+                                  <Tooltip delayDuration={300}>
+                                    <TooltipTrigger asChild>
+                                      <div className="size-7 rounded-lg bg-accent/40 text-foreground/40 flex items-center justify-center hover:bg-accent hover:text-foreground transition-all cursor-pointer">
+                                        <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-[10px] font-bold py-1 px-2">
+                                      View Tool Implementation
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </div>
+
+                              {/* Row 3: description */}
+                              <p className="text-xs text-foreground/60 leading-relaxed font-medium line-clamp-2 italic">
+                                {tool.description || "No description provided."}
+                              </p>
                             </div>
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-[980px] w-[90vw] p-0 overflow-hidden rounded-3xl border-border bg-background shadow-2xl">

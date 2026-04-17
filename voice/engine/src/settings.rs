@@ -48,14 +48,10 @@ use serde::Deserialize;
 ///
 /// | Variable | Default | Description |
 /// |---|---|---|
-/// | `AGENT__TOOL_SUMMARIZER` | `true` | Summarize long tool results before feeding to LLM |
 /// | `AGENT__CONTEXT_SUMMARIZER` | `true` | Compress conversation history when it grows long |
 /// | `AGENT__TOOL_FILLER` | `false` | Speak a filler phrase while side-effecting tools run |
 #[derive(Debug, Clone, Deserialize)]
 pub struct AgentTaskSettings {
-    #[serde(rename = "agent__tool_summarizer", default = "default_true")]
-    pub agent_tool_summarizer: bool,
-
     #[serde(rename = "agent__context_summarizer", default = "default_true")]
     pub agent_context_summarizer: bool,
 
@@ -98,7 +94,6 @@ impl AgentTaskSettings {
 impl Default for AgentTaskSettings {
     fn default() -> Self {
         Self {
-            agent_tool_summarizer: true,
             agent_context_summarizer: true,
             agent_tool_filler: false,
         }
