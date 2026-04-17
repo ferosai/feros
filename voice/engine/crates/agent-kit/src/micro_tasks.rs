@@ -1,16 +1,14 @@
 //! Internal LLM micro-call tasks managed directly by `DefaultAgentBackend`.
 //!
 //! These tasks run in the background to augment agentic logic:
-//! bridging silence with filler words, and compressing tool logs.
+//! bridging silence with filler words and summarizing tool output.
 //! They are fully internal — no public traits, no external customization points.
 
-use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info, warn};
 
-use crate::providers::{collect_text, LlmCallConfig, LlmProvider};
 use crate::agent_backends::ChatMessage;
-
-// ── Tool Summarizer ─────────────────────────────────────────────────
+use crate::providers::{collect_text, LlmCallConfig, LlmProvider};
 
 const TOOL_SUMMARY_PROMPT: &str = "\
 You are a tool result summarizer for a voice assistant. Condense \
@@ -19,68 +17,75 @@ captures the key information the voice assistant needs to respond \
 to the user. Keep only the facts that matter for the conversation.\n\n\
 Output ONLY the summary. No explanation, no formatting.";
 
-#[derive(Clone)]
-pub(super) struct ToolResultSummarizer {
-    provider: Arc<dyn LlmProvider>,
-    summary_min_length: usize,
-}
+const TOOL_SUMMARY_TIMEOUT: Duration = Duration::from_secs(8);
+const TOOL_FILLER_TIMEOUT: Duration = Duration::from_secs(4);
 
-impl ToolResultSummarizer {
-    pub(super) fn new(provider: Arc<dyn LlmProvider>, summary_min_length: usize) -> Self {
-        Self {
-            provider,
-            summary_min_length,
-        }
+pub(super) async fn summarize_tool_result(
+    provider: &dyn LlmProvider,
+    tool_name: &str,
+    raw_result: &str,
+    summary_min_length: usize,
+) -> String {
+    if raw_result.len() < summary_min_length {
+        return raw_result.to_string();
     }
 
-    pub(super) async fn transform(&self, tool_name: &str, raw_result: &str) -> String {
-        if raw_result.len() < self.summary_min_length {
-            return raw_result.to_string();
-        }
-        let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: Some(serde_json::Value::String(TOOL_SUMMARY_PROMPT.to_string())),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: Some(serde_json::Value::String(format!(
-                    "Tool: {}\n\nRaw output:\n{}",
-                    tool_name, raw_result
-                ))),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-        ];
-        let config = LlmCallConfig {
-            temperature: 0.0,
-            max_tokens: 200,
-            model: None,
-        };
-        match collect_text(&*self.provider, &messages, &config).await {
-            Ok(text) => {
-                let trimmed = text.trim().to_string();
-                if trimmed.is_empty() {
-                    raw_result.to_string()
-                } else {
-                    info!(
-                        "[agent_backend::helpers] Tool result summarized ({}): {} → {} chars",
-                        tool_name,
-                        raw_result.len(),
-                        trimmed.len()
-                    );
-                    trimmed
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "[agent_backend::helpers] Tool {} summarization failed: {} — using raw result",
-                    tool_name, e
-                );
+    let messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: Some(serde_json::Value::String(TOOL_SUMMARY_PROMPT.to_string())),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: Some(serde_json::Value::String(format!(
+                "Tool: {}\n\nRaw output:\n{}",
+                tool_name, raw_result
+            ))),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+    ];
+    let config = LlmCallConfig {
+        temperature: 0.0,
+        max_tokens: 200,
+        model: None,
+    };
+
+    match tokio::time::timeout(
+        TOOL_SUMMARY_TIMEOUT,
+        collect_text(provider, &messages, &config),
+    )
+    .await
+    {
+        Ok(Ok(text)) => {
+            let trimmed = text.trim().to_string();
+            if trimmed.is_empty() {
                 raw_result.to_string()
+            } else {
+                info!(
+                    "[agent_backend::helpers] Tool result summarized ({}): {} -> {} chars",
+                    tool_name,
+                    raw_result.len(),
+                    trimmed.len()
+                );
+                trimmed
             }
+        }
+        Ok(Err(e)) => {
+            warn!(
+                "[agent_backend::helpers] Tool {} summarization failed: {} - using raw result",
+                tool_name, e
+            );
+            raw_result.to_string()
+        }
+        Err(_) => {
+            warn!(
+                "[agent_backend::helpers] Tool {} summarization timed out after {:?} - using raw result",
+                tool_name, TOOL_SUMMARY_TIMEOUT
+            );
+            raw_result.to_string()
         }
     }
 }
@@ -122,8 +127,13 @@ pub(super) async fn generate_tool_filler(
         max_tokens: 30,
         model: None,
     };
-    match collect_text(provider, &messages, &config).await {
-        Ok(text) => {
+    match tokio::time::timeout(
+        TOOL_FILLER_TIMEOUT,
+        collect_text(provider, &messages, &config),
+    )
+    .await
+    {
+        Ok(Ok(text)) => {
             let trimmed = text.trim().to_string();
             if trimmed.is_empty() {
                 None
@@ -135,8 +145,15 @@ pub(super) async fn generate_tool_filler(
                 Some(trimmed)
             }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             warn!("[agent_backend::helpers] Tool filler failed: {}", e);
+            None
+        }
+        Err(_) => {
+            warn!(
+                "[agent_backend::helpers] Tool filler timed out after {:?}",
+                TOOL_FILLER_TIMEOUT
+            );
             None
         }
     }

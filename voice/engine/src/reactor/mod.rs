@@ -611,17 +611,32 @@ impl Reactor {
                 break;
             }
 
+            // LLM events are polled first (biased select arm #1) to prevent
+            // rapid RTP ingress from repeatedly cancelling `llm.recv()` before
+            // a ready tool-result event is consumed.
+            //
+            // Trade-off: if the LLM channel is continuously ready (fast token
+            // stream), audio_rx could be transiently starved. This is acceptable
+            // because: (a) LLM streams are bounded in duration, (b) VAD and the
+            // denoiser run on the audio thread and do not block on this recv(),
+            // and (c) a brief delay in on_audio() during token streaming has no
+            // perceptible impact on voice quality or latency.
+            //
+            // replay_log.record(ReactorInput::*) arms below capture a typed
+            // input snapshot (opt-in, zero-cost when disabled) used by the
+            // replay/sim harness for deterministic testing. Each arm decides
+            // independently whether to record. See reactor/replay.rs.
             tokio::select! {
                 biased;
 
-                // ── Highest priority: incoming audio (keep VAD responsive) ──
-                //
-                //   replay_log.record(ReactorInput::*)
-                //     → typed input snapshot (opt-in, zero-cost when disabled).
-                //       Used by the replay/sim harness for deterministic testing.
-                //
-                // Each arm decides independently whether to call one or both.
-                // See reactor/replay.rs for the ReactorInput type documentation.
+                // ── LLM tokens / tool calls / finished ──
+                // Prioritized over audio — see rationale above.
+                Some(ev) = self.llm.recv(), if self.llm.is_active() => {
+                    self.replay_log.record(replay::ReactorInput::LlmEvent(ev.clone()));
+                    self.on_llm_event(ev).await;
+                }
+
+                // ── Audio (keep VAD responsive) ──
                 msg = self.audio_rx.recv() => {
                     match msg {
                         Some(raw) => {
@@ -645,12 +660,6 @@ impl Reactor {
                 Some(ev) = self.stt.recv() => {
                     self.replay_log.record(replay::ReactorInput::SttEvent(ev.clone()));
                     self.on_stt_event(ev).await;
-                }
-
-                // ── LLM tokens / tool calls / finished ──
-                Some(ev) = self.llm.recv(), if self.llm.is_active() => {
-                    self.replay_log.record(replay::ReactorInput::LlmEvent(ev.clone()));
-                    self.on_llm_event(ev).await;
                 }
 
                 // ── TTS audio chunks ──
