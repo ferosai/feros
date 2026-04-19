@@ -56,44 +56,17 @@ pub trait TelephonyProviderImpl: Send + Sync {
     /// Hang up the call unconditionally via the provider's REST API.
     async fn hangup(&self, config: &TelephonyConfig, call_id: &str) -> Result<(), TransportError>;
 
-    /// **Conference-based supervised transfer** — the correct approach for keeping
-    /// the AI session alive while the destination rings.
+    /// Perform a blind transfer to another number.
     ///
-    /// # Protocol
-    /// 1. Place a *new* outbound call from `from_number` to `destination`.
-    /// 2. Instruct the provider: once the destination answers, join them into
-    ///    a Conference named `conference_name`.
-    /// 3. Register `transfer_callback_url` as the StatusCallback for the
-    ///    outbound leg so we can learn when the destination answered or failed.
-    /// 4. The original call (`original_call_id`) is **not touched** here — the AI
-    ///    session's WebSocket stays alive.
-    /// 5. When the callback fires with `answered`, the webhook handler moves
-    ///    the original caller into the Conference and sends `TransferResult::succeeded`.
-    /// 6. If the callback fires with `busy`/`no-answer`/`failed`, the webhook
-    ///    sends `TransferResult::failed` and the AI resumes the conversation.
-    ///
-    /// Returns the provider-assigned SID of the newly placed outbound call leg.
-    async fn initiate_supervised_transfer(
-        &self,
-        config: &TelephonyConfig,
-        original_call_id: &str,
-        destination: &str,
-        from_number: &str,
-        conference_name: &str,
-        transfer_callback_url: &str,
-    ) -> Result<String, TransportError>;
-
-    /// Move `call_id` into a named Conference room.
-    ///
-    /// Used by the webhook handler after the destination has answered: this
-    /// replaces the original caller's active TwiML with a `<Conference>` verb
-    /// so they are bridged to the destination who is already in the room.
-    async fn bridge_call_to_conference(
+    /// This immediately instructs the telephony provider to drop the current
+    /// AI websocket and connect the caller to the new destination. Return OK
+    /// if the transfer command is successfully accepted by the provider.
+    async fn blind_transfer(
         &self,
         config: &TelephonyConfig,
         call_id: &str,
-        conference_id_or_name: &str,
-    ) -> Result<String, TransportError>;
+        destination: &str,
+    ) -> Result<(), TransportError>;
 }
 
 /// Create a boxed provider implementation from the enum variant.

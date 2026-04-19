@@ -968,15 +968,19 @@ class BuilderService:
                                         "content": delta.content_delta,
                                     }
                                 elif isinstance(delta, ToolCallPartDelta):
-                                    payload: dict[str, str] = {"kind": "part_delta", "part_kind": "tool-call"}
+                                    payload: dict[str, str] = {
+                                        "kind": "part_delta",
+                                        "part_kind": "tool-call",
+                                    }
                                     if delta.args_delta:
                                         payload["content"] = (
                                             delta.args_delta
                                             if isinstance(delta.args_delta, str)
                                             else json.dumps(delta.args_delta)
                                         )
-                                    if getattr(delta, "tool_name_delta", None):
-                                        payload["tool_name"] = delta.tool_name_delta
+                                    name_delta = getattr(delta, "tool_name_delta", None)
+                                    if isinstance(name_delta, str) and name_delta:
+                                        payload["tool_name"] = name_delta
 
                                     if "content" in payload or "tool_name" in payload:
                                         yield payload

@@ -52,7 +52,13 @@ _TOP_LEVEL_ORDER = [
 
 _NODE_FIELD_ORDER = ["system_prompt", "greeting", "tools", "edges"]
 
-_TOOL_FIELD_ORDER = ["description", "params", "script", "side_effect", "summarize_result"]
+_TOOL_FIELD_ORDER = [
+    "description",
+    "params",
+    "script",
+    "side_effect",
+    "summarize_result",
+]
 
 
 def _validate_string_list(value: Any, field_name: str) -> None:

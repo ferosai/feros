@@ -134,22 +134,26 @@ pub(crate) async fn run_native_multimodal(
     let mut hangup_target: Option<tokio::time::Instant> = None;
     let mut hangup_max_target: Option<tokio::time::Instant> = None;
 
-    let mut holding = false;
-    let mut hold_phase: f32 = 0.0;
+    let mut transferring = false;
+    let mut transfer_timeout_target: Option<tokio::time::Instant> = None;
 
     // ── Main event loop ────────────────────────────────────────────
     loop {
         tokio::select! {
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(20)), if holding => {
-                let hold_rate = if transport.is_telephony { 8000 } else { WEBRTC_RATE };
-                let pcm_bytes = crate::utils::generate_transfer_hold_tone(&mut hold_phase, hold_rate);
-
-                let offset = tts_cursor.stamp(pcm_bytes.len());
-                tracer.emit(Event::AgentAudio {
-                    pcm: Bytes::from(pcm_bytes),
-                    sample_rate: hold_rate,
-                    offset_samples: offset,
-                });
+            _ = async {
+                if let Some(target) = transfer_timeout_target {
+                    tokio::time::sleep_until(target).await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            } => {
+                warn!("[native] Blind transfer timed out after 30s — shutting down session.");
+                // At this point we don't know if the blind transfer succeeded
+                // (caller already bridged to destination) or not. Do NOT try to
+                // re-engage Gemini to "inform the caller": if the call was already
+                // transferred, there is no caller to talk to. Shut down cleanly.
+                let _ = transport.control_tx.send(voice_transport::TransportCommand::Close);
+                break;
             }
 
             ctrl_event = transport.control_rx.recv() => {
@@ -161,7 +165,8 @@ pub(crate) async fn run_native_multimodal(
                             let _ = transport.control_tx.send(voice_transport::TransportCommand::TransferCompletedEndSession);
                             break;
                         } else {
-                            holding = false;
+                            transferring = false;
+                            transfer_timeout_target = None;
                             let fail_reason = reason.unwrap_or_else(|| "Unknown Provider Error".into());
                             if let Err(e) = backend.push_transfer_failure_result(destination, fail_reason).await {
                                 warn!("[native] Failed to send transfer failure to Gemini: {}", e);
@@ -248,7 +253,7 @@ pub(crate) async fn run_native_multimodal(
                             pending_pcm.push(samples);
                         });
 
-                        if !holding {
+                        if !transferring {
                             for samples in pending_pcm {
                                 if let Err(e) = backend.push_audio(&samples).await {
                                     warn!("[native] push_audio error: {}", e);
@@ -314,10 +319,10 @@ pub(crate) async fn run_native_multimodal(
             event = backend.recv() => {
                 match event {
                     Some(ev) => {
-                        // Once we are holding (escalated), ignore all further backend events
+                        // Once we are transferring (escalated), ignore all further backend events
                         // to prevent stray LLM audio, tool calls, or duplicate escalate_call attempts
                         // while the telephony provider routes the transfer.
-                        if holding {
+                        if transferring {
                             continue;
                         }
                         match ev {
@@ -519,10 +524,11 @@ pub(crate) async fn run_native_multimodal(
                             // generating a farewell audio turn. Sending activityStart races
                             // with that turn generation and causes Gemini to emit an empty
                             // response ("model output must contain either output text or tool
-                            // calls"). The holding guard below is sufficient to drain and
+                            // calls"). The transferring guard below is sufficient to drain and
                             // discard all further events without disrupting the provider.
-                            holding = true;
+                            transferring = true;
                             bot_speaking = false;
+                            transfer_timeout_target = Some(tokio::time::Instant::now() + tokio::time::Duration::from_secs(30));
 
                             tracer.emit(Event::ToolActivity {
                                 tool_call_id: None,

@@ -257,14 +257,12 @@ impl NativeMultimodalBackend {
     pub async fn push_transfer_failure_result(&mut self, destination: String, reason: String) -> Result<(), LlmProviderError> {
         let msg = if destination.is_empty() {
             format!(
-                "System notification: Call transfer failed. The telephony provider returned: {}. \
-                 Please inform the user and ask how they would like to proceed.",
+                "Call transfer failed: {}. Please inform the caller and offer alternatives.",
                 reason
             )
         } else {
             format!(
-                "System notification: Call transfer to {} failed. The telephony provider returned: {}. \
-                 Please inform the user and ask how they would like to proceed.",
+                "Call transfer to {} failed: {}. Please inform the caller and offer alternatives.",
                 destination, reason
             )
         };

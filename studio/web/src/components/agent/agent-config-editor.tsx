@@ -147,7 +147,10 @@ function getConfigFields(config: Record<string, unknown>): {
     tts_model: (config?.tts_model as string) || "",
     gemini_live_model:
       (config?.geminiLiveModel as string) || (config?.gemini_live_model as string) || "",
-    escalation_destinations: (config?.escalation_destinations as { name: string; phone_number: string }[]),
+    escalation_destinations: config?.escalation_destinations as {
+      name: string;
+      phone_number: string;
+    }[],
   };
 }
 
@@ -214,8 +217,13 @@ export default function AgentConfigEditor({
   const [language, setLanguage] = useState(fields?.language ?? "en");
   const [timezone, setTimezone] = useState(fields?.timezone ?? "");
   const [voiceIdDraft, setVoiceIdDraft] = useState(fields?.voice_id ?? "");
-  const [escalationDestinations, setEscalationDestinations] = useState<{id: string, name: string, phone_number: string}[]>(
-    (fields?.escalation_destinations ?? []).map((d: any) => ({ ...d, id: Math.random().toString(36).substring(7) }))
+  const [escalationDestinations, setEscalationDestinations] = useState<
+    { id: string; name: string; phone_number: string }[]
+  >(
+    (fields?.escalation_destinations ?? []).map((d: { name: string; phone_number: string }) => ({
+      ...d,
+      id: Math.random().toString(36).substring(7),
+    }))
   );
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -227,7 +235,7 @@ export default function AgentConfigEditor({
   const [voicesLoading, setVoicesLoading] = useState(false);
   const [ttsModels, setTtsModels] = useState<TtsModelSpec[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [view, setView] = useState<"agent" | "raw">("agent");
+  const [view, setView] = useState<"agent" | "prompt_tools" | "raw">("agent");
   const [copied, setCopied] = useState(false);
   const fullConfig = (config || {}) as FullConfig;
   const nodeIds = useMemo(() => Object.keys(fullConfig.nodes || {}), [fullConfig.nodes]);
@@ -293,9 +301,20 @@ export default function AgentConfigEditor({
     setLanguage(fields.language);
     setTimezone(fields.timezone);
     setVoiceIdDraft(fields.voice_id);
-    setEscalationDestinations((fields.escalation_destinations ?? []).map((d: any) => ({ ...d, id: Math.random().toString(36).substring(7) })));
+    setEscalationDestinations(
+      (fields.escalation_destinations ?? []).map((d: { name: string; phone_number: string }) => ({
+        ...d,
+        id: Math.random().toString(36).substring(7),
+      }))
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields?.language, fields?.timezone, fields?.voice_id, fields?.gemini_live_model, escalationDestinationsJson]);
+  }, [
+    fields?.language,
+    fields?.timezone,
+    fields?.voice_id,
+    fields?.gemini_live_model,
+    escalationDestinationsJson,
+  ]);
 
   const patchField = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -437,6 +456,18 @@ export default function AgentConfigEditor({
           >
             <HugeiconsIcon icon={Settings03Icon} className="size-3.5" />
             Agent Config
+          </button>
+          <button
+            onClick={() => setView("prompt_tools")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-300 select-none outline-none",
+              view === "prompt_tools"
+                ? "bg-background text-foreground shadow-sm ring-1 ring-border/20"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <HugeiconsIcon icon={ChatBotIcon} className="size-3.5" />
+            Prompt & Tools
           </button>
           <button
             onClick={() => setView("raw")}
@@ -814,8 +845,12 @@ export default function AgentConfigEditor({
                                 setEscalationDestinations(newDests);
                               }}
                               onBlur={() => {
-                                const valid = escalationDestinations.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
-                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
+                                const valid = escalationDestinations.filter(
+                                  (d) => d.name.trim() !== "" && d.phone_number.trim() !== ""
+                                );
+                                patchField({
+                                  escalation_destinations: valid.map(({ id: _, ...rest }) => rest),
+                                });
                               }}
                               placeholder="Name (e.g. Sales)"
                               disabled={saving === "escalation_destinations"}
@@ -830,8 +865,12 @@ export default function AgentConfigEditor({
                                 setEscalationDestinations(newDests);
                               }}
                               onBlur={() => {
-                                const valid = escalationDestinations.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
-                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
+                                const valid = escalationDestinations.filter(
+                                  (d) => d.name.trim() !== "" && d.phone_number.trim() !== ""
+                                );
+                                patchField({
+                                  escalation_destinations: valid.map(({ id: _, ...rest }) => rest),
+                                });
                               }}
                               placeholder="Phone (e.g. +1234567890)"
                               disabled={saving === "escalation_destinations"}
@@ -841,8 +880,12 @@ export default function AgentConfigEditor({
                               onClick={() => {
                                 const newDests = escalationDestinations.filter((_, i) => i !== idx);
                                 setEscalationDestinations(newDests);
-                                const valid = newDests.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
-                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
+                                const valid = newDests.filter(
+                                  (d) => d.name.trim() !== "" && d.phone_number.trim() !== ""
+                                );
+                                patchField({
+                                  escalation_destinations: valid.map(({ id: _, ...rest }) => rest),
+                                });
                               }}
                               className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10"
                             >
@@ -852,10 +895,17 @@ export default function AgentConfigEditor({
                         ))}
                         <button
                           onClick={() => {
-                            const newDests = [...escalationDestinations, { id: Math.random().toString(36).substring(7), name: "", phone_number: "" }];
+                            const newDests = [
+                              ...escalationDestinations,
+                              {
+                                id: Math.random().toString(36).substring(7),
+                                name: "",
+                                phone_number: "",
+                              },
+                            ];
                             setEscalationDestinations(newDests);
                           }}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground bg-accent/30 hover:bg-accent transition-all border border-transparent hover:border-border"
+                          className="flex items-center justify-center gap-2 px-4 py-2 mt-1 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 transition-all active:scale-[0.98]"
                         >
                           + Add Destination
                         </button>
@@ -864,7 +914,20 @@ export default function AgentConfigEditor({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
 
+        <div
+          className={cn(
+            "transition-all duration-500",
+            view === "prompt_tools"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-4 pointer-events-none absolute top-0 left-0 w-full"
+          )}
+        >
+          {view === "prompt_tools" && (
+            <div className="space-y-6">
               <section className="relative group/container group/section">
                 <div className="absolute -inset-4 bg-linear-to-tr from-primary/5 via-transparent to-primary/5 rounded-[2rem] blur-2xl opacity-0 group-hover/container:opacity-100 transition-opacity duration-1000 -z-10" />
 
@@ -941,7 +1004,7 @@ export default function AgentConfigEditor({
                 </div>
               </section>
 
-              <section className="relative group/container group/section pb-8">
+              <section className="relative group/container group/section pb-8 @container">
                 <div className="absolute -inset-4 bg-linear-to-tr from-primary/5 via-transparent to-primary/5 rounded-[2rem] blur-2xl opacity-0 group-hover/container:opacity-100 transition-opacity duration-1000 -z-10" />
 
                 <div className="rounded-2xl border border-border bg-background shadow-[0_8px_40px_rgba(0,0,0,0.04)] p-5 md:p-6">
@@ -958,7 +1021,7 @@ export default function AgentConfigEditor({
                   </div>
 
                   {tools.length > 0 ? (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 @xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
                       {tools.map(([id, tool]) => (
                         <Dialog key={id}>
                           <DialogTrigger asChild>

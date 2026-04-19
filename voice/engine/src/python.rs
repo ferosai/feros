@@ -95,10 +95,11 @@ impl PySessionConfig {
             None => None,
         };
 
-        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> = match escalation_destinations_json {
-            Some(json_str) => serde_json::from_str(json_str).unwrap_or_default(),
-            None => vec![],
-        };
+        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> =
+            match escalation_destinations_json {
+                Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
+                None => vec![],
+            };
 
         Ok(Self {
             inner: {
@@ -339,7 +340,12 @@ impl PyVoiceServer {
             telnyx_api_key: config.default_telnyx_api_key.clone(),
             telnyx_connection_id: config.default_telnyx_connection_id.clone(),
         };
-        let state = ServerState::new(providers, telephony, config.telnyx_public_key.clone(), config.auth_secret_key.clone());
+        let state = ServerState::new(
+            providers,
+            telephony,
+            config.telnyx_public_key.clone(),
+            config.auth_secret_key.clone(),
+        );
 
         let addr: SocketAddr = format!("{}:{}", config.host, config.port)
             .parse()
@@ -419,6 +425,8 @@ impl PyVoiceServer {
                 created_at: std::time::Instant::now(),
                 tracer: None,
                 telephony_creds: None,
+                from_number: None,
+                webhook_base_url: None,
             },
         );
         info!(
@@ -854,10 +862,11 @@ impl PyAgentRunner {
         };
 
         // Parse escalation destinations
-        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> = match escalation_destinations_json {
-            Some(json_str) => serde_json::from_str(json_str).unwrap_or_default(),
-            None => vec![],
-        };
+        let escalation_destinations: Vec<agent_kit::swarm::EscalationDestination> =
+            match escalation_destinations_json {
+                Some(json_str) => serde_json::from_str(json_str).unwrap_or_default(),
+                None => vec![],
+            };
 
         // Build LLM provider
         let provider = build_runner_llm_provider(llm_provider, llm_api_key, llm_url, llm_model)?;

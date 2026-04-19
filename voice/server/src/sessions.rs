@@ -75,7 +75,16 @@ async fn create_session(
     let vault_token = state.vault_token_for(agent_uuid);
     let public_url = db::voice_server_url(&state.pool).await;
     // Browser/WebRTC sessions have no telephony credentials and no from_number
-    register_session(&state, &session_id, &agent, vault_token, None, "webrtc", None).await;
+    register_session(
+        &state,
+        &session_id,
+        &agent,
+        vault_token,
+        None,
+        "webrtc",
+        None,
+    )
+    .await;
 
     // Build the WS URL — converts https:// → wss:// automatically
     let ws_url = format!(

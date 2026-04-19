@@ -579,7 +579,9 @@ async def delete_agent(
 
 class EscalationDestination(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
-    phone_number: str = Field(..., min_length=4, max_length=100, pattern=r'^(?:\+?[0-9\s\-\(\)]+|sips?:.+)$')
+    phone_number: str = Field(
+        ..., min_length=4, max_length=100, pattern=r"^(?:\+?[0-9\s\-\(\)]+|sips?:.+)$"
+    )
 
 
 class AgentConfigPatch(BaseModel):
