@@ -47,7 +47,12 @@ async fn main() {
         telnyx_connection_id: settings.telnyx_connection_id,
     };
     let auth_secret_key = std::env::var("AUTH__SECRET_KEY").unwrap_or_default();
-    let state = ServerState::new(providers, telephony, settings.telnyx_public_key, auth_secret_key);
+    let state = ServerState::new(
+        providers,
+        telephony,
+        settings.telnyx_public_key,
+        auth_secret_key,
+    );
 
     let addr: SocketAddr = format!("{}:{}", settings.listen_host, settings.listen_port)
         .parse()

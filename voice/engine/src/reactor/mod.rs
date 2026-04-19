@@ -301,9 +301,8 @@ pub struct Reactor {
     /// High-level session phase. Replaces `had_first_interaction` and
     /// `greeting_in_progress` with a compile-time-safe 3-variant enum.
     pub(crate) session_phase: SessionPhase,
-    /// Call is holding waiting for transfer success/failure
-    pub(crate) holding: bool,
-    pub(crate) hold_phase: f32,
+    /// Call is transferring, waiting for transfer success/failure
+    pub(crate) transferring: bool,
 
     // ── LLM generation phase (LLM → TTS streaming state) ────────────────
     /// Tracks the current LLM output-to-TTS streaming state.
@@ -476,8 +475,7 @@ impl Reactor {
             audio_rx,
             tracer,
             session_phase: SessionPhase::Nascent,
-            holding: false,
-            hold_phase: 0.0,
+            transferring: false,
             llm_turn: session::LlmTurnPhase::Idle,
             hang_up: session::HangUpPhase::Idle,
             tts_provider_config: tts_config,
@@ -717,21 +715,8 @@ impl Reactor {
                     // else: stale chunk (cancelled context) — drop silently
                 }
 
-                _ = tokio::time::sleep(tokio::time::Duration::from_millis(20)), if self.holding => {
-                    let hold_rate = self.config.output_sample_rate;
-                    let pcm_bytes = crate::utils::generate_transfer_hold_tone(&mut self.hold_phase, hold_rate);
-
-                    let offset = self.tts_cursor.stamp(pcm_bytes.len());
-
-                    self.tracer.emit(voice_trace::Event::AgentAudio {
-                        pcm: bytes::Bytes::from(pcm_bytes),
-                        sample_rate: hold_rate,
-                        offset_samples: offset,
-                    });
-                }
-
                 ctrl_event_res = async {
-                    if self.holding {
+                    if self.transferring {
                         tokio::time::timeout(std::time::Duration::from_secs(30), self.control_rx.recv()).await.map_err(|_| ())
                     } else {
                         Ok(self.control_rx.recv().await)
@@ -745,17 +730,17 @@ impl Reactor {
                                 self.transport.transfer_completed();
                                 self.should_exit = true; // exit normally
                             } else {
-                                self.holding = false;
+                                self.transferring = false;
                                 let fail_reason = reason.unwrap_or_else(|| "Unknown Provider Error".into());
                                 // Inject the failure back into the conversation so the LLM
                                 // knows the transfer did not complete and can retry or apologise.
                                 let failure_msg = format!(
-                                    "[SYSTEM] Call transfer to {} failed: {}. Please inform the caller and offer alternatives.",
+                                    "Call transfer to {} failed: {}. Please inform the caller and offer alternatives.",
                                     destination, fail_reason
                                 );
                                 self.llm.add_user_message(failure_msg);
                                 self.cancel_pipeline();
-                                self.start_idle_timer();
+                                self.start_llm_turn().await;
                             }
                         }
                         Ok(Some(voice_transport::TransportEvent::Disconnected { reason })) => {
@@ -768,13 +753,17 @@ impl Reactor {
                             self.should_exit = true;
                         }
                         Err(_) => {
-                            if self.holding {
-                                info!("[reactor] Call transfer timed out after 30s. Automatically failing transfer.");
-                                self.holding = false;
-                                let failure_msg = "[SYSTEM] Call transfer timed out. Please inform the caller and offer alternatives.".to_string();
-                                self.llm.add_user_message(failure_msg);
-                                self.cancel_pipeline();
-                                self.start_idle_timer();
+                            if self.transferring {
+                                // The transport never reported a TransferResult after 30s.
+                                // At this point we don't know if the blind transfer succeeded
+                                // (caller already bridged to destination) or not. Attempting
+                                // to re-engage the LLM and "inform the caller" would be wrong
+                                // if the call was already transferred. Safest option is a clean
+                                // shutdown — if the transport is stuck, the caller has either
+                                // been transferred or dropped already.
+                                warn!("[reactor] Call transfer timed out after 30s — shutting down session.");
+                                self.transferring = false;
+                                self.should_exit = true;
                             }
                         }
                     }

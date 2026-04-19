@@ -1100,7 +1100,7 @@ impl Reactor {
             self.transport.transfer(dest);
             // Do NOT shut down. The transport will report TransferResult via control_rx.
             // If it succeeds, reactor terminates. If it fails, session resumes.
-            self.holding = true;
+            self.transferring = true;
         } else {
             self.initiate_shutdown(reason);
         }

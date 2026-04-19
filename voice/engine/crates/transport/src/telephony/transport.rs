@@ -438,49 +438,26 @@ async fn telephony_cmd_loop(
                 info!("[telephony:{}] Control message: {:?}", provider.name(), msg);
             }
             TransportCommand::Transfer { destination } => {
-                info!("[telephony:{}] Supervised transfer command received → {}", provider.name(), destination);
+                info!("[telephony:{}] Blind transfer command received → {}", provider.name(), destination);
 
                 let call_id = config.get_call_id();
-                let from_number = config.from_number.clone();
-                let public_url = config.public_url.clone();
 
-                match (call_id, from_number, public_url) {
-                    (Some(call_id), Some(from_number), Some(public_url)) => {
-                        // Build a unique conference name from the original call SID.
-                        let conference_name = format!("feros-transfer-{}", call_id);
-                        // Transfer ID is the original call SID — used as the lookup key in transfer_waiters.
-                        // The original call_id is used as the transfer_waiters lookup key.
-                        let callback_url = format!(
-                            "{}/telephony/{}/transfer-status?original_call_id={}",
-                            public_url.trim_end_matches('/'),
-                            provider.name().to_lowercase(),
-                            call_id
-                        );
-
+                match call_id {
+                    Some(call_id) => {
                         info!(
-                            "[telephony:{}] Initiating supervised transfer: call_id={}, from={}, conference={}, callback={}",
-                            provider.name(), call_id, from_number, conference_name, callback_url
+                            "[telephony:{}] Initiating blind transfer: call_id={} → destination={}",
+                            provider.name(), call_id, destination
                         );
 
                         const MAX_ATTEMPTS: u32 = 3;
                         let mut transfer_initiated = false;
                         for attempt in 1..=MAX_ATTEMPTS {
-                            match provider
-                                .initiate_supervised_transfer(
-                                    &config,
-                                    &call_id,
-                                    &destination,
-                                    &from_number,
-                                    &conference_name,
-                                    &callback_url,
-                                )
-                                .await
-                            {
-                                Ok(new_call_sid) => {
+                            match provider.blind_transfer(&config, &call_id, &destination).await {
+                                Ok(()) => {
                                     info!(
-                                        "[telephony:{}] Outbound transfer leg created: {}",
+                                        "[telephony:{}] Blind transfer success: {}",
                                         provider.name(),
-                                        new_call_sid
+                                        destination
                                     );
                                     transfer_initiated = true;
                                     break;
@@ -502,38 +479,28 @@ async fn telephony_cmd_loop(
                             }
                         }
 
-                        if !transfer_initiated {
-                            // Emit a failure event so the AI can tell the user.
+                        if transfer_initiated {
+                            // Tell the reactor we succeeded. The reactor will immediately shut down the session.
+                            let _ = control_tx.send(crate::TransportEvent::TransferResult {
+                                succeeded: true,
+                                destination: destination.clone(),
+                                reason: None,
+                            });
+                        } else {
+                            // Emit a failure event so the AI can apologize to the user.
                             let _ = control_tx.send(crate::TransportEvent::TransferResult {
                                 succeeded: false,
                                 destination: destination.clone(),
-                                reason: Some("Failed to place outbound transfer call".into()),
+                                reason: Some("Failed to blindly transfer call".into()),
                             });
                         }
-                        // Do NOT break — we wait for TransferResult from the webhook or a Close command.
                     }
-                    (None, _, _) => {
+                    None => {
                         warn!("[telephony:{}] Transfer requested but no call_id available", provider.name());
                         let _ = control_tx.send(crate::TransportEvent::TransferResult {
                             succeeded: false,
                             destination,
                             reason: Some("No call_id available for transfer".into()),
-                        });
-                    }
-                    (_, None, _) => {
-                        warn!("[telephony:{}] Transfer requested but no from_number configured — cannot place outbound call", provider.name());
-                        let _ = control_tx.send(crate::TransportEvent::TransferResult {
-                            succeeded: false,
-                            destination,
-                            reason: Some("No from_number configured".into()),
-                        });
-                    }
-                    (_, _, None) => {
-                        warn!("[telephony:{}] Transfer requested but no public_url configured — cannot build callback URL", provider.name());
-                        let _ = control_tx.send(crate::TransportEvent::TransferResult {
-                            succeeded: false,
-                            destination,
-                            reason: Some("No public_url configured".into()),
                         });
                     }
                 }
