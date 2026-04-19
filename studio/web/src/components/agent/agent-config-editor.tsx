@@ -813,7 +813,10 @@ export default function AgentConfigEditor({
                                 newDests[idx].name = e.target.value;
                                 setEscalationDestinations(newDests);
                               }}
-                              onBlur={() => patchField({ escalation_destinations: escalationDestinations.map(({ id, ...rest }) => rest) })}
+                              onBlur={() => {
+                                const valid = escalationDestinations.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
+                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
+                              }}
                               placeholder="Name (e.g. Sales)"
                               disabled={saving === "escalation_destinations"}
                               className="h-9 w-40 rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all"
@@ -826,7 +829,10 @@ export default function AgentConfigEditor({
                                 newDests[idx].phone_number = e.target.value;
                                 setEscalationDestinations(newDests);
                               }}
-                              onBlur={() => patchField({ escalation_destinations: escalationDestinations.map(({ id, ...rest }) => rest) })}
+                              onBlur={() => {
+                                const valid = escalationDestinations.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
+                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
+                              }}
                               placeholder="Phone (e.g. +1234567890)"
                               disabled={saving === "escalation_destinations"}
                               className="h-9 w-48 rounded-lg border border-border/60 bg-accent/30 px-3 text-xs font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-50 transition-all font-mono"
@@ -835,7 +841,8 @@ export default function AgentConfigEditor({
                               onClick={() => {
                                 const newDests = escalationDestinations.filter((_, i) => i !== idx);
                                 setEscalationDestinations(newDests);
-                                patchField({ escalation_destinations: newDests.map(({ id, ...rest }) => rest) });
+                                const valid = newDests.filter(d => d.name.trim() !== "" && d.phone_number.trim() !== "");
+                                patchField({ escalation_destinations: valid.map(({ id, ...rest }) => rest) });
                               }}
                               className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10"
                             >
@@ -847,7 +854,6 @@ export default function AgentConfigEditor({
                           onClick={() => {
                             const newDests = [...escalationDestinations, { id: Math.random().toString(36).substring(7), name: "", phone_number: "" }];
                             setEscalationDestinations(newDests);
-                            patchField({ escalation_destinations: newDests.map(({ id, ...rest }) => rest) });
                           }}
                           className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground bg-accent/30 hover:bg-accent transition-all border border-transparent hover:border-border"
                         >

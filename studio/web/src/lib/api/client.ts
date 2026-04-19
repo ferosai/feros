@@ -646,13 +646,23 @@ export const api = {
       agentId: string,
       content: string,
       callbacks: StreamCallbacks,
-      attachments?: FileAttachment[]
+      attachments?: FileAttachment[],
+      signal?: AbortSignal
     ) => {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, attachments: attachments ?? [] }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/stream`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, attachments: attachments ?? [] }),
+          signal,
+        });
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") {
+          callbacks.onError?.("Failed to connect to builder");
+        }
+        return;
+      }
 
       if (!res.ok || !res.body) {
         callbacks.onError?.("Failed to connect to builder");
@@ -663,62 +673,72 @@ export const api = {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+      try {
+        while (true) {
+          if (signal?.aborted) break;
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events from buffer
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
+          // Parse SSE events from buffer, allowing for both \n\n and \r\n\r\n
+          const parts = buffer.split(/\r?\n\r?\n/);
+          buffer = parts.pop() || "";
 
-        for (const part of parts) {
-          const lines = part.split("\n");
-          let eventType = "message";
-          let data = "";
+          for (const part of parts) {
+            if (signal?.aborted) break;
+            const lines = part.split("\n");
+            let eventType = "message";
+            let data = "";
 
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.slice(7);
-            else if (line.startsWith("data: ")) data = line.slice(6);
-          }
-
-          if (!data) continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            switch (eventType) {
-              case "part":
-                callbacks.onPart?.(parsed);
-                break;
-              case "mermaid_start":
-                callbacks.onMermaidStart?.();
-                break;
-              case "config":
-                callbacks.onConfig?.(parsed);
-                break;
-              case "action_cards":
-                callbacks.onActionCards?.(parsed);
-                break;
-              case "mermaid":
-                callbacks.onMermaid?.(parsed);
-                break;
-              case "progress":
-                callbacks.onProgress?.(parsed);
-                break;
-              case "diff":
-                callbacks.onDiff?.(parsed.description);
-                break;
-              case "preview":
-                callbacks.onPreview?.(parsed);
-                break;
-              case "done":
-                callbacks.onDone?.(parsed);
-                break;
+            for (const line of lines) {
+              if (line.startsWith("event:")) eventType = line.slice(7).trim();
+              else if (line.startsWith("data:")) data = line.slice(6).trim();
             }
-          } catch {
-            // ignore parse errors
+
+            if (!data) continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              switch (eventType) {
+                case "part":
+                  callbacks.onPart?.(parsed);
+                  break;
+                case "mermaid_start":
+                  callbacks.onMermaidStart?.();
+                  break;
+                case "config":
+                  callbacks.onConfig?.(parsed);
+                  break;
+                case "action_cards":
+                  callbacks.onActionCards?.(parsed);
+                  break;
+                case "mermaid":
+                  callbacks.onMermaid?.(parsed);
+                  break;
+                case "progress":
+                  callbacks.onProgress?.(parsed);
+                  break;
+                case "diff":
+                  callbacks.onDiff?.(parsed.description);
+                  break;
+                case "preview":
+                  callbacks.onPreview?.(parsed);
+                  break;
+                case "done":
+                  callbacks.onDone?.(parsed);
+                  break;
+              }
+            } catch (e) {
+              console.warn("SSE Parse error:", e, "Data:", data);
+            }
           }
         }
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") {
+          callbacks.onError?.("Stream disconnected");
+        }
+      } finally {
+        reader.cancel().catch(() => {});
       }
     },
   },

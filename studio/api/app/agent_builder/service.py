@@ -896,6 +896,7 @@ class BuilderService:
             ThinkingPart,
             ThinkingPartDelta,
             ToolCallPart,
+            ToolCallPartDelta,
         )
 
         async with self.stream_agent.iter(
@@ -909,6 +910,8 @@ class BuilderService:
                 if isinstance(node, ModelRequestNode):
                     # ModelRequestNode streams model response events
                     # (text deltas, thinking deltas, tool call parts)
+                    _hidden_part_indices: set[int] = set()
+
                     async with node.stream(agent_run.ctx) as stream:
                         async for event in stream:
                             if isinstance(event, PartStartEvent):
@@ -934,7 +937,9 @@ class BuilderService:
                                         }
                                 elif isinstance(part, ToolCallPart):
                                     # Skip hidden tools — don't stream to chat
-                                    if part.tool_name not in self._HIDDEN_TOOLS:
+                                    if part.tool_name in self._HIDDEN_TOOLS:
+                                        _hidden_part_indices.add(event.index)
+                                    else:
                                         yield {
                                             "kind": "part_start",
                                             "part_kind": "tool-call",
@@ -946,6 +951,9 @@ class BuilderService:
                                             ),
                                         }
                             elif isinstance(event, PartDeltaEvent):
+                                if getattr(event, "index", -1) in _hidden_part_indices:
+                                    continue
+
                                 delta = event.delta
                                 if isinstance(delta, TextPartDelta):
                                     yield {
@@ -959,6 +967,19 @@ class BuilderService:
                                         "part_kind": "thinking",
                                         "content": delta.content_delta,
                                     }
+                                elif isinstance(delta, ToolCallPartDelta):
+                                    payload: dict[str, str] = {"kind": "part_delta", "part_kind": "tool-call"}
+                                    if delta.args_delta:
+                                        payload["content"] = (
+                                            delta.args_delta
+                                            if isinstance(delta.args_delta, str)
+                                            else json.dumps(delta.args_delta)
+                                        )
+                                    if getattr(delta, "tool_name_delta", None):
+                                        payload["tool_name"] = delta.tool_name_delta
+
+                                    if "content" in payload or "tool_name" in payload:
+                                        yield payload
                 elif isinstance(node, CallToolsNode):
                     # CallToolsNode streams tool execution events
                     # (function calls starting, function results).

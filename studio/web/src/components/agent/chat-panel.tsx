@@ -84,6 +84,8 @@ export default function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Abort controller for the active stream
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-scroll
   useEffect(() => {
@@ -157,8 +159,9 @@ export default function ChatPanel({
       role: "user",
       parts,
     };
+    const streamMsgId = `stream-${Date.now()}`;
     const streamMsg: ChatMessage = {
-      id: `stream-${Date.now()}`,
+      id: streamMsgId,
       role: "assistant",
       parts: [],
       isStreaming: true,
@@ -173,10 +176,11 @@ export default function ChatPanel({
     const sentAttachments = apiAttachments.length > 0 ? apiAttachments : undefined;
     if (sentAttachments) setUploadedFiles([]);
 
-    const buildUiState = {
-      buildUiStarted: false,
-    };
+    // AbortController for this stream
+    const ac = new AbortController();
+    abortControllerRef.current = ac;
 
+    const buildUiState = { buildUiStarted: false };
     const ensureBuildStarted = () => {
       if (buildUiState.buildUiStarted) return;
       buildUiState.buildUiStarted = true;
@@ -184,112 +188,145 @@ export default function ChatPanel({
     };
 
     try {
-      await api.builder.streamMessage(
-        agentId,
-        content,
-        {
-          onMermaidStart: () => {
-            ensureBuildStarted();
-          },
-          onPart: (evt: StreamPart) => {
-            ensureBuildStarted();
-            setMessages((p) =>
-              p.map((m) => {
-                if (m.id !== streamMsg.id) return m;
-                const parts = [...(m.parts || [])];
+      await api.builder
+        .streamMessage(
+          agentId,
+          content,
+          {
+            onMermaidStart: () => {
+              ensureBuildStarted();
+            },
+            onPart: (evt: StreamPart) => {
+              ensureBuildStarted();
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== streamMsgId) return m;
+                  const parts = [...(m.parts || [])];
 
-                if (evt.kind === "part_start" && evt.part_kind) {
-                  parts.push({
-                    kind: evt.part_kind,
-                    content: "",
-                    tool_name: evt.tool_name,
-                    args: evt.args,
-                  });
-                } else if (evt.kind === "part_delta" && parts.length > 0) {
-                  const last = { ...parts[parts.length - 1] };
-                  last.content += evt.content || "";
-                  parts[parts.length - 1] = last;
-                } else if (evt.kind === "tool_return") {
-                  parts.push({
-                    kind: "tool-return",
-                    content: evt.content || "",
-                    tool_name: evt.tool_name,
-                  });
-                }
-
-                return { ...m, parts };
-              })
-            );
-          },
-          onConfig: (config: AgentGraphConfig) => {
-            setMessages((p) => p.map((m) => (m.id === streamMsg.id ? { ...m, config } : m)));
-            void onConfigUpdate();
-          },
-          onActionCards: (cards: ActionCard[]) => {
-            setMessages((p) =>
-              p.map((m) => (m.id === streamMsg.id ? { ...m, actionCards: cards } : m))
-            );
-          },
-          onMermaid: (diagram) => {
-            onMermaidUpdate(diagram);
-          },
-          onProgress: (data) => {
-            setMessages((p) =>
-              p.map((m) =>
-                m.id === streamMsg.id
-                  ? {
-                      ...m,
-                      progressEvents: [
-                        ...(m.progressEvents || []),
-                        {
-                          step: data.step,
-                          status: data.status,
-                          message: data.message,
-                        },
-                      ],
+                  if (evt.kind === "part_start" && evt.part_kind) {
+                    parts.push({
+                      kind: evt.part_kind,
+                      content: "",
+                      tool_name: evt.tool_name,
+                      args: evt.args,
+                    });
+                  } else if (evt.kind === "part_delta") {
+                    let targetIdx = -1;
+                    if (evt.part_kind) {
+                      for (let j = parts.length - 1; j >= 0; j--) {
+                        if (parts[j].kind === evt.part_kind) {
+                          targetIdx = j;
+                          break;
+                        }
+                      }
+                    } else {
+                      targetIdx = parts.length - 1;
                     }
-                  : m
-              )
-            );
-          },
-          onDiff: (desc) => {
-            onDiff?.(desc);
-          },
-          onDone: (data) => {
-            setMessages((p) =>
-              p.map((m) =>
-                m.id === streamMsg.id
-                  ? {
-                      ...m,
-                      isStreaming: false,
-                      changeSummary: data.change_summary ?? undefined,
+                    if (targetIdx === -1 && evt.part_kind) {
+                      parts.push({
+                        kind: evt.part_kind,
+                        content: "",
+                        tool_name: evt.tool_name,
+                        args: "",
+                      });
+                      targetIdx = parts.length - 1;
                     }
-                  : m
-              )
-            );
-            onBuildFinish();
-          },
-          onError: (e: string) => {
-            setMessages((p) =>
-              p.map((m) =>
-                m.id === streamMsg.id
-                  ? {
-                      ...m,
-                      isStreaming: false,
-                      parts: [{ kind: "text" as const, content: e }],
+                    if (targetIdx >= 0) {
+                      const t = { ...parts[targetIdx] };
+                      if (t.kind === "tool-call") {
+                        t.args = (t.args || "") + (evt.content || "");
+                        if (evt.tool_name) t.tool_name = (t.tool_name || "") + evt.tool_name;
+                      } else {
+                        t.content += evt.content || "";
+                      }
+                      parts[targetIdx] = t;
                     }
-                  : m
-              )
-            );
-            onBuildFinish();
+                  } else if (evt.kind === "tool_return") {
+                    parts.push({
+                      kind: "tool-return",
+                      content: evt.content || "",
+                      tool_name: evt.tool_name,
+                    });
+                  }
+                  return { ...m, parts };
+                })
+              );
+            },
+            onConfig: (config: AgentGraphConfig) => {
+              setMessages((p) => p.map((m) => (m.id === streamMsgId ? { ...m, config } : m)));
+              void onConfigUpdate();
+            },
+            onActionCards: (cards: ActionCard[]) => {
+              setMessages((p) =>
+                p.map((m) => (m.id === streamMsgId ? { ...m, actionCards: cards } : m))
+              );
+            },
+            onMermaid: (diagram) => {
+              onMermaidUpdate(diagram);
+            },
+            onProgress: (data) => {
+              setMessages((p) =>
+                p.map((m) =>
+                  m.id === streamMsgId
+                    ? {
+                        ...m,
+                        progressEvents: [
+                          ...(m.progressEvents || []),
+                          {
+                            step: data.step,
+                            status: data.status,
+                            message: data.message,
+                          },
+                        ],
+                      }
+                    : m
+                )
+              );
+            },
+            onDiff: (desc) => {
+              onDiff?.(desc);
+            },
+            onDone: (data) => {
+              setMessages((p) =>
+                p.map((m) =>
+                  m.id === streamMsgId
+                    ? {
+                        ...m,
+                        isStreaming: false,
+                        changeSummary: data.change_summary ?? undefined,
+                      }
+                    : m
+                )
+              );
+              void onConfigUpdate();
+              onBuildFinish();
+            },
+            onError: (e: string) => {
+              setMessages((p) =>
+                p.map((m) =>
+                  m.id === streamMsgId
+                    ? {
+                        ...m,
+                        isStreaming: false,
+                        parts: [{ kind: "text" as const, content: e }],
+                      }
+                    : m
+                )
+              );
+              onBuildFinish();
+            },
           },
-        },
-        sentAttachments
-      );
+          sentAttachments,
+          ac.signal
+        )
+        .catch((e) => {
+          if (e.name !== "AbortError") console.error(e);
+        });
     } catch {
       onBuildFinish();
     } finally {
       setSending(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -301,6 +338,14 @@ export default function ChatPanel({
   };
 
   const canSend = input.trim().length > 0 && !sending;
+  const handleStop = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    // Mark the streaming message as done
+    setMessages((p) => p.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)));
+    onBuildFinish();
+    setSending(false);
+  };
 
   return (
     <>
@@ -364,7 +409,6 @@ export default function ChatPanel({
                     )}
                     <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-sm text-foreground/90 prose-p:break-normal prose-p:leading-relaxed prose-strong:text-foreground prose-p:mt-2 prose-pre:border prose-pre:border-border prose-pre:bg-muted prose-code:text-foreground/90 prose-headings:text-foreground prose-headings:text-sm overflow-x-auto custom-scrollbar">
                       {(() => {
-                        // Parts from progressive streaming or loaded from DB
                         const parts: RenderedPartData[] = msg.parts || [];
 
                         if (parts.length === 0 && msg.isStreaming) {
@@ -376,16 +420,17 @@ export default function ChatPanel({
                           );
                         }
 
-                        if (parts.length === 0) {
-                          return null;
-                        }
-
                         return (
                           <div className="space-y-3 [&_details]:mt-3 [&_summary]:cursor-pointer [&_summary]:text-[10px] [&_summary]:font-mono [&_summary]:text-foreground/75 [&_summary]:transition-colors [&_summary]:select-none [&_summary]:list-none [&_summary]:flex [&_summary]:items-center [&_summary]:gap-1.5 [&_summary]:hover:text-primary [&_summary::-webkit-details-marker]:hidden">
                             {parts.map((part, i) => {
-                              if (part.kind === "thinking" && part.content) {
+                              if (part.kind === "thinking") {
+                                if (!part.content && !msg.isStreaming) return null;
                                 return (
-                                  <details key={i} className="group">
+                                  <details
+                                    key={i}
+                                    className="group"
+                                    open={msg.isStreaming || undefined}
+                                  >
                                     <summary>
                                       <HugeiconsIcon
                                         icon={ArrowDown01Icon}
@@ -393,12 +438,17 @@ export default function ChatPanel({
                                       />
                                       <HugeiconsIcon icon={AiBrain01Icon} className="size-3" />
                                       Thinking...
+                                      {msg.isStreaming && !part.content && (
+                                        <Spinner className="size-2.5 ml-1 text-muted-foreground" />
+                                      )}
                                     </summary>
-                                    <div className="relative mt-1 ml-1.5 pl-3 text-muted-foreground text-xs leading-relaxed before:absolute before:left-0 before:-top-1 before:bottom-0 before:w-px before:bg-border">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {part.content}
-                                      </ReactMarkdown>
-                                    </div>
+                                    {part.content && (
+                                      <div className="relative mt-1 ml-1.5 pl-3 text-muted-foreground text-xs leading-relaxed before:absolute before:left-0 before:-top-1 before:bottom-0 before:w-px before:bg-border">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                          {part.content}
+                                        </ReactMarkdown>
+                                      </div>
+                                    )}
                                   </details>
                                 );
                               }
@@ -495,7 +545,8 @@ export default function ChatPanel({
                                   </details>
                                 );
                               }
-                              if (part.kind === "text" && part.content) {
+                              if (part.kind === "text") {
+                                if (!part.content && !msg.isStreaming) return null;
                                 return (
                                   <div key={i}>
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -662,7 +713,7 @@ export default function ChatPanel({
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm "
                       : "cursor-not-allowed bg-secondary text-muted-foreground/40"
                 }`}
-                onClick={sending ? undefined : sendMessage}
+                onClick={sending ? handleStop : sendMessage}
                 disabled={!canSend && !sending}
                 aria-label={sending ? "Stop" : "Send message"}
               >
