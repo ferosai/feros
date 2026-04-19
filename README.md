@@ -92,10 +92,10 @@ The minimum runtime configuration is 2 CPU cores and 2 GB of RAM. Hosting the we
 
 ## Roadmap
 
+- [x] Gemini Live native audio — end-to-end multimodal backend
 - [ ] Outbound calls — agent-initiated dialing with retry and scheduling
 - [ ] Dynamic Agent Variables — resolve runtime context at session start for personalized conversations
 - [ ] Granular Usage Billing — step-level cost attribution across models and third-party services
-- [ ] Gemini Live native audio — end-to-end multimodal backend
 - [ ] Direct PSTN via SIP — no Twilio or Telnyx required
 - [ ] Agent-to-agent evaluation — tester agent calling target agent over live audio
 - [ ] Evaluation replay — run historical transcripts against new agent versions
