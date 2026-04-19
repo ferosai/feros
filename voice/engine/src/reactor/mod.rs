@@ -129,6 +129,12 @@ impl TransportControl {
     pub fn transfer(&self, destination: String) {
         let _ = self.tx.send(TransportCommand::Transfer { destination });
     }
+
+    /// Signal the transport layer that a transfer has completed and it
+    /// should end its session without forcing a hang_up.
+    pub fn transfer_completed(&self) {
+        let _ = self.tx.send(TransportCommand::TransferCompletedEndSession);
+    }
 }
 
 // ── Agent Audio Cursor ────────────────────────────────────────────
@@ -736,6 +742,7 @@ impl Reactor {
                             info!("[reactor] Transfer complete: succeeded={}, destination={:?}, reason={:?}", succeeded, destination, reason);
                             if succeeded {
                                 info!("[reactor] Call transferred successfully. Hanging up.");
+                                self.transport.transfer_completed();
                                 self.should_exit = true; // exit normally
                             } else {
                                 self.holding = false;

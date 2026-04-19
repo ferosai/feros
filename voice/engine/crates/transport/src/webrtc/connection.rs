@@ -386,6 +386,11 @@ async fn run_rtc_loop(
                         rtc.disconnect();
                         return Ok(());
                     }
+                    Some(TransportCommand::TransferCompletedEndSession) => {
+                        info!("[webrtc:{}] Transfer completed. Disconnecting.", tag);
+                        rtc.disconnect();
+                        return Ok(());
+                    }
                     Some(TransportCommand::SendMessage(json)) => {
                         if let Some(cid) = data_channel_id {
                             let msg = serde_json::to_string(&json).unwrap_or_default();
