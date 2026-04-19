@@ -12,12 +12,13 @@
 ///   wss://…   → wss://…  (already correct — pass through)
 ///   ws://…    → ws://…   (already correct — pass through)
 pub fn to_ws_url(url: &str) -> String {
-    if let Some(rest) = url.strip_prefix("https://") {
+    let cleaned = url.trim_end_matches('/');
+    if let Some(rest) = cleaned.strip_prefix("https://") {
         format!("wss://{rest}")
-    } else if let Some(rest) = url.strip_prefix("http://") {
+    } else if let Some(rest) = cleaned.strip_prefix("http://") {
         format!("ws://{rest}")
     } else {
-        url.to_string() // already ws:// or wss://
+        cleaned.to_string() // already ws:// or wss://
     }
 }
 
