@@ -430,6 +430,10 @@ async fn telephony_cmd_loop(
                 }
                 break;
             }
+            TransportCommand::TransferCompletedEndSession => {
+                info!("[telephony:{}] Transfer succeeded, gracefully ending session loop without forcing hangup.", provider.name());
+                break;
+            }
             TransportCommand::SendMessage(msg) => {
                 info!("[telephony:{}] Control message: {:?}", provider.name(), msg);
             }
@@ -447,9 +451,10 @@ async fn telephony_cmd_loop(
                         // Transfer ID is the original call SID — used as the lookup key in transfer_waiters.
                         // The original call_id is used as the transfer_waiters lookup key.
                         let callback_url = format!(
-                            "{}/telephony/{}/transfer-status",
+                            "{}/telephony/{}/transfer-status?original_call_id={}",
                             public_url.trim_end_matches('/'),
-                            provider.name().to_lowercase()
+                            provider.name().to_lowercase(),
+                            call_id
                         );
 
                         info!(

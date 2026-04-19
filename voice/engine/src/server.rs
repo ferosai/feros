@@ -1394,11 +1394,15 @@ pub async fn telephony_twilio_transfer_status_handler(
     axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
     axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    // Extract host from the standard HTTP `Host` header (present in every HTTP/1.1 request).
-    // This replaces the deprecated `axum_extra::extract::Host` extractor (removed in axum-extra 0.9).
+    // Extract host: prioritize X-Forwarded-Host for proxy setups, fallback to standard Host header.
     let host = headers
-        .get(axum::http::header::HOST)
+        .get("x-forwarded-host")
         .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            headers
+                .get(axum::http::header::HOST)
+                .and_then(|v| v.to_str().ok())
+        })
         .unwrap_or("localhost");
     // Twilio's StatusCallback for the *outbound* transfer leg sends:
     //   CallSid        = SID of the outbound transfer call leg
@@ -1409,7 +1413,7 @@ pub async fn telephony_twilio_transfer_status_handler(
     // SID of the outbound transfer leg.
     let outbound_call_sid = form.get("CallSid").cloned().unwrap_or_default();
     let call_status = form.get("CallStatus").cloned().unwrap_or_default();
-    
+
     // ParentCallSid is set by Twilio ONLY when the outbound call was placed by us via <Dial> in TwiML.
     // For REST API initiated calls, it is omitted, so we rely on the custom query parameter injected.
     let mut original_call_sid = query.get("original_call_id").cloned().unwrap_or_default();
@@ -1435,10 +1439,10 @@ pub async fn telephony_twilio_transfer_status_handler(
 
     if !auth_token.is_empty() {
         let signature = headers.get("x-twilio-signature").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        
+
         let scheme = headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()).unwrap_or("https");
         let url = format!("{}://{}{}", scheme, host, uri);
-        
+
         let mut sorted_keys: Vec<_> = form.keys().collect();
         sorted_keys.sort();
         let mut payload = url;
@@ -1641,7 +1645,7 @@ pub async fn telephony_telnyx_transfer_status_handler(
         let payload_to_sign = format!("{}|{}", timestamp, payload_str);
 
         use ed25519_dalek::{Verifier, VerifyingKey, Signature};
-        
+
         let pub_key_bytes = match base64::engine::general_purpose::STANDARD.decode(&state.telnyx_public_key) {
             Ok(b) => b,
             Err(_) => {

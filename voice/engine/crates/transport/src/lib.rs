@@ -148,6 +148,10 @@ pub enum TransportCommand {
     /// Only meaningful for telephony transports (Twilio/Telnyx). WebSocket and WebRTC
     /// transports treat this as a no-op.
     Transfer { destination: String },
+    /// Issued when a transfer successfully bridges the call to a conference.
+    /// This tells the transport to shut down its session logic WITHOUT sending
+    /// a final provider `hangup` request, since the caller is now safely bridged.
+    TransferCompletedEndSession,
     /// Add a remote ICE candidate.
     #[cfg(feature = "webrtc")]
     AddIceCandidate(String),

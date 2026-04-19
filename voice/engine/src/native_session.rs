@@ -158,7 +158,7 @@ pub(crate) async fn run_native_multimodal(
                         info!("[native] Transfer complete: succeeded={}, destination={:?}, reason={:?}", succeeded, destination, reason);
                         if succeeded {
                             info!("[native] Call transferred successfully. Hanging up.");
-                            let _ = transport.control_tx.send(voice_transport::TransportCommand::Close);
+                            let _ = transport.control_tx.send(voice_transport::TransportCommand::TransferCompletedEndSession);
                             break;
                         } else {
                             holding = false;
