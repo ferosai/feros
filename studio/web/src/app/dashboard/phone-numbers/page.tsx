@@ -431,7 +431,12 @@ function ImportModal({ onClose, onImported }: ImportModalProps) {
             <>
               {/* Provider tabs */}
               <div className="grid grid-cols-2 gap-2">
-                {(["twilio", "telnyx"] as const).map((p) => (
+                {(
+                  [
+                    "twilio",
+                    ...(process.env.NEXT_PUBLIC_EXPERIMENTAL_TELNYX === "true" ? ["telnyx"] : []),
+                  ] as ("twilio" | "telnyx")[]
+                ).map((p) => (
                   <button
                     key={p}
                     onClick={() => setProvider(p)}

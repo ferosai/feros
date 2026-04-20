@@ -4,6 +4,7 @@
 //! the differences between Twilio, Telnyx, and any future telephony providers.
 //! Each provider implements this trait in its own submodule.
 
+#[cfg(feature = "telnyx")]
 pub mod telnyx;
 pub mod twilio;
 
@@ -73,6 +74,7 @@ pub trait TelephonyProviderImpl: Send + Sync {
 pub fn create_provider(credentials: &TelephonyCredentials) -> Box<dyn TelephonyProviderImpl> {
     match credentials {
         TelephonyCredentials::Twilio { .. } => Box::new(twilio::Twilio::new()),
+        #[cfg(feature = "telnyx")]
         TelephonyCredentials::Telnyx { .. } => Box::new(telnyx::Telnyx::new()),
     }
 }

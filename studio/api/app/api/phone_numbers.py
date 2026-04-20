@@ -473,6 +473,11 @@ async def fetch_provider_numbers(
 
     numbers: list[ProviderNumber] = []
 
+    if body.provider == "telnyx" and not get_settings().experimental.telnyx:
+        raise HTTPException(
+            status_code=403, detail="Telnyx is experimental and currently disabled."
+        )
+
     if body.provider == "twilio":
         if not body.twilio_account_sid or not body.twilio_auth_token:
             raise HTTPException(
@@ -540,6 +545,11 @@ async def import_selected_numbers(
     """
     if not body.selected_numbers:
         raise HTTPException(status_code=400, detail="No numbers selected.")
+
+    if body.provider == "telnyx" and not get_settings().experimental.telnyx:
+        raise HTTPException(
+            status_code=403, detail="Telnyx is experimental and currently disabled."
+        )
 
     # Build the credential dict to encrypt
     if body.provider == "twilio":
@@ -664,6 +674,11 @@ async def assign_phone_number(
     phone_num = result.scalar_one_or_none()
     if not phone_num:
         raise HTTPException(status_code=404, detail="Phone number not found")
+
+    if phone_num.provider == "telnyx" and not get_settings().experimental.telnyx:
+        raise HTTPException(
+            status_code=403, detail="Telnyx is experimental and currently disabled."
+        )
 
     # ── Unassign ────────────────────────────────────────────────
     if body.agent_id is None:

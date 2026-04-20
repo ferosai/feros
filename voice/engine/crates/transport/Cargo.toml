@@ -36,6 +36,7 @@ percent-encoding = { version = "2", optional = true }
 default = []
 webrtc = ["str0m", "opus", "uuid", "reqwest"]
 telephony = ["base64", "reqwest", "dep:audio-codec-algorithms", "uuid", "dep:percent-encoding"]
+telnyx = []
 
 [dev-dependencies]
 envy = "0.4.2"

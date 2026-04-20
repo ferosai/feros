@@ -168,6 +168,12 @@ class TelephonyConfig(BaseModel):
     )
 
 
+class ExperimentalConfig(BaseModel):
+    """Experimental feature flags."""
+
+    telnyx: bool = False
+
+
 # ── Env File Resolution ─────────────────────────────────────────
 
 
@@ -227,6 +233,7 @@ class Settings(BaseSettings):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
+    experimental: ExperimentalConfig = Field(default_factory=ExperimentalConfig)
 
     # OAuth callback URL — per-deployment, not per-integration
     oauth_callback_base_url: str = "http://localhost:3000"

@@ -103,6 +103,7 @@ otel = ["voice-trace/otel"]
 opus = ["voice-trace/opus"]
 webrtc = ["voice-transport/webrtc"]
 telephony = ["voice-transport/telephony"]
+telnyx = ["voice-transport/telnyx"]
 
 [dev-dependencies]
 async-trait = "0.1.89"
