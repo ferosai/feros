@@ -2,17 +2,26 @@
 //!
 //! Owns the lifecycle of per-session secrets:
 //!   1. Initial resolution at session registration time
-//!   2. Background refresh task that re-queries the vault every 90 seconds
+//!   2. Background refresh task that re-queries the vault every 90 seconds,
+//!      automatically renewing the scoped vault token if it expires.
 //!
 //! voice-engine receives a pre-populated `SharedSecretMap` and never touches
 //! the vault directly. This keeps voice-engine free of infrastructure concerns.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use agent_kit::agent_backends::{SecretMap, SharedSecretMap};
 use tracing::warn;
 
+use crate::cred::VaultHandle;
 use crate::vault_client;
+
+/// Scoped vault token TTL issued to each session.
+///
+/// If a session runs longer than 1 hour, the token is automatically renewed
+/// by the background refresh task.
+pub const VAULT_TOKEN_TTL: Duration = Duration::from_secs(3600);
 
 /// Cached vault address from `VAULT_ADDR` environment variable.
 ///
@@ -67,14 +76,16 @@ const SECRET_REFRESH_INTERVAL_SECS: u64 = 90;
 /// and updates the shared secret map.
 ///
 /// Returns a `JoinHandle` — the caller should abort it when the session ends.
-/// If `vault_token` is `None`, no task is spawned (returns `None`).
+/// If `vault` or `vault_token` is `None`, no task is spawned (returns `None`).
 pub fn spawn_secret_refresh_task(
     agent_id: String,
+    vault: Option<Arc<VaultHandle>>,
     vault_token: Option<String>,
     secrets: SharedSecretMap,
 ) -> Option<tokio::task::JoinHandle<()>> {
     let addr = vault_addr()?.to_string();
-    let token = vault_token?;
+    let vault = vault?;
+    let mut token = vault_token?;
 
     let Ok(agent_uuid) = uuid::Uuid::parse_str(&agent_id) else {
         return None;
@@ -111,6 +122,16 @@ pub fn spawn_secret_refresh_task(
                             );
                         }
                     }
+                }
+                Err(vault_client::VaultResolveError::TokenExpired) => {
+                    // The scoped token expired — mint a fresh one and retry
+                    // immediately on the next tick rather than stopping the task.
+                    // This keeps secrets refreshing for arbitrarily long sessions.
+                    tracing::info!(
+                        agent_id = %agent_id,
+                        "Vault scoped token expired — renewing for session"
+                    );
+                    token = vault.create_scoped_token(agent_uuid, VAULT_TOKEN_TTL);
                 }
                 Err(e) => {
                     tracing::warn!(
