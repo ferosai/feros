@@ -424,10 +424,17 @@ pub fn build_router(state: ServerState) -> Router {
     // media stream WebSocket directly to these WS endpoints.
     #[cfg(feature = "telephony")]
     {
-        app = app
-            .route("/telephony/twilio", get(telephony_twilio_handler))
-            .route("/telephony/telnyx", get(telephony_telnyx_handler));
-        info!("Telephony WS enabled at /telephony/twilio, /telephony/telnyx");
+        app = app.route("/telephony/twilio", get(telephony_twilio_handler));
+
+        #[cfg(feature = "telnyx")]
+        {
+            app = app.route("/telephony/telnyx", get(telephony_telnyx_handler));
+            info!("Telephony WS enabled at /telephony/twilio, /telephony/telnyx");
+        }
+        #[cfg(not(feature = "telnyx"))]
+        {
+            info!("Telephony WS enabled at /telephony/twilio");
+        }
     }
 
     // CORS is applied by embedders (e.g. voice-server) or in run_server() for standalone mode.
@@ -1339,7 +1346,7 @@ async fn telephony_twilio_handler(
     .into_response()
 }
 
-#[cfg(feature = "telephony")]
+#[cfg(all(feature = "telephony", feature = "telnyx"))]
 async fn telephony_telnyx_handler(
     ws: WebSocketUpgrade,
     axum::extract::Query(params): axum::extract::Query<telephony_handlers::TelephonyQueryParams>,
@@ -1381,6 +1388,7 @@ async fn handle_telephony_session(
 
     let provider_name = match kind {
         TelephonyProviderKind::Twilio => "Twilio",
+        #[cfg(feature = "telnyx")]
         TelephonyProviderKind::Telnyx => "Telnyx",
     };
     info!(
@@ -1443,6 +1451,7 @@ async fn handle_telephony_session(
                 auth_token,
             }
         }
+        #[cfg(feature = "telnyx")]
         TelephonyProviderKind::Telnyx => {
             let api_key = params
                 .resolved_api_key()
@@ -1654,7 +1663,7 @@ pub async fn telephony_handle_twilio_socket(
 }
 
 /// Public entry point for voice-server's path-based Telnyx WebSocket handler.
-#[cfg(feature = "telephony")]
+#[cfg(all(feature = "telephony", feature = "telnyx"))]
 pub async fn telephony_handle_telnyx_socket(
     socket: axum::extract::ws::WebSocket,
     session_id: String,

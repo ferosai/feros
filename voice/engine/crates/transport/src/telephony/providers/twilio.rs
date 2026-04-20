@@ -85,7 +85,10 @@ impl TelephonyProviderImpl for Twilio {
                 account_sid,
                 auth_token,
             } => (account_sid.as_str(), auth_token.as_str()),
-            _ => return Err(TransportError::SendFailed("Invalid credentials for Twilio provider".into())),
+            #[cfg(feature = "telnyx")]
+            super::super::config::TelephonyCredentials::Telnyx { .. } => {
+                unreachable!("Telnyx credentials passed to Twilio hangup handler")
+            }
         };
 
         let endpoint = format!(
@@ -146,7 +149,10 @@ impl TelephonyProviderImpl for Twilio {
                 account_sid,
                 auth_token,
             } => (account_sid.as_str(), auth_token.as_str()),
-            _ => return Err(TransportError::SendFailed("Invalid credentials for Twilio provider".into())),
+            #[cfg(feature = "telnyx")]
+            super::super::config::TelephonyCredentials::Telnyx { .. } => {
+                unreachable!("Telnyx credentials passed to Twilio blind_transfer handler")
+            }
         };
 
         let twiml = format!(

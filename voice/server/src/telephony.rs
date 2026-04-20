@@ -72,7 +72,7 @@ impl AppState {
 // ── Router (HTTP webhooks only) ───────────────────────────────────
 
 pub fn http_router(state: AppState) -> Router {
-    Router::new()
+    let router = Router::new()
         .route(
             "/telephony/twilio/incoming/{agent_id}",
             post(twilio_incoming),
@@ -83,13 +83,17 @@ pub fn http_router(state: AppState) -> Router {
         .route(
             "/telephony/twilio/stream/{session_id}/{token}",
             get(twilio_ws_stream),
-        )
+        );
+
+    #[cfg(feature = "telnyx")]
+    let router = router
         .route("/telephony/telnyx/inbound/{agent_id}", post(telnyx_inbound))
         .route(
             "/telephony/telnyx/stream/{session_id}/{token}",
             get(telnyx_ws_stream),
-        )
-        .with_state(state)
+        );
+
+    router.with_state(state)
 }
 
 /// `POST /telephony/twilio/status`
@@ -235,6 +239,7 @@ fn twiml_stream(ws_url: &str) -> String {
     )
 }
 
+#[cfg(feature = "telnyx")]
 async fn telnyx_ws_stream(
     ws: WebSocketUpgrade,
     Path((session_id, token)): Path<(String, String)>,
@@ -268,6 +273,7 @@ async fn telnyx_ws_stream(
 
 // ── Telnyx ──────────────────────────────────────────────────────
 
+#[cfg(feature = "telnyx")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct TelnyxTeXMLInbound {
@@ -279,6 +285,7 @@ struct TelnyxTeXMLInbound {
 }
 
 /// `POST /telephony/telnyx/inbound/{agent_id}`
+#[cfg(feature = "telnyx")]
 async fn telnyx_inbound(
     Path(agent_id): Path<String>,
     State(state): State<AppState>,

@@ -21,6 +21,7 @@ pub enum TelephonyCredentials {
         #[serde(default)]
         auth_token: String,
     },
+    #[cfg(feature = "telnyx")]
     Telnyx {
         #[serde(default)]
         api_key: String,
@@ -43,6 +44,7 @@ impl TelephonyCredentials {
     pub fn kind(&self) -> TelephonyProviderKind {
         match self {
             Self::Twilio { .. } => TelephonyProviderKind::Twilio,
+            #[cfg(feature = "telnyx")]
             Self::Telnyx { .. } => TelephonyProviderKind::Telnyx,
         }
     }
@@ -58,6 +60,7 @@ impl TelephonyCredentials {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TelephonyProviderKind {
     Twilio,
+    #[cfg(feature = "telnyx")]
     Telnyx,
 }
 

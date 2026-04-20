@@ -56,6 +56,7 @@ proto = { version = "0.1.0", path = "../engine/crates/proto" }
 # only plaintext credentials from the DB.
 default = ["telephony", "webrtc", "pg", "langfuse", "opus", "integrations"]
 telephony = ["voice-engine/telephony"]
+telnyx = ["voice-engine/telnyx"]
 webrtc    = ["voice-engine/webrtc"]
 pg        = ["voice-trace/pg"]
 langfuse  = ["voice-trace/langfuse"]
