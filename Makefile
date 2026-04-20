@@ -128,6 +128,23 @@ api-clean: ## Remove Studio API caches
 	cd $(API_DIR) && find app/ -name '*.so' -delete 2>/dev/null || true
 	cd $(API_DIR) && find app/ -name '_audio_core.c' -delete 2>/dev/null || true
 
+# ── Release ──────────────────────────────────────────────────────
+.PHONY: release-prep release-publish
+
+release-prep: ## Create a release PR for a new version (e.g. make release-prep VERSION=0.2.0)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-prep VERSION=0.2.0"; \
+		exit 1; \
+	fi
+	@./release.sh prep $(VERSION)
+
+release-publish: ## Tag and publish the release (e.g. make release-publish VERSION=0.2.0)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-publish VERSION=0.2.0"; \
+		exit 1; \
+	fi
+	@./release.sh publish $(VERSION)
+
 # ── Help ─────────────────────────────────────────────────────────
 
 .PHONY: help
