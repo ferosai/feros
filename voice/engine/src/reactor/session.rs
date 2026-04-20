@@ -598,11 +598,15 @@ impl Reactor {
                         // Forcefully cancel the pipeline (kills any sibling non-side-effect tools)
                         self.cancel_pipeline();
 
-                        // Add user message after the tool result, then restart stream
+                        // Add user message after the tool result, then restart stream.
+                        // Open the synthetic turn *before* emitting the Transcript so
+                        // the observer associates the transcript with the new turn span,
+                        // not the previous (now-closed) one.
                         self.llm.add_user_message(text.clone());
+                        self.tracer.start_synthetic_turn();
                         self.tracer.emit(Event::Transcript {
                             role: "user".into(),
-                            text,
+                            text: text.clone(),
                         });
                         self.start_llm_turn().await;
                         return;

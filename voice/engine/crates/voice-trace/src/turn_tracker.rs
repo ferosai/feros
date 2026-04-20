@@ -249,9 +249,22 @@ impl TurnTracker {
         let stt_total = input.stt_audio_start
             .map(|s| ms_between(s, end))
             .unwrap_or(0.0);
-        let stt_ttfb = input.stt_finalize_sent
-            .zip(input.stt_first_text)
-            .map(|(s, f)| ms_between(s, f));
+        // TTFB anchor selection:
+        //   Batch STT  (e.g. Whisper): HTTP request fires at finalize(), so
+        //              `finalize_sent → first_text` is the true API latency.
+        //   Streaming STT (e.g. Deepgram): text may arrive before finalize() is
+        //              sent while the user is still speaking; in that case
+        //              `audio_start → first_text` captures time-to-first-word,
+        //              which is the meaningful equivalent metric.
+        //   Fallback: if neither anchor is available, the metric is omitted
+        //             rather than silently emitting 0.
+        let stt_ttfb = input.stt_first_text.and_then(|f| {
+            let anchor = match input.stt_finalize_sent {
+                Some(finalize) if f >= finalize => Some(finalize), // batch: finalize → first_text
+                _ => input.stt_audio_start,                        // streaming: audio_start → first_text
+            };
+            anchor.map(|s| ms_between(s, f))
+        });
         (stt_total, stt_ttfb)
     }
 

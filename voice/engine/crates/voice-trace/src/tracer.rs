@@ -209,6 +209,28 @@ impl Tracer {
         });
     }
 
+    /// Open a programmatic/synthetic turn (e.g. tool results, transfer failures)
+    /// without consuming user VAD/STT anchors or emitting `SttComplete`.
+    ///
+    /// The teardown path is identical to a normal turn: callers **must** still
+    /// call [`finish_turn`](Self::finish_turn) or [`cancel_turn`](Self::cancel_turn)
+    /// to close the span and emit `TurnEnded`. Synthetic turns are not self-closing.
+    pub fn start_synthetic_turn(&mut self) {
+        if self.turn_open {
+            tracing::warn!("[tracer] start_synthetic_turn called with an open turn — cancelling previous");
+            self.cancel_turn();
+        }
+
+        self.turn_count += 1;
+        self.turn_open = true;
+        self.bus.emit(Event::TurnStarted {
+            turn_number: self.turn_count,
+        });
+
+        // Set the interaction anchor so end-to-end metrics have a starting point
+        self.mark_speech_ended();
+    }
+
     // ── TTS text accumulation (for TtsComplete event) ──
 
     /// Append text fed to TTS this turn.

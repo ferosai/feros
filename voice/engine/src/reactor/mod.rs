@@ -740,6 +740,7 @@ impl Reactor {
                                 );
                                 self.llm.add_user_message(failure_msg);
                                 self.cancel_pipeline();
+                                self.tracer.start_synthetic_turn();
                                 self.start_llm_turn().await;
                             }
                         }

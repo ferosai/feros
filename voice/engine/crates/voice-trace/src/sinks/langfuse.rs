@@ -296,30 +296,21 @@ impl LangfuseSessionObserver {
                 ttfb_ms,
                 vad_enabled,
             } => {
-                let parent = self.current_turn_cx.as_ref().unwrap_or(&self.conversation_cx);
-                let mut span = self
-                    .otel_tracer
-                    .span_builder("stt")
-                    .start_with_context(&self.otel_tracer, parent);
-
-                span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.operation.name", "stt"));
-                span.set_attribute(KeyValue::new("output", transcript.clone()));
-                span.set_attribute(KeyValue::new("is_final", *is_final));
-                span.set_attribute(KeyValue::new("vad_enabled", *vad_enabled));
-                if let Some(lang) = language {
-                    span.set_attribute(KeyValue::new("language", lang.clone()));
-                }
-                span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
-                if let Some(ttfb) = ttfb_ms {
-                    span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
-                }
-                span.set_attribute(KeyValue::new("conversation.id", self.session_id.clone()));
-                if self.trace_public {
-                    span.set_attribute(KeyValue::new("langfuse.trace.public", true));
-                }
-                span.end();
+                self.with_historical_span("stt", *duration_ms, |span| {
+                    span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.operation.name", "stt"));
+                    span.set_attribute(KeyValue::new("output", transcript.clone()));
+                    span.set_attribute(KeyValue::new("is_final", *is_final));
+                    span.set_attribute(KeyValue::new("vad_enabled", *vad_enabled));
+                    if let Some(lang) = language {
+                        span.set_attribute(KeyValue::new("language", lang.clone()));
+                    }
+                    span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
+                    if let Some(ttfb) = ttfb_ms {
+                        span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
+                    }
+                });
             }
             SinkEvent::LlmComplete {
                 provider,
@@ -336,50 +327,40 @@ impl LangfuseSessionObserver {
                 cache_read_tokens,
                 span_label,
             } => {
-                let parent = self.current_turn_cx.as_ref().unwrap_or(&self.conversation_cx);
-                let mut span = self
-                    .otel_tracer
-                    .span_builder(span_label.clone())
-                    .start_with_context(&self.otel_tracer, parent);
+                self.with_historical_span(span_label, *duration_ms, |span| {
+                    span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.operation.name", "chat"));
+                    span.set_attribute(KeyValue::new("gen_ai.output.type", "text"));
+                    span.set_attribute(KeyValue::new("gen_ai.request.temperature", *temperature));
+                    span.set_attribute(KeyValue::new("gen_ai.request.max_tokens", *max_tokens as i64));
+                    span.set_attribute(KeyValue::new("stream", true));
 
-                span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.operation.name", "chat"));
-                span.set_attribute(KeyValue::new("gen_ai.output.type", "text"));
-                span.set_attribute(KeyValue::new("gen_ai.request.temperature", *temperature));
-                span.set_attribute(KeyValue::new("gen_ai.request.max_tokens", *max_tokens as i64));
-                span.set_attribute(KeyValue::new("stream", true));
+                    let input = if let Some(tools) = tools_json {
+                        format!(r#"{{"messages":{},"tools":{}}}"#, input_json, tools)
+                    } else {
+                        format!(r#"{{"messages":{}}}"#, input_json)
+                    };
+                    span.set_attribute(KeyValue::new("input", input));
+                    span.set_attribute(KeyValue::new("output", output_json.clone()));
 
-                let input = if let Some(tools) = tools_json {
-                    format!(r#"{{"messages":{},"tools":{}}}"#, input_json, tools)
-                } else {
-                    format!(r#"{{"messages":{}}}"#, input_json)
-                };
-                span.set_attribute(KeyValue::new("input", input));
-                span.set_attribute(KeyValue::new("output", output_json.clone()));
-
-                span.set_attribute(KeyValue::new("gen_ai.usage.input_tokens", *prompt_tokens as i64));
-                span.set_attribute(KeyValue::new(
-                    "gen_ai.usage.output_tokens",
-                    *completion_tokens as i64,
-                ));
-                if let Some(cached) = cache_read_tokens {
+                    span.set_attribute(KeyValue::new("gen_ai.usage.input_tokens", *prompt_tokens as i64));
                     span.set_attribute(KeyValue::new(
-                        "gen_ai.usage.cache_read_input_tokens",
-                        *cached as i64,
+                        "gen_ai.usage.output_tokens",
+                        *completion_tokens as i64,
                     ));
-                }
+                    if let Some(cached) = cache_read_tokens {
+                        span.set_attribute(KeyValue::new(
+                            "gen_ai.usage.cache_read_input_tokens",
+                            *cached as i64,
+                        ));
+                    }
 
-                span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
-                if let Some(ttfb) = ttfb_ms {
-                    span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
-                }
-
-                span.set_attribute(KeyValue::new("conversation.id", self.session_id.clone()));
-                if self.trace_public {
-                    span.set_attribute(KeyValue::new("langfuse.trace.public", true));
-                }
-                span.end();
+                    span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
+                    if let Some(ttfb) = ttfb_ms {
+                        span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
+                    }
+                });
             }
             SinkEvent::TtsComplete {
                 provider,
@@ -391,35 +372,25 @@ impl LangfuseSessionObserver {
                 ttfb_ms,
                 text_aggregation_ms,
             } => {
-                let parent = self.current_turn_cx.as_ref().unwrap_or(&self.conversation_cx);
-                let mut span = self
-                    .otel_tracer
-                    .span_builder("tts")
-                    .start_with_context(&self.otel_tracer, parent);
-
-                span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
-                span.set_attribute(KeyValue::new("gen_ai.operation.name", "tts"));
-                span.set_attribute(KeyValue::new("gen_ai.output.type", "speech"));
-                span.set_attribute(KeyValue::new("input", text.clone()));
-                span.set_attribute(KeyValue::new("voice_id", voice_id.clone()));
-                span.set_attribute(KeyValue::new(
-                    "metrics.character_count",
-                    *character_count as i64,
-                ));
-                span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
-                if let Some(ttfb) = ttfb_ms {
-                    span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
-                }
-                if let Some(agg) = text_aggregation_ms {
-                    span.set_attribute(KeyValue::new("metrics.text_aggregation_ms", *agg));
-                }
-
-                span.set_attribute(KeyValue::new("conversation.id", self.session_id.clone()));
-                if self.trace_public {
-                    span.set_attribute(KeyValue::new("langfuse.trace.public", true));
-                }
-                span.end();
+                self.with_historical_span("tts", *duration_ms, |span| {
+                    span.set_attribute(KeyValue::new("gen_ai.system", provider.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.request.model", model.clone()));
+                    span.set_attribute(KeyValue::new("gen_ai.operation.name", "tts"));
+                    span.set_attribute(KeyValue::new("gen_ai.output.type", "speech"));
+                    span.set_attribute(KeyValue::new("input", text.clone()));
+                    span.set_attribute(KeyValue::new("voice_id", voice_id.clone()));
+                    span.set_attribute(KeyValue::new(
+                        "metrics.character_count",
+                        *character_count as i64,
+                    ));
+                    span.set_attribute(KeyValue::new("metrics.duration_ms", *duration_ms));
+                    if let Some(ttfb) = ttfb_ms {
+                        span.set_attribute(KeyValue::new("metrics.ttfb_ms", *ttfb));
+                    }
+                    if let Some(agg) = text_aggregation_ms {
+                        span.set_attribute(KeyValue::new("metrics.text_aggregation_ms", *agg));
+                    }
+                });
             }
             _ => {}
         }
@@ -432,6 +403,38 @@ impl LangfuseSessionObserver {
         }
         self.conversation_cx.span().end();
         info!("[langfuse] Session subscriber stopped: {}", self.session_id);
+    }
+
+    fn with_historical_span<F>(&self, span_name: &str, duration_ms: f64, mut f: F)
+    where
+        F: FnMut(&mut opentelemetry_sdk::trace::Span),
+    {
+        use opentelemetry::trace::{Span as _, Tracer as OtelTracer};
+
+        let parent = self.current_turn_cx.as_ref().unwrap_or(&self.conversation_cx);
+
+        // Approximate: end_time is the observer-receipt time, not the true
+        // completion instant. Any event-queue delay shifts both ends equally,
+        // so the span duration is exactly accurate but absolute placement may be
+        // off by a few milliseconds relative to actual execution.
+        let end_time = std::time::SystemTime::now();
+        let start_time = end_time
+            .checked_sub(std::time::Duration::from_secs_f64(duration_ms.max(0.0) / 1000.0))
+            .unwrap_or(end_time);
+
+        let mut span = self
+            .otel_tracer
+            .span_builder(span_name.to_string())
+            .with_start_time(start_time)
+            .start_with_context(&self.otel_tracer, parent);
+
+        f(&mut span);
+
+        span.set_attribute(KeyValue::new("conversation.id", self.session_id.clone()));
+        if self.trace_public {
+            span.set_attribute(KeyValue::new("langfuse.trace.public", true));
+        }
+        span.end_with_timestamp(end_time);
     }
 }
 
