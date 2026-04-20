@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1
+# ── Voice Server — Rust binary (PRODUCTION) ───────────────────────
+# Multi-stage build: compile in Ubuntu 24.04 (glibc 2.39), copy binary into
+# a slim Ubuntu 24.04 runtime image.
+#
+# WHY Ubuntu 24.04 (not Debian Bookworm)?
+# ort-sys 2.0.0-rc.11 bundles prebuilt ONNX Runtime static libraries that
+# reference __isoc23_strtoll / __isoc23_strtoull (added in glibc 2.38).
+# Debian Bookworm ships glibc 2.36 → linker fails with "undefined reference".
+# Ubuntu 24.04 ships glibc 2.39 → symbols present in both builder and runtime.
+
+# ── Stage 1: Build ────────────────────────────────────────────────
+FROM ubuntu:24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    build-essential \
+    cmake \
+    clang \
+    libclang-dev \
+    libssl-dev \
+    libopus-dev \
+    pkg-config \
+    protobuf-compiler \
+    patch \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin toolchain version for reproducible builds (updated to 1.91.1 for dependency compatibility).
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain 1.91.1 --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Neutralise any rustc-wrapper=sccache set in .cargo/config.toml — sccache
+# is not installed here and would cause the build to fail immediately.
+ENV RUSTC_WRAPPER=""
+
+# Pin the target dir so cache mounts and the cp below agree.
+ENV CARGO_TARGET_DIR=/build/target
+
+WORKDIR /build
+
+# Copy workspace members needed for compilation.
+COPY voice/server/ voice/server/
+COPY voice/engine/ voice/engine/
+COPY integrations/ integrations/
+COPY proto/ proto/
+
+# Release build: full LTO and codegen optimisations.
+RUN --mount=type=cache,target=/build/target \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    cd voice/server && cargo build --release --features s3 \
+    && cp /build/target/release/voice-server /voice-server-bin
+
+# ── Stage 2: Runtime ─────────────────────────────────────────────
+# Must also be Ubuntu 24.04 — the binary was linked against glibc 2.39 and
+# will fail to load on older glibc at runtime.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libssl3 \
+    libopus0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as a non-root user.
+RUN useradd -r -u 1001 -s /bin/false voiceserver
+
+COPY --from=builder /voice-server-bin /usr/local/bin/voice-server
+COPY --from=builder /build/voice/server/dsp_models /dsp_models
+
+# Ensure the non-root user can read the model files.
+RUN chown -R voiceserver:voiceserver /dsp_models
+
+USER voiceserver
+
+EXPOSE 8300
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD curl -sf http://localhost:8300/health || exit 1
+
+CMD ["voice-server"]
