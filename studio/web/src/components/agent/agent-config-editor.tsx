@@ -1052,20 +1052,18 @@ export default function AgentConfigEditor({
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-4 my-3">
                                 <TooltipProvider>
                                   <Tooltip delayDuration={300}>
                                     <TooltipTrigger asChild>
                                       <div
-                                        className="flex items-center gap-1.5"
+                                        className="flex items-center gap-1 group"
                                         onClick={(e) => e.stopPropagation()}
                                         onPointerDown={(e) => e.stopPropagation()}
                                       >
-                                        <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-tighter">
-                                          Summarize Result
-                                        </span>
                                         <Switch
-                                          className="scale-75"
+                                          className="scale-70"
+                                          id={`tool-summarize-${id}`}
                                           checked={!!tool.summarize_result}
                                           onCheckedChange={(checked) =>
                                             patchField({
@@ -1075,20 +1073,26 @@ export default function AgentConfigEditor({
                                             })
                                           }
                                         />
+                                        <label
+                                          htmlFor={`tool-summarize-${id}`}
+                                         className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide group-hover:text-foreground">
+                                          Summarize Result
+                                        </label>
                                       </div>
                                     </TooltipTrigger>
-                                    <TooltipContent className="text-[10px] font-bold py-1 px-2">
+                                    <TooltipContent className="text-[10px] font-bold py-2 px-2">
                                       Use LLM to summarize long tool outputs
                                     </TooltipContent>
                                   </Tooltip>
 
                                   <Tooltip delayDuration={300}>
                                     <TooltipTrigger asChild>
-                                      <div className="size-7 rounded-lg bg-accent/40 text-foreground/40 flex items-center justify-center hover:bg-accent hover:text-foreground transition-all cursor-pointer">
+                                      <button className="inline-flex gap-1.5 group text-[10px] font-bold uppercase tracking-wide text-foreground/50">
                                         <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
-                                      </div>
+                                        <span className="group-hover:text-foreground">Source Code</span>
+                                      </button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="text-[10px] font-bold py-1 px-2">
+                                    <TooltipContent className="text-[10px] font-bold py-2 px-2">
                                       View Tool Implementation
                                     </TooltipContent>
                                   </Tooltip>
