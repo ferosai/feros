@@ -67,6 +67,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image_name }}
           tags: |
+            type=sha,format=short
             type=ref,event=branch
             type=ref,event=tag
             type=edge,branch=main
