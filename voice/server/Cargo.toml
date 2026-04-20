@@ -1,6 +1,6 @@
 [package]
 name = "voice-server"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Voice Server — telephony gateway that bridges Twilio/Telnyx to voice-engine"
 
@@ -46,7 +46,7 @@ integrations = { path = "../../integrations", optional = true }
 # Vault client (talks to integrations or HashiCorp Vault)
 vaultrs = "0.7"
 secrecy = "0.10"
-proto = { version = "0.1.0", path = "../engine/crates/proto" }
+proto = { version = "0.2.0", path = "../engine/crates/proto" }
 
 [features]
 # Mirror voice-engine's pyproject.toml feature set, minus pyo3 (no Python
