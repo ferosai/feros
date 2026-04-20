@@ -12,7 +12,7 @@
 //! are NOT duplicated here.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::cred::{EncryptionEngine, VaultHandle};
 use crate::observability;
@@ -65,7 +65,7 @@ impl AppState {
     pub fn vault_token_for(&self, agent_uuid: Uuid) -> Option<String> {
         self.vault
             .as_ref()
-            .map(|v| v.create_scoped_token(agent_uuid, Duration::from_secs(3600)))
+            .map(|v| v.create_scoped_token(agent_uuid, crate::secrets::VAULT_TOKEN_TTL))
     }
 }
 
@@ -498,6 +498,7 @@ pub async fn register_session(
         crate::secrets::resolve_vault_secrets(&agent_id_for_secrets, vault_token.as_deref()).await;
     let refresh_handle = crate::secrets::spawn_secret_refresh_task(
         agent_id_for_secrets,
+        state.vault.clone(),
         vault_token_for_refresh,
         secrets.clone(),
     );

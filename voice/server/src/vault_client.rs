@@ -53,6 +53,14 @@ pub async fn resolve_secrets(
                 );
                 return Ok(SecretMap::new());
             }
+            Err(vaultrs::error::ClientError::APIError { code: 403, .. }) => {
+                // Scoped token has expired.
+                warn!(
+                    agent_id = %agent_id,
+                    "Vault scoped token expired (403)"
+                );
+                return Err(VaultResolveError::TokenExpired);
+            }
             Err(e) => {
                 warn!(
                     agent_id = %agent_id,
@@ -85,4 +93,7 @@ pub enum VaultResolveError {
     ClientConfig(String),
     #[error("failed to read secrets from vault: {0}")]
     ReadFailed(String),
+    /// The scoped vault token has expired (HTTP 403).
+    #[error("vault scoped token expired")]
+    TokenExpired,
 }

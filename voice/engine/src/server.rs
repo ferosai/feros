@@ -185,6 +185,29 @@ impl RegisteredSession {
     }
 }
 
+impl Drop for RegisteredSession {
+    fn drop(&mut self) {
+        // Abort the background secret refresh task when the session is dropped.
+        //
+        // This covers all early-exit paths where `run_session_with_transport` is
+        // never reached (and thus never calls `h.abort()`):
+        //   - TTL cleanup task evicts unconnected sessions from the DashMap
+        //   - WebRTC ICE connection timeout / failure
+        //   - Telephony session_id mismatch (start-message timeout → random UUID)
+        //
+        // Note: `take_refresh_handle` removes the handle from the inner Option,
+        // so for the normal path — where the caller already took the handle and
+        // called `h.abort()` inside `run_session_with_transport` — this no-ops.
+        if let Some(arc) = &self.secret_refresh_handle {
+            if let Ok(mut guard) = arc.lock() {
+                if let Some(h) = guard.take() {
+                    h.abort();
+                }
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for RegisteredSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RegisteredSession")
@@ -545,7 +568,7 @@ async fn handle_registered_socket(socket: WebSocket, session_id: String, state: 
         run_voice_session(
             session_id,
             socket,
-            registered.config,
+            registered.config.clone(),
             &registered.providers,
             secrets,
             refresh_handle,
@@ -1100,7 +1123,7 @@ async fn rtc_offer_registered(
     rtc_create_session(
         session_id,
         body,
-        registered.config,
+        registered.config.clone(),
         &registered.providers,
         secrets,
         refresh_handle,
@@ -1572,8 +1595,8 @@ async fn handle_telephony_session(
             let from_number = reg.from_number.clone();
             (
                 effective_session_id.clone(),
-                reg.config,
-                reg.providers,
+                reg.config.clone(),
+                reg.providers.clone(),
                 secrets,
                 refresh_handle,
                 reg_tracer,
