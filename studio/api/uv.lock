@@ -1114,7 +1114,7 @@ wheels = [
 
 [[package]]
 name = "integrations"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../../integrations" }
 
 [[package]]
@@ -2794,7 +2794,7 @@ wheels = [
 
 [[package]]
 name = "studio-api"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
@@ -3163,7 +3163,7 @@ wheels = [
 
 [[package]]
 name = "voice-engine"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../../voice/engine" }
 
 [[package]]

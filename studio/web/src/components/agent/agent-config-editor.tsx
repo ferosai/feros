@@ -1075,7 +1075,8 @@ export default function AgentConfigEditor({
                                         />
                                         <label
                                           htmlFor={`tool-summarize-${id}`}
-                                         className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide group-hover:text-foreground">
+                                          className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide group-hover:text-foreground"
+                                        >
                                           Summarize Result
                                         </label>
                                       </div>
@@ -1089,7 +1090,9 @@ export default function AgentConfigEditor({
                                     <TooltipTrigger asChild>
                                       <button className="inline-flex gap-1.5 group text-[10px] font-bold uppercase tracking-wide text-foreground/50">
                                         <HugeiconsIcon icon={CodeIcon} className="size-3.5" />
-                                        <span className="group-hover:text-foreground">Source Code</span>
+                                        <span className="group-hover:text-foreground">
+                                          Source Code
+                                        </span>
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent className="text-[10px] font-bold py-2 px-2">
