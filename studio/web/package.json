@@ -13,6 +13,8 @@
     "sync-api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/schema.d.ts"
   },
   "dependencies": {
+    "@clerk/elements": "0.24.13",
+    "@clerk/nextjs": "^6.39.2",
     "@hugeicons/core-free-icons": "^4.0.0",
     "@hugeicons/react": "^1.1.6",
     "@radix-ui/react-popover": "^1.1.15",

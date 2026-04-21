@@ -1,5 +1,4 @@
 "use client";
-
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Robot01Icon,
@@ -32,6 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   return (
+    <>
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-sidebar border-r border-sidebar-border">
@@ -91,5 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 px-10 py-10 max-w-[1100px] w-full mx-auto">{children}</main>
       </div>
     </div>
+    </>
   );
 }

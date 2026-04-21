@@ -59,7 +59,6 @@ class Agent(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
     # Relationships
     versions: Mapped[list[AgentVersion]] = relationship(
         back_populates="agent",

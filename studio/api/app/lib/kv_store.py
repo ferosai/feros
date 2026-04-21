@@ -49,9 +49,9 @@ class InMemoryKVStore:
     """
 
     def __init__(self) -> None:
-        self._store: dict[str, tuple[dict[str, Any], float]] = (
-            {}
-        )  # key → (value, expires_at)
+        self._store: dict[
+            str, tuple[dict[str, Any], float]
+        ] = {}  # key → (value, expires_at)
 
     def _evict_expired(self) -> None:
         """Lazy eviction of expired keys."""

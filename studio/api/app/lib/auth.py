@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hmac
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 
 from app.lib import get_settings
@@ -25,6 +25,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def require_api_key(
+    request: Request,
     key: str | None = Security(_api_key_header),
 ) -> str:
     """Validate the API key from the request header.

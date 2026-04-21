@@ -24,12 +24,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={inter.className}>
-        <NuqsAdapter>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-            {children}
-            <Toaster position="bottom-right" />
-          </ThemeProvider>
-        </NuqsAdapter>
+          <NuqsAdapter>
+            <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+              {children}
+              <Toaster position="bottom-right" />
+            </ThemeProvider>
+          </NuqsAdapter>
       </body>
     </html>
   );

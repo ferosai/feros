@@ -84,7 +84,6 @@ class AuthConfig(BaseModel):
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     algorithm: str = "HS256"
 
-
 class GeminiConfig(BaseModel):
     """Gemini API settings (used for builder web search).
 
