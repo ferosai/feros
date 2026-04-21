@@ -143,11 +143,7 @@ export function CallLogTable({
                         if (el) {
                           audioRefs.current[call.id] = el;
                         } else {
-                          const existing = audioRefs.current[call.id];
-                          if (existing) {
-                            existing.pause();
-                            delete audioRefs.current[call.id];
-                          }
+                          delete audioRefs.current[call.id];
                         }
                       }}
                       src={getAbsoluteUrl(call.recording_url)}
@@ -164,7 +160,15 @@ export function CallLogTable({
                           if (playingId && audioRefs.current[playingId]) {
                             audioRefs.current[playingId]!.pause();
                           }
-                          audio.play();
+                          void audio.play().catch((error: unknown) => {
+                            if (
+                              error instanceof DOMException &&
+                              error.name === "AbortError"
+                            ) {
+                              return;
+                            }
+                            console.error("Failed to play recording", error);
+                          });
                           setPlayingId(call.id);
                         }
                       }}
