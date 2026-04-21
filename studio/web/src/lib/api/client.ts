@@ -8,6 +8,7 @@
  * manual type definitions that mirror the Pydantic schemas.
  */
 
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const WS_BASE =
   process.env.NEXT_PUBLIC_WS_URL ||
@@ -535,13 +536,29 @@ async function buildApiError(res: Response, fallbackMessage: string): Promise<Ap
   });
 }
 
+/** Safely convert any RequestInit["headers"] format to a plain object. */
+function normalizeHeaders(h: HeadersInit | undefined): Record<string, string> {
+  if (!h) return {};
+  if (h instanceof Headers) {
+    const out: Record<string, string> = {};
+    h.forEach((v, k) => { out[k] = v; });
+    return out;
+  }
+  if (Array.isArray(h)) {
+    return Object.fromEntries(h);
+  }
+  return h as Record<string, string>;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...normalizeHeaders(options?.headers),
+  };
+
   const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {

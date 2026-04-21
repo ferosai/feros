@@ -57,6 +57,7 @@ dev = [
     "setuptools>=75.0.0",
     "rich>=14.3.2",
     "types-authlib>=1.6.10.20260414",
+    "types-python-jose>=3.5.0.20260408",
 ]
 
 [tool.black]
@@ -92,6 +93,7 @@ ignore = [
     "E501",   # line too long (handled by black)
     "B008",   # Depends() in defaults (FastAPI convention)
     "SIM105", # contextlib.suppress — less clear with async
+    "I001",   # import sorting (handled by formatter)
 ]
 
 [tool.ruff.lint.per-file-ignores]

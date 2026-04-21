@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-export function middleware(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
+  return baseMiddleware(req);
+}
+async function baseMiddleware(req: NextRequest) {
   const apiKey = process.env.STUDIO_API_KEY;
 
   // No API key configured — middleware is a complete no-op.
@@ -11,6 +13,8 @@ export function middleware(req: NextRequest) {
   }
 
   // ── Basic Auth Gate ────────────────────────────────────────────
+  // Only reached when STUDIO_API_KEY is set (open-source deployments).
+  // Internal builds exit early above via `if (!apiKey) return`.
   let authenticated = false;
   const basicAuth = req.headers.get("authorization");
 
@@ -30,6 +34,7 @@ export function middleware(req: NextRequest) {
       },
     });
   }
+
 
   // ── Backend API Proxy ──────────────────────────────────────────
   // Rewrites /api-proxy/* → BACKEND_API_URL/* and injects X-API-Key.
@@ -61,6 +66,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      */
-    "/((?!api\/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
+    "/((?!api\\/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
   ],
 };

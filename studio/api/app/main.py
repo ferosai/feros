@@ -23,7 +23,9 @@ from app.api.evaluations import router as evaluations_router
 from app.api.integrations import router as integrations_router
 from app.api.oauth import router as oauth_router
 from app.api.oauth_apps import router as oauth_apps_router
+
 from app.api.phone_numbers import router as phone_numbers_router
+
 from app.api.settings import get_builder_llm_config
 from app.api.settings import router as settings_router
 from app.api.voice_session import router as voice_router
@@ -110,7 +112,6 @@ app.include_router(integrations_router, prefix="/api", dependencies=_auth)
 app.include_router(evaluations_router, prefix="/api", dependencies=_auth)
 app.include_router(settings_router, prefix="/api", dependencies=_auth)
 app.include_router(phone_numbers_router, prefix="/api", dependencies=_auth)
-
 # OAuth routes: authorize needs auth (user-initiated), callback is public
 # (browser popup redirect from OAuth provider has no API key header)
 app.include_router(oauth_router, prefix="/api")
