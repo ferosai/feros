@@ -9,6 +9,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from "@hugeicons/core-free-icons";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,6 @@ function getAbsoluteUrl(url: string | null): string | undefined {
 type CallLogTableProps = {
   calls: CallLog[];
   loading: boolean;
-  onOpenCall: (callId: string) => void;
   agentNameById?: Record<string, string>;
   showColumnHeader?: boolean;
   loadingRows?: number;
@@ -42,7 +42,6 @@ type CallLogTableProps = {
 export function CallLogTable({
   calls,
   loading,
-  onOpenCall,
   agentNameById = {},
   showColumnHeader = true,
   loadingRows = 5,
@@ -92,30 +91,37 @@ export function CallLogTable({
           {calls.map((call, idx) => (
             <div
               key={call.id}
-              className={`group grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_96px_80px_20px] gap-4 items-center px-5 py-3.5 hover:bg-secondary/40 transition-colors cursor-pointer ${idx > 0 ? "border-t border-border/30" : ""}`}
-              onClick={() => onOpenCall(call.id)}
+              className={`group grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_96px_80px_20px] gap-4 items-center px-5 py-3.5 hover:bg-secondary/40 transition-colors ${idx > 0 ? "border-t border-border/30" : ""}`}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="size-9 rounded-lg flex items-center justify-center bg-secondary text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                  <HugeiconsIcon icon={FileHeadphoneIcon} className="size-4" />
+              <Link
+                href={`/dashboard/calls/${call.id}`}
+                className="block min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-9 rounded-lg flex items-center justify-center bg-secondary text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <HugeiconsIcon icon={FileHeadphoneIcon} className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">
+                      {call.agent_name ?? agentNameById[call.agent_id] ?? "Unknown agent"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate">
+                      Agent {shortAgentId(call.agent_id)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="ml-2 h-5 px-1.5 text-[10px] uppercase tracking-wide shrink-0"
+                  >
+                    {call.direction}
+                  </Badge>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">
-                    {call.agent_name ?? agentNameById[call.agent_id] ?? "Unknown agent"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-mono truncate">
-                    Agent {shortAgentId(call.agent_id)}
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="ml-2 h-5 px-1.5 text-[10px] uppercase tracking-wide shrink-0"
-                >
-                  {call.direction}
-                </Badge>
-              </div>
+              </Link>
 
-              <span className="text-xs text-muted-foreground truncate">
+              <Link
+                href={`/dashboard/calls/${call.id}`}
+                className="block text-xs text-muted-foreground truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              >
                 {call.started_at
                   ? new Date(call.started_at).toLocaleString([], {
                       hour: "2-digit",
@@ -126,9 +132,9 @@ export function CallLogTable({
                   : "—"}
                 <span className="mx-1">·</span>
                 <span className="font-mono">{formatDuration(call.duration_seconds)}</span>
-              </span>
+              </Link>
 
-              <div className="w-24 flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <div className="w-24 flex justify-center">
                 {call.recording_url ? (
                   <>
                     <audio
@@ -186,17 +192,26 @@ export function CallLogTable({
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 justify-end w-20">
+              <Link
+                href={`/dashboard/calls/${call.id}`}
+                className="flex items-center gap-1.5 justify-end w-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              >
                 <div
                   className={`size-1.5 rounded-full ${call.status === "completed" ? "bg-success" : "bg-amber-400"}`}
                 />
                 <span className="text-xs text-foreground capitalize">{call.status}</span>
-              </div>
+              </Link>
 
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                className="size-4 justify-self-end text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
-              />
+              <Link
+                href={`/dashboard/calls/${call.id}`}
+                aria-label="Open call details"
+                className="justify-self-end rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  className="size-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+                />
+              </Link>
             </div>
           ))}
         </div>

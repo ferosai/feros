@@ -9,7 +9,6 @@ import {
   VoiceIcon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { parseAsNativeArrayOf, parseAsString, useQueryState } from "nuqs";
 import { api, type Agent, type CallLog } from "@/lib/api/client";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +32,6 @@ const CALLS_PAGE_LIMIT = 50;
 import { Suspense } from "react";
 
 function CallsPageContent() {
-  const router = useRouter();
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAgentIds, setSelectedAgentIds] = useQueryState(
@@ -299,7 +297,6 @@ function CallsPageContent() {
         calls={calls}
         loading={loading}
         agentNameById={agentNameById}
-        onOpenCall={(callId) => router.push(`/dashboard/calls/${callId}`)}
         showColumnHeader
         loadingRows={5}
       />
