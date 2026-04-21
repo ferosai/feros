@@ -14,7 +14,6 @@ import {
   SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { api, type Agent, type CallLog } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { CallLogTable } from "@/components/calls/call-log-table";
@@ -50,7 +49,6 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [recentCalls, setRecentCalls] = useState<CallLog[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
@@ -190,7 +188,6 @@ export default function DashboardPage() {
           <CallLogTable
             calls={recentCalls}
             loading={false}
-            onOpenCall={(callId) => router.push(`/dashboard/calls/${callId}`)}
             showColumnHeader={false}
             loadingRows={2}
           />
