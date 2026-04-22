@@ -118,7 +118,7 @@ def _decrypt_credentials(phone_num: PhoneNumber) -> dict[str, Any]:
         _raise_stale_number_auth()
     blob = json.loads(raw)
     engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
-    return engine.decrypt(blob["ciphertext"], blob["iv"])
+    return engine.decrypt(blob["ciphertext"], blob["iv"])  # type: ignore[no-any-return, unused-ignore]
 
 
 def _phone_number_response(num: PhoneNumber) -> PhoneNumberResponse:

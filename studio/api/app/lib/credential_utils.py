@@ -6,7 +6,7 @@ pattern used by ``connections.py``, ``credentials.py``, and others.
 
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.credential import Credential
@@ -57,24 +57,6 @@ async def find_credential(
         Credential.provider == provider,
         Credential.agent_id.is_(None),
     )
-
-    if workspace_id:
-        try:
-            ws_uuid = (
-                workspace_id
-                if isinstance(workspace_id, uuid.UUID)
-                else uuid.UUID(str(workspace_id))
-            )
-            query = query.where(
-                or_(
-                    Credential.workspace_id == ws_uuid,
-                    Credential.workspace_id.is_(None)
-                )
-            ).order_by(
-                Credential.workspace_id.desc().nulls_last()
-            )
-        except ValueError:
-            pass
 
     r = await db.execute(query.limit(1))
     default_cred = r.scalar_one_or_none()
@@ -131,28 +113,6 @@ async def find_credentials_batch(
         Credential.provider.in_(providers),
         Credential.agent_id.is_(None),
     )
-
-    if workspace_id:
-        try:
-            ws_uuid = (
-                workspace_id
-                if isinstance(workspace_id, uuid.UUID)
-                else uuid.UUID(str(workspace_id))
-            )
-            # Fetch both workspace-scoped defaults and global defaults.
-            # Order workspace-specific rows first, then global (NULL) rows.
-            # We keep the first one seen for each provider.
-            query = query.where(
-                or_(
-                    Credential.workspace_id == ws_uuid,
-                    Credential.workspace_id.is_(None)
-                )
-            ).order_by(
-                Credential.workspace_id.is_(None).asc(),
-                Credential.created_at.desc()
-            )
-        except ValueError:
-            pass
 
     r = await db.execute(query)
     for cred in r.scalars().all():

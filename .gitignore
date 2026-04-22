@@ -69,3 +69,6 @@ recordings/
 
 deploy-scripts/
 
+
+target-oss
+.tmp-oss-voice

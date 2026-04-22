@@ -69,7 +69,7 @@ lint-server:
 lint-integrations:
 	cd integrations && cargo clippy -- -D warnings
 
-lint-oss: lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
+lint-oss: lint-oss-api lint-oss-web ## Lint all components as they appear in the OSS build (run lint-oss-voice separately — it's slow)
 
 lint-oss-api: ## Lint the Studio API as it appears in the OSS build
 	@echo "── [OSS] Studio API ──"
@@ -81,9 +81,8 @@ lint-oss-api: ## Lint the Studio API as it appears in the OSS build
 		--exclude='*.internal.ts' \
 		--exclude='*.internal.tsx' \
 		$(API_DIR)/app/ $$TMP/app/; \
-	find $$TMP/app -type f -name '*.py' \
-		-exec perl -0777 -i \
-	cd $$TMP && uv run --project $(CURDIR)/$(API_DIR) ruff check app/
+	cp $(API_DIR)/pyproject.toml $$TMP/; \
+	cd $$TMP && uv run --project $(CURDIR)/$(API_DIR) ruff check app/ && uv run --project $(CURDIR)/$(API_DIR) mypy app/
 
 lint-oss-web: ## Lint the Studio Web as it appears in the OSS build
 	@echo "── [OSS] Studio Web ──"
@@ -95,8 +94,6 @@ lint-oss-web: ## Lint the Studio Web as it appears in the OSS build
 		--exclude='*.internal.tsx' \
 		--exclude='app/login/' \
 		$(WEB_DIR)/src/ $$TMP/src/; \
-	find $$TMP/src -type f \( -name '*.ts' -o -name '*.tsx' \) \
-		-exec perl -0777 -i \
 	ln -s $(CURDIR)/$(WEB_DIR)/node_modules $$TMP/node_modules; \
 	cp $(WEB_DIR)/package.json $(WEB_DIR)/tsconfig.json $(WEB_DIR)/eslint.config.* $(WEB_DIR)/components.json $$TMP/ 2>/dev/null || true; \
 	cd $$TMP && ./node_modules/.bin/eslint src
@@ -104,9 +101,9 @@ lint-oss-web: ## Lint the Studio Web as it appears in the OSS build
 lint-oss-voice: ## Lint the Voice server as it appears in the OSS build
 	@echo "── [OSS] Voice server ──"
 	@set -e; \
-	TMP=$$(mktemp -d); \
-	trap "rm -rf $$TMP" EXIT INT TERM; \
-	mkdir -p $$TMP/voice-server $$TMP/proto; \
+	TMP="$(CURDIR)/.tmp-oss-voice"; \
+	rm -rf $$TMP; \
+	mkdir -p $$TMP/voice-server $$TMP/proto $$TMP/integrations; \
 	rsync -a \
 		--exclude='*_internal.rs' \
 		--exclude='target/' \
@@ -115,8 +112,10 @@ lint-oss-voice: ## Lint the Voice server as it appears in the OSS build
 	rsync -a \
 		--exclude='target/' \
 		integrations/ $$TMP/integrations/; \
+	export CARGO_TARGET_DIR="$(CURDIR)/target-oss"; \
 	cd $$TMP/voice-server/engine && cargo clippy -- -D warnings; \
-	cd $$TMP/voice-server/server && cargo clippy -- -D warnings
+	cd $$TMP/voice-server/server && cargo clippy -- -D warnings; \
+	rm -rf $$TMP
 
 # ── Test ─────────────────────────────────────────────────────────
 .PHONY: test test-api test-engine test-server test-integrations
