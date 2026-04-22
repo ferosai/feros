@@ -16,6 +16,7 @@ services:
       POSTGRES_USER: voice-agent-os
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ferosdev}
       POSTGRES_DB: ${POSTGRES_DB:-voice_agent}
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

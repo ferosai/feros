@@ -339,7 +339,7 @@ def _decrypt_inline(blob: dict[str, str] | str) -> dict[str, str]:
             import integrations
 
             engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
-            return engine.decrypt(blob["ciphertext"], blob.get("iv", ""))
+            return engine.decrypt(blob["ciphertext"], blob.get("iv", ""))  # type: ignore[no-any-return, unused-ignore]
         except Exception:
             pass
     return {"value": ""}

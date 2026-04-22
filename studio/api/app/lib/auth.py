@@ -57,10 +57,14 @@ async def require_api_key(
 
 
 if "TenantContext" not in globals():
-    TenantContext = None  # type: ignore[assignment,misc]
+    class TenantContext:  # type: ignore[no-redef, unused-ignore]
+        user: Any
+        organization: Any
+        workspace: Any
+        role: str
 
 if "require_tenant" not in globals():
-    async def require_tenant(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc]
+    async def require_tenant(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc, unused-ignore]
         return None
 
 

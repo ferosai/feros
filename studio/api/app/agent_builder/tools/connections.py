@@ -153,7 +153,7 @@ async def get_connection_status(agent_id: str, config: dict[str, Any] | None) ->
     lines: list[str] = []
     async with async_session() as db:
         agent = await db.get(DbAgent, agent_id)
-        workspace_id = agent.workspace_id if agent else None
+        workspace_id = getattr(agent, "workspace_id", None) if agent else None
         creds = await find_credentials_batch(
             db, providers_to_check, agent_id, workspace_id
         )
@@ -206,7 +206,7 @@ def register_connection_tools(agent: Agent[BuilderDeps, str]) -> None:
 
         async with async_session() as db:
             agent = await db.get(DbAgent, agent_id)
-            workspace_id = agent.workspace_id if agent else None
+            workspace_id = getattr(agent, "workspace_id", None) if agent else None
             agent_cred, default_cred = await find_credential(
                 db, provider, agent_id, workspace_id
             )

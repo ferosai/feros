@@ -124,6 +124,9 @@ module = [
     "authlib.*",
     "boto3.*",
     "botocore.*",
+    "voice_engine.*",
+    "integrations.*",
+    "app.models.tenancy_internal",
 ]
 ignore_missing_imports = true
 
