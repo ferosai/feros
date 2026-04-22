@@ -6,7 +6,7 @@ pattern used by ``connections.py``, ``credentials.py``, and others.
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.credential import Credential
@@ -16,12 +16,14 @@ async def find_credential(
     db: AsyncSession,
     provider: str,
     agent_id: str | uuid.UUID | None,
+    workspace_id: str | uuid.UUID | None = None,
 ) -> tuple[Credential | None, Credential | None]:
     """Look up credentials for *provider*, returning (agent_cred, default_cred).
 
     Resolution order:
       1. **Agent-specific** credential (``agent_id`` matches)
-      2. **Platform default** credential (``agent_id IS NULL``)
+      2. **Workspace-specific default** credential (``agent_id IS NULL`` and ``workspace_id`` matches)
+      3. **Platform default** credential (``agent_id IS NULL`` and ``workspace_id IS NULL``)
 
     Either or both may be ``None``.
     """
@@ -51,14 +53,30 @@ async def find_credential(
             agent_cred = r.scalar_one_or_none()
 
     # 2. Platform default lookup
-    r = await db.execute(
-        select(Credential)
-        .where(
-            Credential.provider == provider,
-            Credential.agent_id.is_(None),
-        )
-        .limit(1)
+    query = select(Credential).where(
+        Credential.provider == provider,
+        Credential.agent_id.is_(None),
     )
+
+    if workspace_id:
+        try:
+            ws_uuid = (
+                workspace_id
+                if isinstance(workspace_id, uuid.UUID)
+                else uuid.UUID(str(workspace_id))
+            )
+            query = query.where(
+                or_(
+                    Credential.workspace_id == ws_uuid,
+                    Credential.workspace_id.is_(None)
+                )
+            ).order_by(
+                Credential.workspace_id.desc().nulls_last()
+            )
+        except ValueError:
+            pass
+
+    r = await db.execute(query.limit(1))
     default_cred = r.scalar_one_or_none()
 
     return agent_cred, default_cred
@@ -68,6 +86,7 @@ async def find_credentials_batch(
     db: AsyncSession,
     providers: set[str],
     agent_id: str | uuid.UUID | None,
+    workspace_id: str | uuid.UUID | None = None,
 ) -> dict[str, tuple[Credential | None, Credential | None]]:
     """Batch-lookup credentials for multiple *providers* in two queries.
 
@@ -108,14 +127,37 @@ async def find_credentials_batch(
 
     # 2. Fetch all platform default credentials in one query
     default_creds: dict[str, Credential] = {}
-    r = await db.execute(
-        select(Credential).where(
-            Credential.provider.in_(providers),
-            Credential.agent_id.is_(None),
-        )
+    query = select(Credential).where(
+        Credential.provider.in_(providers),
+        Credential.agent_id.is_(None),
     )
+
+    if workspace_id:
+        try:
+            ws_uuid = (
+                workspace_id
+                if isinstance(workspace_id, uuid.UUID)
+                else uuid.UUID(str(workspace_id))
+            )
+            # Fetch both workspace-scoped defaults and global defaults.
+            # Order workspace-specific rows first, then global (NULL) rows.
+            # We keep the first one seen for each provider.
+            query = query.where(
+                or_(
+                    Credential.workspace_id == ws_uuid,
+                    Credential.workspace_id.is_(None)
+                )
+            ).order_by(
+                Credential.workspace_id.is_(None).asc(),
+                Credential.created_at.desc()
+            )
+        except ValueError:
+            pass
+
+    r = await db.execute(query)
     for cred in r.scalars().all():
-        default_creds[cred.provider] = cred
+        if cred.provider not in default_creds:
+            default_creds[cred.provider] = cred
 
     # 3. Merge into result
     for p in providers:

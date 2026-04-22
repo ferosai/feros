@@ -570,6 +570,20 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Internal Tenancy
+  me: {
+    get: (options?: RequestInit) => apiFetch<{ organization: { id: string; name: string }; workspaces: { id: string; name: string; slug: string; is_default?: boolean }[] }>("/me", options),
+  },
+  organizations: {
+    workspaces: {
+      post: (orgId: string, data: { name: string }) =>
+        apiFetch<{ id: string; name: string; slug: string; is_default: boolean }>(`/organizations/${orgId}/workspaces`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+    },
+  },
+
   // Agents
   agents: {
     list: (skip = 0, limit = 50, query?: string) =>
@@ -650,9 +664,12 @@ export const api = {
     }> => {
       const form = new FormData();
       form.append("file", file);
+      
+      const headers: Record<string, string> = {};
       const res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/upload`, {
         method: "POST",
         body: form,
+        headers,
       });
       if (!res.ok) {
         throw await buildApiError(res, `Upload error: ${res.status}`);
@@ -668,9 +685,10 @@ export const api = {
     ) => {
       let res: Response;
       try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
         res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/stream`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ content, attachments: attachments ?? [] }),
           signal,
         });

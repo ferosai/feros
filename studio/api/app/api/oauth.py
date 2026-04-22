@@ -36,6 +36,7 @@ from app.lib.kv_store import kv_store
 from app.lib.oauth_apps import get_oauth_client_credentials
 from app.models.agent import Agent
 from app.models.credential import CURRENT_ENCRYPTION_VERSION, Credential
+from app.lib.auth import TenantContext, require_tenant
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
 
@@ -78,6 +79,7 @@ async def oauth_authorize(
     origin: str = Query(
         default="", description="Opener window origin for postMessage targeting"
     ),
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Start OAuth flow: generate authorize URL with PKCE.
@@ -135,6 +137,7 @@ async def oauth_authorize(
             "integration": integration_name,
             "code_verifier": code_verifier,
             "origin": origin or "",
+            "workspace_id": str(ctx.workspace.id) if ctx else None,
         },
         ttl=_STATE_TTL_SECONDS,
     )
@@ -219,7 +222,6 @@ async def oauth_callback(
     integration_name = state_data.get("integration") or state_data.get("provider", "")
     code_verifier = state_data["code_verifier"]
     opener_origin = state_data.get("origin", "")
-
     # Load integration auth config
     config = integration_registry.load_integration_config(integration_name)
     if not config:
@@ -306,16 +308,15 @@ async def oauth_callback(
     display_name = config.display_name
 
     # Upsert: update existing credential for this agent+integration, or create new
-    existing_result = await db.execute(
-        select(Credential).where(
-            (
-                Credential.agent_id == agent_id
-                if not is_platform_default
-                else Credential.agent_id.is_(None)
-            ),
-            Credential.provider == integration_name,
-        )
+    existing_query = select(Credential).where(
+        (
+            Credential.agent_id == agent_id
+            if not is_platform_default
+            else Credential.agent_id.is_(None)
+        ),
+        Credential.provider == integration_name,
     )
+    existing_result = await db.execute(existing_query)
     existing = existing_result.scalar_one_or_none()
 
     if existing:

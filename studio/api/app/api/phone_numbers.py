@@ -37,6 +37,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import integrations
+
+from app.lib.auth import TenantContext, require_tenant
 from app.lib.config import get_settings, get_telephony_config
 from app.lib.database import get_db
 from app.models.agent import Agent
@@ -444,12 +446,13 @@ async def _detach_telnyx_number_from_connection(
 
 @router.get("", response_model=PhoneNumberListResponse)
 async def list_phone_numbers(
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> PhoneNumberListResponse:
     """List all phone numbers stored in the DB."""
-    result = await db.execute(
-        select(PhoneNumber).order_by(PhoneNumber.created_at.desc())
-    )
+    query = select(PhoneNumber)
+    query = query.order_by(PhoneNumber.created_at.desc())
+    result = await db.execute(query)
     numbers = list(result.scalars().all())
     return PhoneNumberListResponse(
         phone_numbers=[_phone_number_response(n) for n in numbers],
@@ -460,6 +463,7 @@ async def list_phone_numbers(
 @router.post("/fetch", response_model=FetchNumbersResponse)
 async def fetch_provider_numbers(
     body: FetchNumbersRequest,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> FetchNumbersResponse:
     """Fetch phone numbers from a provider account using inline credentials.
@@ -468,7 +472,8 @@ async def fetch_provider_numbers(
     which numbers to import.
     """
     # Collect existing E.164s for already_imported check
-    result = await db.execute(select(PhoneNumber.phone_number))
+    query = select(PhoneNumber.phone_number)
+    result = await db.execute(query)
     existing_e164s = {row[0] for row in result.all()}
 
     numbers: list[ProviderNumber] = []
@@ -537,6 +542,7 @@ async def fetch_provider_numbers(
 @router.post("/import-selected", response_model=PhoneNumberListResponse)
 async def import_selected_numbers(
     body: ImportNumbersRequest,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> PhoneNumberListResponse:
     """Import selected phone numbers with inline credentials.
@@ -593,9 +599,8 @@ async def import_selected_numbers(
             )
             continue
 
-        result = await db.execute(
-            select(PhoneNumber).where(PhoneNumber.phone_number == e164)
-        )
+        query = select(PhoneNumber).where(PhoneNumber.phone_number == e164)
+        result = await db.execute(query)
         existing = result.scalar_one_or_none()
 
         if body.provider == "twilio":
@@ -652,6 +657,7 @@ async def import_selected_numbers(
 async def assign_phone_number(
     phone_number_id: _uuid.UUID,
     body: AssignPhoneNumberRequest,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> PhoneNumberResponse:
     """Assign or unassign a phone number to/from an agent.
@@ -668,9 +674,8 @@ async def assign_phone_number(
       - Clears the provider webhook
       - Clears agent_id in the DB
     """
-    result = await db.execute(
-        select(PhoneNumber).where(PhoneNumber.id == phone_number_id)
-    )
+    query = select(PhoneNumber).where(PhoneNumber.id == phone_number_id)
+    result = await db.execute(query)
     phone_num = result.scalar_one_or_none()
     if not phone_num:
         raise HTTPException(status_code=404, detail="Phone number not found")
@@ -715,8 +720,9 @@ async def assign_phone_number(
         return _phone_number_response(phone_num)
 
     # ── Assign ──────────────────────────────────────────────────
-    # Validate agent exists
-    agent_result = await db.execute(select(Agent).where(Agent.id == body.agent_id))
+    # Validate agent exists and is in the same workspace
+    agent_query = select(Agent).where(Agent.id == body.agent_id)
+    agent_result = await db.execute(agent_query)
     if not agent_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -787,6 +793,7 @@ async def assign_phone_number(
 @router.delete("/{phone_number_id}", status_code=204)
 async def delete_phone_number(
     phone_number_id: _uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove a phone number from our DB.
@@ -794,9 +801,8 @@ async def delete_phone_number(
     This does NOT cancel/release the number with the provider. It only
     removes it from our management view.
     """
-    result = await db.execute(
-        select(PhoneNumber).where(PhoneNumber.id == phone_number_id)
-    )
+    query = select(PhoneNumber).where(PhoneNumber.id == phone_number_id)
+    result = await db.execute(query)
     phone_num = result.scalar_one_or_none()
     if not phone_num:
         raise HTTPException(status_code=404, detail="Phone number not found")

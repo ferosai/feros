@@ -15,8 +15,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import AgentListItemCard from "@/components/agent/agent-list-item-card";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+
 
 export default function AgentsPage() {
+  const { workspace_slug } = useParams();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -100,12 +103,12 @@ export default function AgentsPage() {
               className="h-8 w-44 rounded-md bg-secondary pl-9 pr-3 text-xs focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground transition-all"
             />
           </div>
-          <Link href="/dashboard/agents/new">
+          <Link href={`/dashboard/${workspace_slug}/agents/new`}>
             <Button size="sm" className="h-8 px-4 text-xs font-medium gap-1.5">
               <HugeiconsIcon icon={Add01Icon} className="size-3.5" /> Create agent
             </Button>
           </Link>
-          <Link href="/dashboard/agents/import">
+          <Link href={`/dashboard/${workspace_slug}/agents/import`}>
             <Button size="sm" variant="outline" className="h-8 px-4 text-xs font-medium gap-1.5">
               <HugeiconsIcon icon={HardDriveUploadIcon} className="size-3.5" /> Import agent
             </Button>
@@ -128,7 +131,7 @@ export default function AgentsPage() {
           <p className="text-sm text-muted-foreground max-w-[280px] mx-auto mb-5">
             Create your first voice agent to start handling calls.
           </p>
-          <Link href="/dashboard/agents/new">
+          <Link href={`/dashboard/${workspace_slug}/agents/new`}>
             <Button size="sm" className="h-8 rounded-lg px-5 text-xs font-medium gap-1.5">
               <HugeiconsIcon icon={Add01Icon} className="size-3.5" /> Create agent
             </Button>
@@ -144,7 +147,7 @@ export default function AgentsPage() {
               <AgentListItemCard
                 key={agent.id}
                 agent={agent}
-                href={`/dashboard/agents/${agent.id}`}
+                href={`/dashboard/${workspace_slug}/agents/${agent.id}`}
               />
             ))}
         </div>

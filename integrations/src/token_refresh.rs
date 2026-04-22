@@ -444,35 +444,30 @@ async fn find_credential(
     provider: &str,
     agent_id: Option<uuid::Uuid>,
 ) -> Result<CredentialRow, Box<dyn std::error::Error + Send + Sync>> {
-    const CRED_QUERY: &str = "SELECT id, agent_id, name, provider, auth_type, encrypted_data,
-                encryption_iv, encryption_version, token_expires_at,
-                last_refresh_success, last_refresh_failure, last_refresh_error,
-                refresh_attempts, refresh_exhausted, last_fetched_at
-         FROM credentials
-         WHERE provider = $1 AND agent_id IS NOT DISTINCT FROM $2
-         LIMIT 1";
-
-    if let Some(aid) = agent_id {
-        // Try agent-specific first
-        if let Some(row) = sqlx::query_as::<_, CredentialRow>(CRED_QUERY)
-            .bind(provider)
-            .bind(Some(aid))
-            .persistent(false)
-            .fetch_optional(pool)
-            .await?
-        {
-            return Ok(row);
-        }
-    }
-
-    // Platform default (agent_id IS NULL)
-    sqlx::query_as::<_, CredentialRow>(CRED_QUERY)
-        .bind(provider)
-        .bind(None::<uuid::Uuid>)
-        .persistent(false)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| format!("No credential found for provider '{}'", provider).into())
+    sqlx::query_as::<_, CredentialRow>(
+        "SELECT c.id, c.agent_id, c.name, c.provider, c.auth_type, c.encrypted_data,
+                c.encryption_iv, c.encryption_version, c.token_expires_at,
+                c.last_refresh_success, c.last_refresh_failure, c.last_refresh_error,
+                c.refresh_attempts, c.refresh_exhausted, c.last_fetched_at
+         FROM credentials c
+         LEFT JOIN agents a ON a.id = $2
+         WHERE c.provider = $1
+           AND (
+               c.agent_id = $2
+               OR (c.agent_id IS NULL AND (c.workspace_id = a.workspace_id OR c.workspace_id IS NULL))
+           )
+         ORDER BY 
+            c.agent_id NULLS LAST,
+            c.workspace_id NULLS LAST,
+            c.created_at DESC
+         LIMIT 1"
+    )
+    .bind(provider)
+    .bind(agent_id)
+    .persistent(false)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| format!("No credential found for provider '{}'", provider).into())
 }
 
 /// Resolve a valid access token for a provider, refreshing if expired.

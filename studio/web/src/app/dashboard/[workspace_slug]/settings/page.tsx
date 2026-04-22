@@ -59,6 +59,7 @@ import {
 } from "@/lib/api/client";
 import { toast } from "sonner";
 
+
 // ── Provider metadata ──────────────────────────────────────────
 
 const PROVIDER_HELP: Record<string, { models: string[]; docs: string; placeholder: string }> = {
@@ -1007,9 +1008,12 @@ const OBS_DEFAULTS: {
 
 // ── Page ─────────────────────────────────────────────────────────
 
-function SettingsPageContent() {
+import { use } from "react";
+
+function SettingsPageContent({ params }: { params: Promise<{ workspace_slug: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { workspace_slug } = use(params);
   const headerRef = useRef<HTMLDivElement | null>(null);
 
   const validTabIds = SETTINGS_TABS.map((t) => t.id);
@@ -1777,7 +1781,7 @@ function SettingsPageContent() {
                 <span>
                   Provider credentials (Twilio/Telnyx) are now entered when importing numbers and
                   stored per-number. Manage them in{" "}
-                  <a href="/dashboard/phone-numbers" className="font-medium underline">
+                  <a href={`/dashboard/${workspace_slug}/phone-numbers`} className="font-medium underline">
                     Phone Numbers
                   </a>
                   .
@@ -2057,7 +2061,7 @@ function SettingsPageContent() {
   );
 }
 
-export default function SettingsPage() {
+export default function SettingsPage(props: { params: Promise<{ workspace_slug: string }> }) {
   return (
     <Suspense
       fallback={
@@ -2066,7 +2070,7 @@ export default function SettingsPage() {
         </div>
       }
     >
-      <SettingsPageContent />
+      <SettingsPageContent {...props} />
     </Suspense>
   );
 }

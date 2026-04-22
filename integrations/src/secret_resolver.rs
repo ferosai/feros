@@ -67,32 +67,39 @@ pub async fn resolve_secrets(
     // required for PgBouncer in transaction-pooling mode (e.g. Supabase)
     // where prepared statements leak across connections.
     //
-    // Fetch both agent-specific and platform-wide default credentials.
-    // ORDER BY agent_id NULLS LAST ensures agent-specific rows come first,
-    // so they override defaults when we insert into the map.
+    // Fetch both agent-specific, workspace-wide, and platform-wide default credentials.
+    // ORDER BY specificity ensures we see the most specific credential first:
+    // 1. Agent-specific (agent_id IS NOT NULL)
+    // 2. Workspace-specific (workspace_id IS NOT NULL)
+    // 3. Global (workspace_id IS NULL)
     let rows = sqlx::query_as::<_, CredentialRow>(
-        "SELECT provider, encrypted_data, encryption_iv, encryption_version,
-                CASE WHEN agent_id IS NOT NULL THEN true ELSE false END AS is_agent_specific
-         FROM credentials
-         WHERE agent_id = $1 OR agent_id IS NULL
-         ORDER BY agent_id NULLS LAST",
+        "SELECT c.provider, c.encrypted_data, c.encryption_iv, c.encryption_version,
+                CASE WHEN c.agent_id IS NOT NULL THEN true ELSE false END AS is_agent_specific
+         FROM credentials c
+         LEFT JOIN agents a ON a.id = $1
+         WHERE c.agent_id = $1 
+            OR (c.agent_id IS NULL AND (c.workspace_id = a.workspace_id OR c.workspace_id IS NULL))
+         ORDER BY 
+            c.agent_id NULLS LAST,
+            c.workspace_id NULLS LAST,
+            c.created_at DESC",
     )
     .bind(agent_id)
     .persistent(false)
     .fetch_all(pool)
     .await?;
 
-    // Track which providers already have agent-specific credentials so
-    // we don't overwrite them with defaults.
+    // Track which providers we have already processed so we keep only the
+    // most specific credential for each.
     let mut seen_providers: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     let mut secrets = SecretMap::new();
     for row in &rows {
-        // Skip default credentials if we already have an agent-specific one.
-        if !row.is_agent_specific && seen_providers.contains(&row.provider) {
+        // Skip less specific credentials if we already have one for this provider.
+        if seen_providers.contains(&row.provider) {
             info!(
                 provider = %row.provider,
-                "Skipping default credential — agent-specific exists"
+                "Skipping less specific credential"
             );
             continue;
         }
@@ -107,9 +114,9 @@ pub async fn resolve_secrets(
                 for (k, v) in &data {
                     secrets.insert(format!("{}.{}", row.provider, k), v.clone().into());
                 }
-                if row.is_agent_specific {
-                    seen_providers.insert(row.provider.clone());
-                }
+                
+                seen_providers.insert(row.provider.clone());
+                
                 info!(
                     provider = %row.provider,
                     fields = data.len(),

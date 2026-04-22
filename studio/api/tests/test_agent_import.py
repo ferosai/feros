@@ -115,7 +115,9 @@ async def test_validate_import_valid_path(
     tts_catalog: None,
     import_defaults: None,
 ) -> None:
-    result = await agent_import.validate_import_config(db=object(), config=_minimal_graph())
+    result = await agent_import.validate_import_config(
+        db=object(), config=_minimal_graph()
+    )
 
     assert result.schema_valid is True
     assert result.fulfillable is True
@@ -165,7 +167,9 @@ async def test_validate_import_unknown_provider_is_mappable(
         config=_minimal_graph(tts_provider="does-not-exist"),
     )
 
-    issue = next(i for i in result.fulfillment_issues if i.code == "unknown_tts_provider")
+    issue = next(
+        i for i in result.fulfillment_issues if i.code == "unknown_tts_provider"
+    )
     assert issue.mappable is True
     assert issue.suggested_value == "cartesia-ws"
 
