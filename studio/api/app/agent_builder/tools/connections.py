@@ -35,6 +35,7 @@ from app.lib.config import get_settings
 from app.lib.config_utils import extract_secret_keys
 from app.lib.credential_utils import find_credential, find_credentials_batch
 from app.lib.database import async_session
+from app.models.agent import Agent as DbAgent
 from app.lib.integration_registry import (
     INTEGRATIONS_PATH,
     IntegrationConfig,
@@ -151,7 +152,11 @@ async def get_connection_status(agent_id: str, config: dict[str, Any] | None) ->
 
     lines: list[str] = []
     async with async_session() as db:
-        creds = await find_credentials_batch(db, providers_to_check, agent_id)
+        agent = await db.get(DbAgent, agent_id)
+        workspace_id = agent.workspace_id if agent else None
+        creds = await find_credentials_batch(
+            db, providers_to_check, agent_id, workspace_id
+        )
 
         for provider in sorted(providers_to_check):
             agent_cred, default_cred = creds.get(provider, (None, None))
@@ -200,7 +205,11 @@ def register_connection_tools(agent: Agent[BuilderDeps, str]) -> None:
         agent_id = ctx.deps.agent_id
 
         async with async_session() as db:
-            agent_cred, default_cred = await find_credential(db, provider, agent_id)
+            agent = await db.get(DbAgent, agent_id)
+            workspace_id = agent.workspace_id if agent else None
+            agent_cred, default_cred = await find_credential(
+                db, provider, agent_id, workspace_id
+            )
 
         display = integration.display_name
 

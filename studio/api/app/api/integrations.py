@@ -26,6 +26,8 @@ from app.schemas.credential import (
     DefaultConnectionUpsert,
 )
 
+from app.lib.auth import TenantContext, require_tenant
+
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
@@ -64,14 +66,13 @@ async def get_credential_schema(
 
 @router.get("/default-connections")
 async def list_default_connections(
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> list[DefaultConnectionResponse]:
     """List all platform-wide default connections."""
-    result = await db.execute(
-        select(Credential)
-        .where(Credential.agent_id.is_(None))
-        .order_by(Credential.provider)
-    )
+    query = select(Credential).where(Credential.agent_id.is_(None))
+    query = query.order_by(Credential.provider)
+    result = await db.execute(query)
     rows = list(result.scalars().all())
     return [DefaultConnectionResponse.model_validate(r) for r in rows]
 
@@ -79,16 +80,16 @@ async def list_default_connections(
 @router.get("/{integration_name}/default-connection")
 async def get_default_connection(
     integration_name: str,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> DefaultConnectionResponse:
     """Get the platform-wide default connection for an integration, if configured."""
-    result = await db.execute(
-        select(Credential).where(
-            Credential.provider == integration_name,
-            Credential.agent_id.is_(None),
-        )
+    query = select(Credential).where(
+        Credential.provider == integration_name,
+        Credential.agent_id.is_(None),
     )
-    row = result.scalar_one_or_none()
+    result = await db.execute(query.limit(1))
+    row = result.scalars().first()
     if not row:
         raise HTTPException(status_code=404, detail="No default connection configured")
     return DefaultConnectionResponse.model_validate(row)
@@ -100,6 +101,7 @@ async def get_default_connection(
 async def upsert_default_connection(
     integration_name: str,
     body: DefaultConnectionUpsert,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> DefaultConnectionResponse:
     """Create or replace the platform-wide default connection for an integration.
@@ -117,12 +119,11 @@ async def upsert_default_connection(
     engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
     encrypted, iv = engine.encrypt(body.data)
 
-    result = await db.execute(
-        select(Credential).where(
-            Credential.provider == integration_name,
-            Credential.agent_id.is_(None),
-        )
+    query = select(Credential).where(
+        Credential.provider == integration_name,
+        Credential.agent_id.is_(None),
     )
+    result = await db.execute(query)
     existing = result.scalar_one_or_none()
 
     if existing:
@@ -152,15 +153,15 @@ async def upsert_default_connection(
 @router.delete("/{integration_name}/default-connection", status_code=204)
 async def delete_default_connection(
     integration_name: str,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove the platform-wide default connection for an integration."""
-    result = await db.execute(
-        select(Credential).where(
-            Credential.provider == integration_name,
-            Credential.agent_id.is_(None),
-        )
+    query = select(Credential).where(
+        Credential.provider == integration_name,
+        Credential.agent_id.is_(None),
     )
+    result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="No default connection configured")

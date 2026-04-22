@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from app.agent_builder import builder_service
 from app.agent_builder.deps import BuilderResult
+from app.lib.auth import TenantContext, require_tenant
 from app.lib.database import async_session, get_db
 from app.lib.file_store import extract_text, file_store
 from app.models.agent import Agent, AgentVersion
@@ -52,9 +53,16 @@ _pending_tasks: set[asyncio.Task[Any]] = set()
 @router.get("/conversation", response_model=BuilderConversationResponse)
 async def get_conversation(
     agent_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> BuilderConversationResponse:
     """Get the builder conversation for an agent (with all messages)."""
+    # Verify agent ownership first
+    agent_query = select(Agent.id).where(Agent.id == agent_id)
+    agent_result = await db.execute(agent_query)
+    if not agent_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Agent not found")
+
     result = await db.execute(
         select(BuilderConversation)
         .where(BuilderConversation.agent_id == agent_id)
@@ -102,6 +110,7 @@ async def get_conversation(
 async def upload_document(
     agent_id: uuid.UUID,
     file: UploadFile = File(...),
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Upload a document for the builder to use as knowledge context.
@@ -110,7 +119,8 @@ async def upload_document(
     it in-memory for the builder session.
     """
     # Verify agent exists
-    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent_query = select(Agent).where(Agent.id == agent_id)
+    agent_result = await db.execute(agent_query)
     if not agent_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -175,6 +185,7 @@ _SSE_HEADERS = {
 async def stream_message(
     agent_id: uuid.UUID,
     body: BuilderMessageCreate,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """SSE streaming version of the builder endpoint.
@@ -191,7 +202,8 @@ async def stream_message(
     its result, even if the client disconnects mid-stream.
     """
     # ── Pre-stream: load agent state from DB ─────────────────────
-    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent_query = select(Agent).where(Agent.id == agent_id)
+    agent_result = await db.execute(agent_query)
     agent = agent_result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")

@@ -33,8 +33,9 @@ class PhoneNumber(Base):
     """
 
     __tablename__ = "phone_numbers"
-    __table_args__ = (UniqueConstraint("phone_number", name="uq_phone_numbers_e164"),)
-
+    __table_args__ = (
+        UniqueConstraint("phone_number", name="uq_phone_numbers_e164"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
 
     # Provider info
@@ -89,3 +90,4 @@ class PhoneNumber(Base):
     def __repr__(self) -> str:
         assigned = f" → agent={self.agent_id}" if self.agent_id else " (unassigned)"
         return f"<PhoneNumber {self.phone_number} [{self.provider}]{assigned}>"
+

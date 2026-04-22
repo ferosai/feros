@@ -18,7 +18,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 import { ImportConfigInput } from "@/components/agent/import-config-input";
 import type { ImportConfigParseStatus } from "@/components/agent/import-config-input";
@@ -48,6 +48,7 @@ const STEP_ITEMS = [
 ];
 
 export default function ImportAgentPage() {
+  const { workspace_slug } = useParams();
   const router = useRouter();
 
   const [step, setStep] = useState<Step>(1);
@@ -189,7 +190,7 @@ export default function ImportAgentPage() {
         mappings: payloadMappings,
       });
 
-      router.push(`/dashboard/agents/${agent.id}`);
+      router.push(`/dashboard/${workspace_slug}/agents/${agent.id}`);
     } catch (error) {
       setSubmitError(getErrorMessage(error, "Import failed"));
       if (error instanceof ApiError && error.detail && typeof error.detail === "object") {
@@ -302,7 +303,7 @@ export default function ImportAgentPage() {
 
   return (
     <div className="p-10 space-y-10 relative">
-      <Link href="/dashboard/agents" className="absolute right-4 top-4 block w-fit">
+      <Link href={`/dashboard/${workspace_slug}/agents`} className="absolute right-4 top-4 block w-fit">
         <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
           <HugeiconsIcon icon={Cancel01Icon} className="size-5" />
         </Button>

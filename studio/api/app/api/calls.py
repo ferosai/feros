@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.recordings import resolve_recording_http_url
+from app.lib.auth import TenantContext, require_tenant
 from app.lib.database import get_db
 from app.models.agent import Agent
 from app.models.call import Call
@@ -33,11 +34,12 @@ async def list_calls(
     agent_ids: list[uuid.UUID] | None = Query(default=None),
     skip: int = 0,
     limit: int = 50,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CallListResponse:
     """List calls with optional agent filter."""
     query = select(Call, Agent.name).outerjoin(Agent, Agent.id == Call.agent_id)
-    count_query = select(sa_func.count(Call.id))
+    count_query = select(sa_func.count(Call.id)).outerjoin(Agent, Agent.id == Call.agent_id)
 
     effective_agent_ids: list[uuid.UUID] = []
     if agent_ids:
@@ -86,14 +88,17 @@ async def list_calls(
 @router.get("/{call_id}", response_model=CallResponse)
 async def get_call(
     call_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CallResponse:
     """Get a single call with full transcript."""
-    result = await db.execute(
+    query = (
         select(Call, Agent.name)
         .outerjoin(Agent, Agent.id == Call.agent_id)
         .where(Call.id == call_id)
     )
+
+    result = await db.execute(query)
     row = result.one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Call not found")
@@ -125,10 +130,14 @@ async def get_call_events(
     call_id: uuid.UUID,
     skip: int = 0,
     limit: int = 200,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CallEventListResponse:
     """Get paginated structured call events."""
-    call_result = await db.execute(select(Call.id).where(Call.id == call_id))
+    query = (
+        select(Call.id).outerjoin(Agent, Agent.id == Call.agent_id).where(Call.id == call_id)
+    )
+    call_result = await db.execute(query)
     if call_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Call not found")
 
@@ -157,10 +166,14 @@ async def get_call_events(
 @router.get("/{call_id}/log-capabilities", response_model=CallLogCapabilitiesResponse)
 async def get_call_log_capabilities(
     call_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CallLogCapabilitiesResponse:
     """Get log display capabilities for call detail tabs."""
-    result = await db.execute(select(Call).where(Call.id == call_id))
+    query = (
+        select(Call).outerjoin(Agent, Agent.id == Call.agent_id).where(Call.id == call_id)
+    )
+    result = await db.execute(query)
     call = result.scalar_one_or_none()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
@@ -221,6 +234,7 @@ _RECORDING_MEDIA_TYPES: dict[str, str] = {
 @router.get("/{call_id}/recording", include_in_schema=False)
 async def proxy_recording(
     call_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> FileResponse:
     """Stream a session recording that lives on the local filesystem.
@@ -232,7 +246,11 @@ async def proxy_recording(
     For ``s3://`` URIs the caller should use the pre-signed URL returned by
     ``resolve_recording_http_url`` instead of hitting this endpoint.
     """
-    call = await db.get(Call, call_id)
+    query = (
+        select(Call).outerjoin(Agent, Agent.id == Call.agent_id).where(Call.id == call_id)
+    )
+    result = await db.execute(query)
+    call = result.scalar_one_or_none()
     if call is None:
         raise HTTPException(status_code=404, detail="Call not found")
 

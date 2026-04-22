@@ -15,6 +15,7 @@ strings differ, eliminating that signal.
 from __future__ import annotations
 
 import hmac
+from typing import Any
 
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
@@ -22,6 +23,7 @@ from fastapi.security import APIKeyHeader
 from app.lib import get_settings
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
 
 
 async def require_api_key(
@@ -39,6 +41,7 @@ async def require_api_key(
     settings = get_settings()
 
     # Skip auth in development when no key is configured
+    # Check for Clerk JWT first, even in development
     if settings.is_development and settings.auth.api_key == "":
         return "dev-no-key"
 
@@ -50,6 +53,15 @@ async def require_api_key(
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     return key
+
+
+
+if "TenantContext" not in globals():
+    TenantContext = None  # type: ignore[assignment,misc]
+
+if "require_tenant" not in globals():
+    async def require_tenant(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc]
+        return None
 
 
 # Re-usable dependency

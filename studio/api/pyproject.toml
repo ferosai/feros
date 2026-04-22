@@ -43,6 +43,7 @@ dependencies = [
     "authlib>=1.6.8",
     "protobuf>=6.33.5",
     "mypy-protobuf>=5.0.0",
+    "python-slugify>=8.0.4",
 ]
 
 [dependency-groups]

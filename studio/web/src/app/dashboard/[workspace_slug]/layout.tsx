@@ -10,7 +10,7 @@ import {
   VoiceIcon,
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { FerosLogoWordmark } from "@/components/logo";
 import { DOCS_URL } from "@/lib/constants";
 
@@ -29,6 +29,12 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const params = useParams();
+  const workspaceSlug = params.workspace_slug as string;
+
+  const getNavHref = (path: string) => {
+    return workspaceSlug ? `/dashboard/${workspaceSlug}${path}` : `/dashboard${path}`;
+  };
 
   return (
     <>
@@ -37,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-sidebar border-r border-sidebar-border">
         {/* Brand */}
         <div className="px-5 pt-5 pb-4">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Link href={`/dashboard/${workspaceSlug}`} className="flex items-center gap-2.5">
             <FerosLogoWordmark className="h-7" />
           </Link>
         </div>
@@ -46,14 +52,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 px-3 pt-1">
           <div className="space-y-0.5">
             {navItems.map((item) => {
+              const href = getNavHref(item.href === "/dashboard" ? "" : item.href.replace("/dashboard", ""));
               const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                pathname === href ||
+                (href !== `/dashboard/${workspaceSlug}` && pathname.startsWith(href));
 
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={href}
+                  href={href}
                   className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"

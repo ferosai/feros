@@ -23,6 +23,8 @@ from app.schemas.credential import (
     CredentialUpdate,
 )
 
+from app.lib.auth import TenantContext, require_tenant
+
 router = APIRouter(
     prefix="/agents/{agent_id}/credentials",
     tags=["credentials"],
@@ -73,11 +75,13 @@ async def _providers_used_by_agent(db: AsyncSession, agent_id: uuid.UUID) -> set
 async def create_credential(
     agent_id: uuid.UUID,
     body: CredentialCreate,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CredentialResponse:
     """Store a new encrypted credential for an agent."""
     # Verify agent exists
-    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent_query = select(Agent).where(Agent.id == agent_id)
+    agent_result = await db.execute(agent_query)
     if not agent_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -105,6 +109,7 @@ async def create_credential(
 @router.get("", response_model=CredentialListResponse)
 async def list_credentials(
     agent_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CredentialListResponse:
     """List credentials for an agent (secrets are never returned).
@@ -115,11 +120,9 @@ async def list_credentials(
     Override button.
     """
     # 1. Per-agent credentials
-    result = await db.execute(
-        select(Credential)
-        .where(Credential.agent_id == agent_id)
-        .order_by(Credential.created_at.desc())
-    )
+    agent_creds_query = select(Credential).where(Credential.agent_id == agent_id)
+    agent_creds_query = agent_creds_query.order_by(Credential.created_at.desc())
+    result = await db.execute(agent_creds_query)
     agent_creds = list(result.scalars().all())
     overridden_providers = {c.provider for c in agent_creds}
 
@@ -131,15 +134,18 @@ async def list_credentials(
     default_creds: list[Credential] = []
     filter_providers = needed_providers - overridden_providers
     if filter_providers:
-        defaults_result = await db.execute(
-            select(Credential)
-            .where(
-                Credential.agent_id.is_(None),
-                Credential.provider.in_(filter_providers),
-            )
-            .order_by(Credential.created_at.desc())
+        defaults_query = select(Credential).where(
+            Credential.agent_id.is_(None),
+            Credential.provider.in_(filter_providers),
         )
-        default_creds = list(defaults_result.scalars().all())
+        defaults_result = await db.execute(defaults_query)
+        # Deduplicate providers so we only keep the highest priority one (workspace > global)
+        seen_providers = set()
+        default_creds = []
+        for cred in defaults_result.scalars().all():
+            if cred.provider not in seen_providers:
+                seen_providers.add(cred.provider)
+                default_creds.append(cred)
 
     # Build response — mark default rows
     rows: list[CredentialResponse] = [
@@ -157,15 +163,15 @@ async def update_credential(
     agent_id: uuid.UUID,
     credential_id: uuid.UUID,
     body: CredentialUpdate,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> CredentialResponse:
     """Update an existing credential (re-encrypts the data)."""
-    result = await db.execute(
-        select(Credential).where(
-            Credential.id == credential_id,
-            Credential.agent_id == agent_id,
-        )
+    query = select(Credential).where(
+        Credential.id == credential_id,
+        Credential.agent_id == agent_id,
     )
+    result = await db.execute(query)
     credential = result.scalar_one_or_none()
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")
@@ -190,15 +196,15 @@ async def update_credential(
 async def delete_credential(
     agent_id: uuid.UUID,
     credential_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a credential."""
-    result = await db.execute(
-        select(Credential).where(
-            Credential.id == credential_id,
-            Credential.agent_id == agent_id,
-        )
+    query = select(Credential).where(
+        Credential.id == credential_id,
+        Credential.agent_id == agent_id,
     )
+    result = await db.execute(query)
     credential = result.scalar_one_or_none()
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")

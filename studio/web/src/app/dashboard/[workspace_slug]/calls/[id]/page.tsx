@@ -27,6 +27,7 @@ function getAbsoluteUrl(url: string | null | undefined): string | undefined {
 type TabKey = "transcript" | "log";
 
 export default function CallDetailPage() {
+  const { workspace_slug } = useParams();
   const params = useParams<{ id: string }>();
   const callId = params?.id;
   const hasValidId = typeof callId === "string" && callId.length > 0;
@@ -163,7 +164,7 @@ export default function CallDetailPage() {
   if (!hasValidId) {
     return (
       <div className="space-y-4">
-        <Link href="/dashboard/calls">
+        <Link href={`/dashboard/${workspace_slug}/calls`}>
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
             <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
             Back to Calls
@@ -192,7 +193,7 @@ export default function CallDetailPage() {
   if (error || !call) {
     return (
       <div className="space-y-4">
-        <Link href="/dashboard/calls">
+        <Link href={`/dashboard/${workspace_slug}/calls`}>
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
             <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
             Back to Calls
@@ -209,7 +210,7 @@ export default function CallDetailPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <Link href="/dashboard/calls">
+        <Link href={`/dashboard/${workspace_slug}/calls`}>
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
             <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
             Back to Calls

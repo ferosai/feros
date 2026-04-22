@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.settings import get_builder_llm_config
 from app.lib.config import LLMConfig
 from app.lib.config_utils import extract_secret_keys
+from app.lib.auth import TenantContext, require_tenant
 from app.lib.database import get_db
 from app.lib.llm_factory import build_model
 from app.models.agent import Agent, AgentStatus, AgentVersion
@@ -78,6 +79,7 @@ async def list_agents(
     skip: int = 0,
     limit: int = 50,
     q: str | None = None,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> AgentListResponse:
     """List all agents with pagination."""
@@ -151,10 +153,12 @@ async def list_agents(
 @router.post("", response_model=AgentResponse, status_code=201)
 async def create_agent(
     body: AgentCreate,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> AgentResponse:
     """Create a new agent and its initial builder conversation."""
     agent = Agent(name=body.name, description=body.description)
+
     db.add(agent)
     await db.flush()
 
@@ -179,10 +183,12 @@ async def create_agent(
 @router.get("/{agent_id}/export", response_model=AgentFullConfig)
 async def export_agent_full_config(
     agent_id: uuid.UUID,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> AgentFullConfig:
     """Export a full agent payload (config + mermaid + connection metadata)."""
-    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent_query = select(Agent).where(Agent.id == agent_id)
+    agent_result = await db.execute(agent_query)
     agent = agent_result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -269,6 +275,7 @@ async def validate_import(
 @router.post("/import", response_model=AgentResponse, status_code=201)
 async def import_agent(
     body: AgentImportRequest,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> AgentResponse:
     """Create an agent from imported config with strict or map-defaults strategy."""
@@ -320,6 +327,7 @@ async def import_agent(
         applied_change_summary = "Imported from raw config with default mappings"
 
     agent = Agent(name=body.name.strip(), description=body.description)
+
     db.add(agent)
     await db.flush()
 

@@ -55,8 +55,8 @@ format-integrations:
 	cd integrations && cargo fmt
 
 # ── Lint & Typecheck ─────────────────────────────────────────────
-.PHONY: lint lint-api lint-web lint-engine lint-server lint-integrations
-lint: lint-api lint-web lint-engine lint-server lint-integrations ## Lint all projects
+.PHONY: lint lint-api lint-web lint-engine lint-server lint-integrations lint-oss
+lint: lint-api lint-web lint-engine lint-server lint-integrations lint-oss ## Lint all projects
 
 lint-api:
 	cd $(API_DIR) && uv run ruff check app/ && uv run mypy app/
@@ -68,6 +68,55 @@ lint-server:
 	cd $(RUST_DIR)/server && cargo clippy -- -D warnings
 lint-integrations:
 	cd integrations && cargo clippy -- -D warnings
+
+lint-oss: lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
+
+lint-oss-api: ## Lint the Studio API as it appears in the OSS build
+	@echo "── [OSS] Studio API ──"
+	@set -e; \
+	TMP=$$(mktemp -d); \
+	trap "rm -rf $$TMP" EXIT INT TERM; \
+	rsync -a \
+		--exclude='*_internal.py' \
+		--exclude='*.internal.ts' \
+		--exclude='*.internal.tsx' \
+		$(API_DIR)/app/ $$TMP/app/; \
+	find $$TMP/app -type f -name '*.py' \
+		-exec perl -0777 -i \
+	cd $$TMP && uv run --project $(CURDIR)/$(API_DIR) ruff check app/
+
+lint-oss-web: ## Lint the Studio Web as it appears in the OSS build
+	@echo "── [OSS] Studio Web ──"
+	@set -e; \
+	TMP=$$(mktemp -d); \
+	trap "rm -rf $$TMP" EXIT INT TERM; \
+	rsync -a \
+		--exclude='*_internal.ts' \
+		--exclude='*.internal.tsx' \
+		--exclude='app/login/' \
+		$(WEB_DIR)/src/ $$TMP/src/; \
+	find $$TMP/src -type f \( -name '*.ts' -o -name '*.tsx' \) \
+		-exec perl -0777 -i \
+	ln -s $(CURDIR)/$(WEB_DIR)/node_modules $$TMP/node_modules; \
+	cp $(WEB_DIR)/package.json $(WEB_DIR)/tsconfig.json $(WEB_DIR)/eslint.config.* $(WEB_DIR)/components.json $$TMP/ 2>/dev/null || true; \
+	cd $$TMP && ./node_modules/.bin/eslint src
+
+lint-oss-voice: ## Lint the Voice server as it appears in the OSS build
+	@echo "── [OSS] Voice server ──"
+	@set -e; \
+	TMP=$$(mktemp -d); \
+	trap "rm -rf $$TMP" EXIT INT TERM; \
+	mkdir -p $$TMP/voice-server $$TMP/proto; \
+	rsync -a \
+		--exclude='*_internal.rs' \
+		--exclude='target/' \
+		$(RUST_DIR)/ $$TMP/voice-server/; \
+	rsync -a proto/ $$TMP/proto/; \
+	rsync -a \
+		--exclude='target/' \
+		integrations/ $$TMP/integrations/; \
+	cd $$TMP/voice-server/engine && cargo clippy -- -D warnings; \
+	cd $$TMP/voice-server/server && cargo clippy -- -D warnings
 
 # ── Test ─────────────────────────────────────────────────────────
 .PHONY: test test-api test-engine test-server test-integrations
@@ -117,6 +166,7 @@ api-schema: ## Regenerate JSON Schema for Agent configs (from Pydantic + Proto)
 	cd $(API_DIR) && uv run python -m scripts.generate_schema
 
 api-migrate: ## Run Studio API db migrations
+	cd $(API_DIR) && uv run python -m scripts.check_squash_migration
 	cd $(API_DIR) && uv run alembic upgrade head
 
 api-migration: ## Create migration (make api-migration msg="...")

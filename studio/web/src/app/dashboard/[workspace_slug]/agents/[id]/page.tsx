@@ -116,11 +116,12 @@ type FlowUpdateState = {
 
 import { Suspense } from "react";
 
-function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> }) {
+
+function AgentDetailPageContent({ params }: { params: Promise<{ id: string; workspace_slug: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { id } = use(params);
+  const { id, workspace_slug } = use(params);
   const [agent, setAgent] = useState<Agent | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeTab, setActiveTabInternal] = useState<PreviewTab>(
@@ -416,7 +417,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
       ]);
       const integration = integrations.find((item) => item.name === provider) ?? null;
       if (!integration) {
-        router.push("/dashboard/integrations");
+        router.push(`/dashboard/${workspace_slug}/integrations`);
         return;
       }
       setOAuthApps(apps);
@@ -424,7 +425,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
       setSelectedExisting(null);
       setOverrideDialogOpen(true);
     } catch {
-      router.push("/dashboard/integrations");
+      router.push(`/dashboard/${workspace_slug}/integrations`);
     }
   };
 
@@ -456,8 +457,8 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
   };
 
   const openNewCredential = useCallback(() => {
-    router.push("/dashboard/integrations");
-  }, [router]);
+    router.push(`/dashboard/${workspace_slug}/integrations`);
+  }, [router, workspace_slug]);
 
   const existingOAuthApp = selectedIntegration
     ? (oauthApps.find((a) => a.integration_name === selectedIntegration.name) ?? null)
@@ -567,13 +568,13 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
     setDeleteLoading(true);
     try {
       await api.agents.delete(id);
-      router.push("/dashboard/agents");
+      router.push(`/dashboard/${workspace_slug}/agents`);
     } catch {
       // ignore
     } finally {
       setDeleteLoading(false);
     }
-  }, [agent, deleteConfirmName, id, router]);
+  }, [agent, deleteConfirmName, id, router, workspace_slug]);
 
   const copyAgentId = useCallback(async () => {
     try {
@@ -617,7 +618,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
         {/* Header - Command Center Style */}
         <div className="flex h-14 items-center justify-between border-b border-border/60 bg-accent/10 px-4 shrink-0 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard/agents">
+            <Link href={`/dashboard/${workspace_slug}/agents`}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -674,7 +675,7 @@ function AgentDetailPageContent({ params }: { params: Promise<{ id: string }> })
               <DropdownMenuContent align="end" className="w-52 rounded-xl">
                 <DropdownMenuItem
                   onClick={() =>
-                    router.push(`/dashboard/calls?agent_ids=${encodeURIComponent(id)}`)
+                    router.push(`/dashboard/${workspace_slug}/calls?agent_ids=${encodeURIComponent(id)}`)
                   }
                   className="text-xs font-bold py-2"
                 >
@@ -1330,7 +1331,7 @@ function FlowBusyOverlay({ mode }: { mode: "create" | "update" }) {
   );
 }
 
-export default function AgentDetailPage(props: { params: Promise<{ id: string }> }) {
+export default function AgentDetailPage(props: { params: Promise<{ id: string; workspace_slug: string }> }) {
   return (
     <Suspense
       fallback={

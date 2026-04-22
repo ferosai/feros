@@ -17,8 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+
 
 export default function NewAgentPage() {
+  const { workspace_slug } = useParams();
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -43,7 +46,7 @@ export default function NewAgentPage() {
       {/*<div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Link href="/dashboard/agents" className="hover:text-primary transition-colors text-xs">Agents</Link>
+            <Link href={`/dashboard/${workspace_slug}/agents`} className="hover:text-primary transition-colors text-xs">Agents</Link>
             <span className="text-[10px]">/</span>
             <span className="text-foreground font-medium text-xs">New Agent</span>
           </div>
@@ -51,7 +54,7 @@ export default function NewAgentPage() {
         </div>
       </div>*/}
 
-      <Link href="/dashboard/agents" className="absolute top-4 right-4 block w-fit">
+      <Link href={`/dashboard/${workspace_slug}/agents`} className="absolute top-4 right-4 block w-fit">
         <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
           <HugeiconsIcon icon={Cancel01Icon} className="size-5" />
         </Button>

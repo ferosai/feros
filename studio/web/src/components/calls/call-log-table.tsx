@@ -11,6 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { API_BASE, type CallLog } from "@/lib/api/client";
@@ -48,6 +49,7 @@ export function CallLogTable({
   emptyTitle = "No calls yet",
   emptyDescription = "Call logs will appear here once your agents start handling traffic.",
 }: CallLogTableProps) {
+  const { workspace_slug } = useParams<{ workspace_slug: string }>();
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
 
@@ -94,7 +96,7 @@ export function CallLogTable({
               className={`group grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_96px_80px_20px] gap-4 items-center px-5 py-3.5 hover:bg-secondary/40 transition-colors ${idx > 0 ? "border-t border-border/30" : ""}`}
             >
               <Link
-                href={`/dashboard/calls/${call.id}`}
+                href={`/dashboard/${workspace_slug}/calls/${call.id}`}
                 className="block min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -119,7 +121,7 @@ export function CallLogTable({
               </Link>
 
               <Link
-                href={`/dashboard/calls/${call.id}`}
+                href={`/dashboard/${workspace_slug}/calls/${call.id}`}
                 className="block text-xs text-muted-foreground truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
               >
                 {call.started_at
@@ -197,7 +199,7 @@ export function CallLogTable({
               </div>
 
               <Link
-                href={`/dashboard/calls/${call.id}`}
+                href={`/dashboard/${workspace_slug}/calls/${call.id}`}
                 className="flex items-center gap-1.5 justify-end w-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
               >
                 <div
@@ -207,7 +209,7 @@ export function CallLogTable({
               </Link>
 
               <Link
-                href={`/dashboard/calls/${call.id}`}
+                href={`/dashboard/${workspace_slug}/calls/${call.id}`}
                 aria-label="Open call details"
                 className="justify-self-end rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
