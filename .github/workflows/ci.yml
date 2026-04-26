@@ -16,6 +16,9 @@ jobs:
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout repository
@@ -43,25 +46,23 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          # The project has three independent Cargo workspaces;
-          # rust-cache needs to know about each one to hash their
-          # Cargo.lock files and locate their target/ dirs.
-          workspaces: |
-            voice/engine -> target
-            voice/server -> target
-            integrations -> target
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true
-          cache-dependency-glob: "studio/api/uv.lock"
           # uv resolves Python from pyproject.toml requires-python;
           # no separate setup-python step needed.
           python-version: "3.12"
+
+      - name: Cache Python venv
+        uses: actions/cache@v5
+        with:
+          path: studio/api/.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('studio/api/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-
 
       - name: Install Python dependencies
         working-directory: studio/api

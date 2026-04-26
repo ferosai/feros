@@ -69,7 +69,7 @@ lint-server:
 lint-integrations:
 	cd integrations && cargo clippy -- -D warnings
 
-lint-oss: lint-oss-api lint-oss-web ## Lint all components as they appear in the OSS build (run lint-oss-voice separately — it's slow)
+lint-oss: lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
 
 lint-oss-api: ## Lint the Studio API as it appears in the OSS build
 	@echo "── [OSS] Studio API ──"
