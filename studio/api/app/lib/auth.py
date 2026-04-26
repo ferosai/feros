@@ -64,7 +64,7 @@ if "TenantContext" not in globals():
         role: str
 
 if "require_tenant" not in globals():
-    async def require_tenant(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc, unused-ignore]
+    async def require_tenant() -> Any:  # type: ignore[misc, unused-ignore]
         return None
 
 
