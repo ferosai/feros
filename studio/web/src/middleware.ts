@@ -6,7 +6,27 @@ export default async function middleware(req: NextRequest) {
 async function baseMiddleware(req: NextRequest) {
   const apiKey = process.env.STUDIO_API_KEY;
 
-  // No API key configured — middleware is a complete no-op.
+  // ── Backend API Proxy ──────────────────────────────────────────
+  // Rewrites /api-proxy/* → BACKEND_API_URL/* and injects X-API-Key.
+  const backendUrlString = process.env.BACKEND_API_URL;
+  if (backendUrlString && req.nextUrl.pathname.startsWith("/api-proxy/")) {
+
+    const targetUrl = new URL(req.nextUrl.pathname.replace(/^\/api-proxy/, ""), backendUrlString);
+    targetUrl.search = req.nextUrl.search;
+
+    const requestHeaders = new Headers(req.headers);
+    if (apiKey) {
+      requestHeaders.set("X-API-Key", apiKey);
+    }
+
+    return NextResponse.rewrite(targetUrl, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
+  // No API key configured — basic auth is disabled.
   // Open-source users who don't set STUDIO_API_KEY get vanilla behavior.
   if (!apiKey) {
     return NextResponse.next();
@@ -31,25 +51,6 @@ async function baseMiddleware(req: NextRequest) {
       status: 401,
       headers: {
         "WWW-Authenticate": 'Basic realm="Feros Studio Secure Area"',
-      },
-    });
-  }
-
-
-  // ── Backend API Proxy ──────────────────────────────────────────
-  // Rewrites /api-proxy/* → BACKEND_API_URL/* and injects X-API-Key.
-  if (req.nextUrl.pathname.startsWith("/api-proxy/")) {
-    const backendUrlString = process.env.BACKEND_API_URL || "https://feros-studio-api.fly.dev";
-
-    const targetUrl = new URL(req.nextUrl.pathname.replace(/^\/api-proxy/, ""), backendUrlString);
-    targetUrl.search = req.nextUrl.search;
-
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("X-API-Key", apiKey);
-
-    return NextResponse.rewrite(targetUrl, {
-      request: {
-        headers: requestHeaders,
       },
     });
   }
