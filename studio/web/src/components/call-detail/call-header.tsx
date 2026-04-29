@@ -12,11 +12,13 @@ import {
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useParams } from "next/navigation";
 
 import type { CallLog } from "@/lib/api/client";
 import { formatDateTime, formatDuration } from "./types";
 
 export function CallHeader({ call }: { call: CallLog }) {
+  const { workspace_slug } = useParams<{ workspace_slug: string }>();
   const occurredAt = call.started_at ?? call.created_at;
   const [copied, setCopied] = useState(false);
 
@@ -56,7 +58,7 @@ export function CallHeader({ call }: { call: CallLog }) {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/dashboard/agents/${call.agent_id}`}
+            href={`/dashboard/${workspace_slug}/agents/${call.agent_id}`}
             className="inline-flex max-w-60 items-center hover:text-primary gap-2 rounded-md bg-secondary px-3 py-2 text-xs text-foreground transition-colors hover:bg-primary/10"
             title={call.agent_name ?? "Unknown Agent"}
           >
