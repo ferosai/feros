@@ -21,7 +21,7 @@ import { useParams } from "next/navigation";
 
 
 export default function NewAgentPage() {
-  const { workspace_slug } = useParams();
+  const { workspace_slug } = useParams<{ workspace_slug: string }>();
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -35,7 +35,7 @@ export default function NewAgentPage() {
         name: name.trim(),
         description: description.trim() || undefined,
       });
-      router.push(`/dashboard/agents/${agent.id}`);
+      router.push(`/dashboard/${workspace_slug}/agents/${agent.id}`);
     } catch {
       setCreating(false);
     }
