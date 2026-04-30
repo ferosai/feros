@@ -41,6 +41,17 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: 'studio/web/pnpm-lock.yaml'
 
+      - name: Cache Cargo Registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
