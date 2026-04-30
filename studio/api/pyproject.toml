@@ -44,6 +44,8 @@ dependencies = [
     "protobuf>=6.33.5",
     "mypy-protobuf>=5.0.0",
     "python-slugify>=8.0.4",
+    "itsdangerous>=2.2.0",
+    "resend>=2.29.0",
 ]
 
 [dependency-groups]

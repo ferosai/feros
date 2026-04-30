@@ -570,20 +570,6 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // Internal Tenancy
-  me: {
-    get: (options?: RequestInit) => apiFetch<{ organization: { id: string; name: string }; workspaces: { id: string; name: string; slug: string; is_default?: boolean }[] }>("/me", options),
-  },
-  organizations: {
-    workspaces: {
-      post: (orgId: string, data: { name: string }) =>
-        apiFetch<{ id: string; name: string; slug: string; is_default: boolean }>(`/organizations/${orgId}/workspaces`, {
-          method: "POST",
-          body: JSON.stringify(data),
-        }),
-    },
-  },
-
   // Agents
   agents: {
     list: (skip = 0, limit = 50, query?: string) =>

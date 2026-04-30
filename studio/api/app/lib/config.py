@@ -84,6 +84,7 @@ class AuthConfig(BaseModel):
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     algorithm: str = "HS256"
 
+
 class GeminiConfig(BaseModel):
     """Gemini API settings (used for builder web search).
 
@@ -233,7 +234,6 @@ class Settings(BaseSettings):
     auth: AuthConfig = Field(default_factory=AuthConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     experimental: ExperimentalConfig = Field(default_factory=ExperimentalConfig)
-
     # OAuth callback URL — per-deployment, not per-integration
     oauth_callback_base_url: str = "http://localhost:3000"
 

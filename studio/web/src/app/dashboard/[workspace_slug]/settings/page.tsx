@@ -59,7 +59,6 @@ import {
 } from "@/lib/api/client";
 import { toast } from "sonner";
 
-
 // ── Provider metadata ──────────────────────────────────────────
 
 const PROVIDER_HELP: Record<string, { models: string[]; docs: string; placeholder: string }> = {
