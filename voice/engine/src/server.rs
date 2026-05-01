@@ -313,6 +313,9 @@ pub struct ServerState {
     /// ICE configuration (STUN server, TURN settings — WebRTC only).
     #[cfg(feature = "webrtc")]
     pub ice_config: IceConfig,
+    /// Shared UDP multiplexer for WebRTC media.
+    #[cfg(feature = "webrtc")]
+    pub udp_mux: Arc<voice_transport::webrtc::UdpMux>,
 }
 
 impl ServerState {
@@ -321,6 +324,7 @@ impl ServerState {
     /// 1. Install rustls crypto provider
     /// 2. Parse ICE config and create provider (WebRTC only)
     /// 3. Allocate session/tracer maps
+    /// 4. Bind the global UDP socket for WebRTC multiplexing
     ///
     /// Callers only supply the service URLs — everything else is handled here.
     ///
@@ -330,7 +334,7 @@ impl ServerState {
     /// # Panics
     ///
     /// Panics if `IceConfig` cannot be parsed from environment variables.
-    pub fn new(
+    pub async fn new(
         providers: ProviderConfig,
         telephony: TelephonyCredentials,
         telnyx_public_key: String,
@@ -353,6 +357,15 @@ impl ServerState {
             warn!("AUTH__SECRET_KEY is empty — session token validation is disabled.");
         }
 
+        #[cfg(feature = "webrtc")]
+        let udp_mux = {
+            let bind_ip = std::env::var("WEBRTC__BIND_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
+            let port = std::env::var("WEBRTC__UDP_PORT").unwrap_or_else(|_| "50000".to_string());
+            let bind_addr = format!("{}:{}", bind_ip, port);
+            tracing::info!("Initializing UdpMux on {}", bind_addr);
+            voice_transport::webrtc::UdpMux::new(&bind_addr).await.expect("Failed to bind UDP Mux")
+        };
+
         Self {
             sessions: Arc::new(DashMap::new()),
             hybrid_sessions: Arc::new(DashMap::new()),
@@ -366,6 +379,8 @@ impl ServerState {
             ice_provider: Arc::from(ice_provider_from_config(&ice_config)),
             #[cfg(feature = "webrtc")]
             ice_config,
+            #[cfg(feature = "webrtc")]
+            udp_mux,
         }
     }
 
@@ -1198,7 +1213,7 @@ async fn rtc_create_session(
 
     // Create the WebRTC connection from the SDP offer
     let (connection, answer) =
-        match WebRtcConnection::from_offer(body.offer, &state.ice_config.stun_server).await {
+        match WebRtcConnection::from_offer(body.offer, &state.ice_config.stun_server, state.udp_mux.clone()).await {
             Ok(r) => r,
             Err(e) => {
                 error!("Failed to create WebRTC connection: {}", e);

@@ -75,7 +75,7 @@ impl WebRtcConnection {
     ///   (e.g. `"stun.cloudflare.com:3478"`)
     ///
     /// The connection spawns a tokio task that:
-    /// 1. Binds a UDP socket for the ICE agent
+    /// 1. Obtains the shared UDP socket from the UdpMux
     /// 2. Runs the str0m event loop
     /// 3. Decodes incoming Opus audio → PCM16 → `audio_tx`
     /// 4. Encodes outgoing PCM16 → Opus → RTP via str0m writer
@@ -83,6 +83,7 @@ impl WebRtcConnection {
     pub async fn from_offer(
         offer_json: serde_json::Value,
         stun_server: &str,
+        mux: Arc<super::multiplexer::UdpMux>,
     ) -> Result<(Self, serde_json::Value), Box<dyn std::error::Error + Send + Sync>> {
         let id = uuid::Uuid::new_v4().to_string();
         let offer: SdpOffer = serde_json::from_value(offer_json)?;
@@ -95,47 +96,49 @@ impl WebRtcConnection {
         // Create str0m Rtc instance
         let mut rtc = RtcConfig::new().set_ice_lite(ice_lite).build(Instant::now());
 
-        // Bind a UDP socket for WebRTC traffic.
-        // WEBRTC__BIND_IP controls the bind address (default: 0.0.0.0).
-        // Some UDP proxy deployments require binding to a specific address
-        // so that outbound packets are sourced correctly.
-        let bind_ip = std::env::var("WEBRTC__BIND_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let bind_port = std::env::var("WEBRTC__UDP_PORT")
-            .ok()
-            .and_then(|v| v.parse::<u16>().ok())
-            .unwrap_or(0);
-        let bind_addr = format!("{}:{}", bind_ip, bind_port);
-
-        let socket = UdpSocket::bind(&bind_addr).await?;
+        let socket = mux.socket();
         let bound_addr = socket.local_addr()?;
-        info!("[webrtc:{}] Bound UDP socket on {}", &id[..8], bind_addr);
+        info!("[webrtc:{}] Using shared UDP socket on {}", &id[..8], bound_addr);
 
-        let configured_public_ip = std::env::var("WEBRTC__PUBLIC_IP")
+        let configured_public_ips: Vec<std::net::IpAddr> = std::env::var("WEBRTC__PUBLIC_IP")
             .ok()
-            .and_then(|v| v.parse::<std::net::IpAddr>().ok());
-        let local_ip = if let Some(ip) = configured_public_ip {
-            info!("[webrtc:{}] Using WEBRTC__PUBLIC_IP={}", &id[..8], ip);
-            ip
+            .map(|s| {
+                s.split(',')
+                    .filter_map(|p| p.trim().parse::<std::net::IpAddr>().ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let local_ips = if !configured_public_ips.is_empty() {
+            info!("[webrtc:{}] Using WEBRTC__PUBLIC_IP(s)={:?}", &id[..8], configured_public_ips);
+            configured_public_ips.clone()
         } else if !bound_addr.ip().is_unspecified() && !bound_addr.ip().is_loopback() {
             info!("[webrtc:{}] Bound to specific IP {}; using as public IP", &id[..8], bound_addr.ip());
-            bound_addr.ip()
+            vec![bound_addr.ip()]
         } else {
             let probe = UdpSocket::bind("0.0.0.0:0").await?;
             probe.connect("8.8.8.8:80").await?;
-            probe.local_addr()?.ip()
+            vec![probe.local_addr()?.ip()]
         };
-        let host_addr = std::net::SocketAddr::new(local_ip, bound_addr.port());
 
-        // Add host candidate (local network address)
-        let host_candidate = Candidate::host(host_addr, "udp")
-            .map_err(|e| format!("Failed to create host ICE candidate: {}", e))?;
-        rtc.add_local_candidate(host_candidate);
-        info!("[webrtc:{}] Host candidate: {}", &id[..8], host_addr);
+        let mut primary_host_addr = None;
+
+        for ip in &local_ips {
+            let host_addr = std::net::SocketAddr::new(*ip, bound_addr.port());
+            if primary_host_addr.is_none() {
+                primary_host_addr = Some(host_addr);
+            }
+            // Add host candidate (local network address)
+            let host_candidate = Candidate::host(host_addr, "udp")
+                .map_err(|e| format!("Failed to create host ICE candidate: {}", e))?;
+            rtc.add_local_candidate(host_candidate);
+            info!("[webrtc:{}] Host candidate: {}", &id[..8], host_addr);
+        }
 
         // Resolve public IP via STUN Binding Request.
         // Skip srflx in explicit local override mode to avoid advertising
         // unreachable candidates that can win pair selection.
-        if configured_public_ip.is_none() {
+        if configured_public_ips.is_empty() {
             if let Ok(stun_addr) = tokio::net::lookup_host(stun_server)
                 .await
                 .map(|mut addrs| addrs.next())
@@ -143,15 +146,17 @@ impl WebRtcConnection {
                 if let Some(stun_addr) = stun_addr {
                     match super::stun::stun_binding(stun_addr).await {
                         Some(public_addr) => {
-                            let srflx = Candidate::server_reflexive(public_addr, host_addr, "udp")
-                                .map_err(|e| format!("Failed to create srflx candidate: {}", e))?;
-                            rtc.add_local_candidate(srflx);
-                            info!(
-                                "[webrtc:{}] Server-reflexive candidate: {} (via STUN {})",
-                                &id[..8],
-                                public_addr,
-                                stun_server
-                            );
+                            if let Some(host_addr) = primary_host_addr {
+                                let srflx = Candidate::server_reflexive(public_addr, host_addr, "udp")
+                                    .map_err(|e| format!("Failed to create srflx candidate: {}", e))?;
+                                rtc.add_local_candidate(srflx);
+                                info!(
+                                    "[webrtc:{}] Server-reflexive candidate: {} (via STUN {})",
+                                    &id[..8],
+                                    public_addr,
+                                    stun_server
+                                );
+                            }
                         }
                         None => {
                             warn!(
@@ -178,14 +183,29 @@ impl WebRtcConnection {
 
         let answer_json = serde_json::to_value(&answer)?;
 
+        let sdp_str = answer_json.get("sdp").and_then(|v| v.as_str()).unwrap_or("");
+        let ufrag = sdp_str
+            .lines()
+            .find_map(|l| l.strip_prefix("a=ice-ufrag:"))
+            .unwrap_or("")
+            .to_string();
+        if ufrag.is_empty() {
+            return Err("Failed to extract ice-ufrag from SDP answer — cannot register with UdpMux".into());
+        }
+
         // Create channels
         let (audio_tx, audio_rx) = mpsc::unbounded_channel::<Bytes>();
         let (control_event_tx, control_rx) = mpsc::unbounded_channel();
         let (control_cmd_tx, control_cmd_rx) = mpsc::unbounded_channel();
         let (audio_out_tx, audio_out_rx) = mpsc::unbounded_channel();
+        let (mux_tx, mux_rx) = mpsc::unbounded_channel();
+
+        mux.register(ufrag.clone(), mux_tx).await;
 
         let id_for_task = id.clone();
         let control_event_tx_task = control_event_tx.clone();
+        let mux_for_task = mux.clone();
+        let ufrag_for_task = ufrag.clone();
 
         // Spawn the str0m event loop as a tokio task
         let task_handle = tokio::spawn(async move {
@@ -193,11 +213,16 @@ impl WebRtcConnection {
                 id_for_task.clone(),
                 rtc,
                 socket,
-                host_addr,
+                local_ips,
+                bound_addr.port(),
+                primary_host_addr.expect("primary_host_addr should always be populated by local_ips"),
                 audio_tx,
                 control_event_tx_task,
                 control_cmd_rx,
                 audio_out_rx,
+                mux_rx,
+                mux_for_task,
+                ufrag_for_task,
             )
             .await
             {
@@ -229,6 +254,21 @@ impl Drop for WebRtcConnection {
 
 // ── str0m Event Loop ────────────────────────────────────────────
 
+struct UdpMuxGuard {
+    mux: Arc<super::multiplexer::UdpMux>,
+    ufrag: String,
+}
+
+impl Drop for UdpMuxGuard {
+    fn drop(&mut self) {
+        let mux = self.mux.clone();
+        let ufrag = self.ufrag.clone();
+        tokio::spawn(async move {
+            mux.unregister(&ufrag).await;
+        });
+    }
+}
+
 /// The main Sans I/O event loop for a single WebRTC connection.
 ///
 /// Runs until the ICE connection disconnects or an error occurs.
@@ -236,16 +276,25 @@ impl Drop for WebRtcConnection {
 async fn run_rtc_loop(
     id: String,
     mut rtc: Rtc,
-    socket: UdpSocket,
-    local_addr: std::net::SocketAddr,
+    socket: Arc<UdpSocket>,
+    local_ips: Vec<std::net::IpAddr>,
+    bound_port: u16,
+    primary_host_addr: std::net::SocketAddr,
     audio_tx: mpsc::UnboundedSender<Bytes>,
     control_tx: mpsc::UnboundedSender<TransportEvent>,
     mut control_rx: mpsc::UnboundedReceiver<TransportCommand>,
     mut audio_out_rx: mpsc::UnboundedReceiver<RtcInternalCmd>,
+    mut mux_rx: mpsc::UnboundedReceiver<(Bytes, std::net::SocketAddr)>,
+    mux: Arc<super::multiplexer::UdpMux>,
+    ufrag: String,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let tag = &id[..8];
-    let socket = Arc::new(socket);
-    let mut buf = vec![0u8; 2000];
+    // socket is already Arc<UdpSocket> (shared from UdpMux); no re-wrapping needed.
+
+    let _mux_guard = UdpMuxGuard {
+        mux: mux.clone(),
+        ufrag: ufrag.clone(),
+    };
 
     // Opus decoder for incoming audio (browser → server)
     let mut opus_decoder: Option<opus::Decoder> = None;
@@ -333,24 +382,37 @@ async fn run_rtc_loop(
         tokio::select! {
             biased;
 
-            // Incoming UDP packet
-            result = socket.recv_from(&mut buf) => {
+            // Incoming UDP packet from multiplexer
+            result = mux_rx.recv() => {
                 match result {
-                    Ok((n, source)) => {
-                        let contents = &buf[..n];
+                    Some((packet, source)) => {
+                        let is_stun = packet.len() >= 20 && (packet[0] == 0x00 || packet[0] == 0x01);
+                        if !is_stun {
+                            tracing::trace!("[webrtc:{}] Feeding RTP/other packet (len={}) from {} to str0m", tag, packet.len(), source);
+                        } else {
+                            tracing::debug!("[webrtc:{}] Feeding STUN packet (len={}, type={:02x}{:02x}) from {} to str0m", tag, packet.len(), packet[0], packet[1], source);
+                        }
+                        let dest_ip = if local_ips.contains(&source.ip()) {
+                            source.ip()
+                        } else {
+                            primary_host_addr.ip()
+                        };
+                        let destination = std::net::SocketAddr::new(dest_ip, bound_port);
+
                         let input = Input::Receive(
                             Instant::now(),
                             Receive {
                                 proto: Protocol::Udp,
                                 source,
-                                destination: local_addr,
-                                contents: contents.try_into()?,
+                                destination,
+                                contents: (&packet[..]).try_into()?,
                             },
                         );
                         rtc.handle_input(input)?;
                     }
-                    Err(e) => {
-                        warn!("[webrtc:{}] UDP recv error: {}", tag, e);
+                    None => {
+                        warn!("[webrtc:{}] mux_rx closed", tag);
+                        return Ok(());
                     }
                 }
             }

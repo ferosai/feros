@@ -35,6 +35,7 @@
 //! - **Outgoing**: Reactor emits `Event::Audio(pcm)` via EventBus →
 //!   opus encode → `rtc.writer(mid).write()` → str0m → UDP → Browser
 
+pub mod multiplexer;
 mod connection;
 pub mod ice;
 pub mod stun;
@@ -42,6 +43,7 @@ mod transport;
 
 pub use connection::WebRtcConnection;
 pub use ice::{ice_provider_from_config, IceConfig, IceProvider, IceProviderError, IceServer};
+pub use multiplexer::UdpMux;
 pub use transport::WebRtcTransport;
 
 /// Opus sample rate is always 48kHz per spec.
