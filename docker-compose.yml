@@ -66,7 +66,7 @@ services:
       WEBRTC__UDP_PORT: 50000
       WEBRTC__PUBLIC_IP: 127.0.0.1
       TELNYX__PUBLIC_KEY: ${TELNYX__PUBLIC_KEY:-}
-      VOICE_SERVER__PUBLIC_URL: ${VOICE_SERVER__PUBLIC_URL:-}
+      VOICE_SERVER__PUBLIC_URL: ${VOICE_SERVER__PUBLIC_URL:-http://127.0.0.1:8300}
       RUST_LOG: voice_server=debug,voice_engine=info,agent_kit=info,voice_transport=info
       # Write recordings to /recordings (shared with studio-api container via named volume).
       # The Python studio-api serves them at /api/recordings/{filename}.

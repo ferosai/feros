@@ -340,12 +340,14 @@ impl PyVoiceServer {
             telnyx_api_key: config.default_telnyx_api_key.clone(),
             telnyx_connection_id: config.default_telnyx_connection_id.clone(),
         };
-        let state = ServerState::new(
-            providers,
-            telephony,
-            config.telnyx_public_key.clone(),
-            config.auth_secret_key.clone(),
-        );
+        let state = runtime.block_on(async {
+            ServerState::new(
+                providers,
+                telephony,
+                config.telnyx_public_key.clone(),
+                config.auth_secret_key.clone(),
+            ).await
+        });
 
         let addr: SocketAddr = format!("{}:{}", config.host, config.port)
             .parse()

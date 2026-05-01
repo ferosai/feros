@@ -52,7 +52,7 @@ async fn main() {
         telephony,
         settings.telnyx_public_key,
         auth_secret_key,
-    );
+    ).await;
 
     let addr: SocketAddr = format!("{}:{}", settings.listen_host, settings.listen_port)
         .parse()

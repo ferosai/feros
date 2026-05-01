@@ -119,7 +119,8 @@ async fn main() {
         TelephonyCredentials::default(),
         telnyx_public_key,
         settings.auth_secret_key.clone(),
-    );
+    )
+    .await;
 
     let app_state = telephony::AppState {
         engine: engine_state.clone(),
