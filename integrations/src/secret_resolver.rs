@@ -71,7 +71,7 @@ pub async fn resolve_secrets(
     // required for PgBouncer in transaction-pooling mode (e.g. Supabase)
     // where prepared statements leak across connections.
     //
-    #[allow(unused_assignments)]
+    #[allow(unused_assignments, unused_mut)]
     let mut query = "SELECT c.provider, c.encrypted_data, c.encryption_iv, c.encryption_version,
                 CASE WHEN c.agent_id IS NOT NULL THEN true ELSE false END AS is_agent_specific
          FROM credentials c
@@ -114,9 +114,9 @@ pub async fn resolve_secrets(
                 for (k, v) in &data {
                     secrets.insert(format!("{}.{}", row.provider, k), v.clone().into());
                 }
-                
+
                 seen_providers.insert(row.provider.clone());
-                
+
                 info!(
                     provider = %row.provider,
                     fields = data.len(),

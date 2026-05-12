@@ -115,6 +115,7 @@ lint-oss-voice: ## Lint the Voice server as it appears in the OSS build
 	export CARGO_TARGET_DIR="$(CURDIR)/target-oss"; \
 	cd $$TMP/voice-server/engine && cargo clippy -- -D warnings; \
 	cd $$TMP/voice-server/server && cargo clippy -- -D warnings; \
+	cd $$TMP/integrations && cargo clippy -- -D warnings; \
 	rm -rf $$TMP
 
 # ── Test ─────────────────────────────────────────────────────────
