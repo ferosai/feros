@@ -444,7 +444,7 @@ async fn find_credential(
     provider: &str,
     agent_id: Option<uuid::Uuid>,
 ) -> Result<CredentialRow, Box<dyn std::error::Error + Send + Sync>> {
-    #[allow(unused_assignments)]
+    #[allow(unused_assignments, unused_mut)]
     let mut query = "SELECT c.id, c.agent_id, c.name, c.provider, c.auth_type, c.encrypted_data,
                 c.encryption_iv, c.encryption_version, c.token_expires_at,
                 c.last_refresh_success, c.last_refresh_failure, c.last_refresh_error,
