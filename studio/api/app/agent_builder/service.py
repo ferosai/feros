@@ -477,10 +477,8 @@ class BuilderService:
     # events are NOT forwarded to the SSE stream.
     _HIDDEN_TOOLS: set[str] = {"save_agent_config", "apply_agent_edits", "ask_user"}
 
-    def __init__(self, llm_config: LLMConfig | None = None) -> None:
-        cfg = llm_config or LLMConfig()
-        model, self._model_settings = build_model(cfg)
-        self._active_llm_config = cfg
+    def __init__(self, llm_cfg: LLMConfig) -> None:
+        model, self._model_settings = build_model(llm_cfg)
 
         # Streaming agent: plain text output + save_agent_config tool
         self.stream_agent: Agent[BuilderDeps, str] = Agent(
@@ -625,32 +623,7 @@ class BuilderService:
             ctx.deps.used_edit_path = True
             return f"Edits applied. Summary: {change_summary}"
 
-    def reconfigure(self, llm_config: LLMConfig) -> None:
-        """Hot-swap the LLM model without restarting the server."""
-        model, self._model_settings = build_model(llm_config)
-        self._active_llm_config = llm_config
 
-        self.stream_agent = Agent(
-            model=model,
-            output_type=str,
-            deps_type=BuilderDeps,
-        )
-        register_all_tools(self.stream_agent)
-        self._attach_stream_tools()
-        # Update the compression LLM too
-        self._compression_model = model
-        # Must come after stream_agent is created since it decorates it
-        self._attach_system_prompt()
-
-        logger.info(
-            "Builder LLM reconfigured: provider={}, model={}",
-            llm_config.provider,
-            llm_config.model,
-        )
-
-    def current_llm_config(self) -> LLMConfig:
-        """Return the active builder LLM config (with DB override applied)."""
-        return self._active_llm_config
 
     def _collect_all_errors(self, cfg: dict[str, Any]) -> list[str]:
         """Run graph validation + JS validation and return all errors."""
@@ -1156,7 +1129,3 @@ class BuilderService:
                 logger.info("Auto-set side_effect=true on tool '{}'", tool_id)
 
         return result
-
-
-# Module-level singleton
-builder_service = BuilderService()

@@ -444,8 +444,8 @@ async fn find_credential(
     provider: &str,
     agent_id: Option<uuid::Uuid>,
 ) -> Result<CredentialRow, Box<dyn std::error::Error + Send + Sync>> {
-    sqlx::query_as::<_, CredentialRow>(
-        "SELECT c.id, c.agent_id, c.name, c.provider, c.auth_type, c.encrypted_data,
+    #[allow(unused_assignments)]
+    let mut query = "SELECT c.id, c.agent_id, c.name, c.provider, c.auth_type, c.encrypted_data,
                 c.encryption_iv, c.encryption_version, c.token_expires_at,
                 c.last_refresh_success, c.last_refresh_failure, c.last_refresh_error,
                 c.refresh_attempts, c.refresh_exhausted, c.last_fetched_at
@@ -454,14 +454,15 @@ async fn find_credential(
          WHERE c.provider = $1
            AND (
                c.agent_id = $2
-               OR (c.agent_id IS NULL AND (c.workspace_id = a.workspace_id OR c.workspace_id IS NULL))
+               OR (c.agent_id IS NULL AND c.workspace_id = a.workspace_id)
            )
          ORDER BY 
             c.agent_id NULLS LAST,
             c.workspace_id NULLS LAST,
             c.created_at DESC
-         LIMIT 1"
-    )
+         LIMIT 1";
+
+    sqlx::query_as::<_, CredentialRow>(query)
     .bind(provider)
     .bind(agent_id)
     .persistent(false)

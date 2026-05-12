@@ -40,13 +40,14 @@ _MAPPABLE_PATHS: set[str] = {"tts_provider", "tts_model", "voice_id"}
 async def validate_import_config(
     db: AsyncSession,
     config: dict[str, Any],
+    **kwargs: Any,
 ) -> ImportValidationResponse:
     """Validate an imported config for schema and runtime fulfillability."""
     normalized = _normalize_config(config)
     schema_issues = _collect_schema_issues(normalized)
 
-    tts_defaults = await get_tts_config(db)
-    provider_rows = await _get_tts_provider_rows(db)
+    tts_defaults = await get_tts_config(db, **kwargs)
+    provider_rows = await _get_tts_provider_rows(db, **kwargs)
     suggested_mappings = _base_suggested_mappings(tts_defaults, normalized)
     fulfillment_issues = _collect_fulfillment_issues(
         normalized,
@@ -134,10 +135,9 @@ def _collect_schema_issues(config: dict[str, Any]) -> list[ImportIssue]:
     return issues
 
 
-async def _get_tts_provider_rows(db: AsyncSession) -> dict[str, ProviderConfig]:
-    result = await db.execute(
-        select(ProviderConfig).where(ProviderConfig.provider_type == "tts")
-    )
+async def _get_tts_provider_rows(db: AsyncSession, **kwargs: Any) -> dict[str, ProviderConfig]:
+    query = select(ProviderConfig).where(ProviderConfig.provider_type == "tts")
+    result = await db.execute(query)
     rows = result.scalars().all()
     return {row.provider_name: row for row in rows}
 

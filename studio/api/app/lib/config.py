@@ -280,16 +280,17 @@ async def _get_provider_row(
     db: AsyncSession,
     provider_type: str,
     provider_name: str,
+    **kwargs: Any,
 ) -> Any | None:
     """Get a ProviderConfig row from the DB, if any."""
     from app.models.provider import ProviderConfig
 
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == provider_type,
-            ProviderConfig.provider_name == provider_name,
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == provider_type,
+        ProviderConfig.provider_name == provider_name,
     )
+
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -297,6 +298,7 @@ async def _get_effective_provider_row(
     db: AsyncSession,
     provider_type: str,
     provider_name: str,
+    **kwargs: Any,
 ) -> Any | None:
     """Resolve pointer rows (e.g. ``__voice__``) to their active provider config.
 
@@ -305,7 +307,7 @@ async def _get_effective_provider_row(
     pointer row (``__voice__``, ``__builder__``). Runtime readers need the
     merged view to avoid falling back to hardcoded defaults.
     """
-    row = await _get_provider_row(db, provider_type, provider_name)
+    row = await _get_provider_row(db, provider_type, provider_name, **kwargs)
     if row is None:
         return None
 
@@ -318,7 +320,7 @@ async def _get_effective_provider_row(
     if not isinstance(active, str) or not active:
         return row
 
-    active_row = await _get_provider_row(db, provider_type, active)
+    active_row = await _get_provider_row(db, provider_type, active, **kwargs)
     if active_row is None:
         # Keep explicit provider selection even when creds row is missing.
         pointer_cfg.setdefault("provider", active)
@@ -423,6 +425,7 @@ _LLM_ROLE_PREFIX: dict[str, str] = {
 async def get_llm_config(
     db: AsyncSession,
     provider_name: str = "__builder__",
+    **kwargs: Any,
 ) -> LLMConfig:
     """Read the LLM config from DB, or return defaults.
 
@@ -431,7 +434,7 @@ async def get_llm_config(
     (e.g. ``builder::openai``).  Does **not** fall back to legacy
     shared rows.
     """
-    pointer_row = await _get_provider_row(db, "llm", provider_name)
+    pointer_row = await _get_provider_row(db, "llm", provider_name, **kwargs)
     if pointer_row is None:
         return LLMConfig()
 
@@ -444,32 +447,32 @@ async def get_llm_config(
     if role_prefix is None:
         return LLMConfig()
 
-    scoped_row = await _get_provider_row(db, "llm", f"{role_prefix}::{active}")
+    scoped_row = await _get_provider_row(db, "llm", f"{role_prefix}::{active}", **kwargs)
     if scoped_row is None:
         return LLMConfig()
 
     return llm_config_from_row(scoped_row)
 
 
-async def get_stt_config(db: AsyncSession) -> STTConfig:
+async def get_stt_config(db: AsyncSession, **kwargs: Any) -> STTConfig:
     """Read the STT config from DB, or return defaults."""
-    row = await _get_effective_provider_row(db, "stt", "__voice__")
+    row = await _get_effective_provider_row(db, "stt", "__voice__", **kwargs)
     if row:
         return stt_config_from_row(row)
     return STTConfig()
 
 
-async def get_tts_config(db: AsyncSession) -> TTSConfig:
+async def get_tts_config(db: AsyncSession, **kwargs: Any) -> TTSConfig:
     """Read the TTS config from DB, or return defaults."""
-    row = await _get_effective_provider_row(db, "tts", "__voice__")
+    row = await _get_effective_provider_row(db, "tts", "__voice__", **kwargs)
     if row:
         return tts_config_from_row(row)
     return TTSConfig()
 
 
-async def get_telephony_config(db: AsyncSession) -> TelephonyConfig:
+async def get_telephony_config(db: AsyncSession, **kwargs: Any) -> TelephonyConfig:
     """Read the Telephony config from DB, or return defaults."""
-    row = await _get_provider_row(db, "telephony", "__voice__")
+    row = await _get_provider_row(db, "telephony", "__voice__", **kwargs)
     if row:
         return telephony_config_from_row(row)
     return TelephonyConfig()

@@ -22,10 +22,7 @@ def _mock_complete(response: str):
 
 @pytest.mark.asyncio
 async def test_builder_judge_uses_llm_response(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "app.services.evaluations.judging.builder_service.current_llm_config",
-        lambda: LLMConfig(),
-    )
+
     monkeypatch.setattr(
         "app.services.evaluations.judging._complete_with_builder_llm",
         _mock_complete(
@@ -40,7 +37,8 @@ async def test_builder_judge_uses_llm_response(monkeypatch: pytest.MonkeyPatch) 
             transcript=[],
             tool_timeline=[],
             hard_check_results={"run_not_failed": True},
-        )
+        ),
+        llm_cfg=LLMConfig(),
     )
     assert result.rubric_scores["task_completion"] == 88
     assert result.summary == "ok"
@@ -50,10 +48,7 @@ async def test_builder_judge_uses_llm_response(monkeypatch: pytest.MonkeyPatch) 
 async def test_builder_judge_falls_back_on_bad_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.services.evaluations.judging.builder_service.current_llm_config",
-        lambda: LLMConfig(),
-    )
+
     monkeypatch.setattr(
         "app.services.evaluations.judging._complete_with_builder_llm",
         _mock_complete("not json"),
@@ -66,7 +61,8 @@ async def test_builder_judge_falls_back_on_bad_json(
             transcript=[],
             tool_timeline=[],
             hard_check_results={"run_not_failed": True, "tools_resolved": False},
-        )
+        ),
+        llm_cfg=LLMConfig(),
     )
     assert "task_completion" in result.rubric_scores
 
@@ -75,10 +71,7 @@ async def test_builder_judge_falls_back_on_bad_json(
 async def test_builder_judge_normalizes_five_point_scale(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.services.evaluations.judging.builder_service.current_llm_config",
-        lambda: LLMConfig(),
-    )
+
     monkeypatch.setattr(
         "app.services.evaluations.judging._complete_with_builder_llm",
         _mock_complete(
@@ -93,7 +86,8 @@ async def test_builder_judge_normalizes_five_point_scale(
             transcript=[],
             tool_timeline=[],
             hard_check_results={"run_not_failed": True},
-        )
+        ),
+        llm_cfg=LLMConfig(),
     )
     assert result.rubric_scores["task_completion"] == 90.0
     assert result.rubric_scores["tool_usage"] == 60.0
@@ -103,10 +97,7 @@ async def test_builder_judge_normalizes_five_point_scale(
 async def test_builder_judge_enforces_selected_rubric_dimensions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.services.evaluations.judging.builder_service.current_llm_config",
-        lambda: LLMConfig(),
-    )
+
     monkeypatch.setattr(
         "app.services.evaluations.judging._complete_with_builder_llm",
         _mock_complete(
@@ -125,7 +116,8 @@ async def test_builder_judge_enforces_selected_rubric_dimensions(
             transcript=[],
             tool_timeline=[],
             hard_check_results={"run_not_failed": True},
-        )
+        ),
+        llm_cfg=LLMConfig(),
     )
     assert list(result.rubric_scores.keys()) == [
         "intent_detection",

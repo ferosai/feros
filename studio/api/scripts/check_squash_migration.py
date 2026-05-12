@@ -61,7 +61,7 @@ def main() -> None:
         file=sys.stderr,
     )
     print(
-        f"   Stamping the database to the squashed head automatically...\n",
+        "   Stamping the database to the squashed head automatically...\n",
         file=sys.stderr,
     )
 

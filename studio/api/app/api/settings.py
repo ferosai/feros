@@ -13,12 +13,10 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
-from pydantic_ai.exceptions import UserError as PydanticAIUserError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import integrations
-from app.agent_builder import builder_service
 from app.lib import get_settings
 from app.lib.config import (
     _LLM_ROLE_PREFIX,
@@ -46,6 +44,15 @@ except Exception:  # Rust extension may not be built in CI / test envs
 
     def get_stt_model_catalog() -> list[dict[str, Any]]:
         return []
+
+
+if "TenantContext" not in dir():
+    class TenantContext:  # type: ignore[no-redef, unused-ignore]
+        workspace: Any
+
+if "require_tenant" not in dir():
+    async def require_tenant() -> Any:  # type: ignore[misc, unused-ignore]
+        return None
 
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -426,14 +433,14 @@ async def _get_provider_row(
     db: AsyncSession,
     provider_type: str,
     provider_name: str = "__builder__",
+    **kwargs: Any,
 ) -> ProviderConfig | None:
     """Get a provider_configs row from the DB, if any."""
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == provider_type,
-            ProviderConfig.provider_name == provider_name,
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == provider_type,
+        ProviderConfig.provider_name == provider_name,
     )
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -441,13 +448,14 @@ async def _get_provider_creds_row(
     db: AsyncSession,
     provider_type: str,
     provider_slug: str,
+    **kwargs: Any,
 ) -> ProviderConfig | None:
     """Get the credential row for a specific provider slug (e.g. ``"elevenlabs-ws"``).
 
     Credential rows use ``provider_name = provider_slug`` directly (not the
     ``__voice__`` / ``__builder__`` sentinel).
     """
-    return await _get_provider_row(db, provider_type, provider_slug)
+    return await _get_provider_row(db, provider_type, provider_slug, **kwargs)
 
 
 async def _upsert_provider_creds_row(
@@ -455,6 +463,7 @@ async def _upsert_provider_creds_row(
     provider_type: str,
     provider_slug: str,
     config_json: dict[str, Any],
+    **kwargs: Any,
 ) -> ProviderConfig:
     """Upsert the per-slug credential row, then return it.
 
@@ -462,7 +471,7 @@ async def _upsert_provider_creds_row(
     provider. The active-selection pointer (``__voice__`` / ``__builder__``)
     is updated separately via :func:`_set_active_provider`.
     """
-    row = await _get_provider_creds_row(db, provider_type, provider_slug)
+    row = await _get_provider_creds_row(db, provider_type, provider_slug, **kwargs)
     if row:
         row.config_json = config_json
         row.display_name = f"{provider_type.upper()} creds: {provider_slug}"
@@ -484,6 +493,7 @@ async def _set_active_provider(
     provider_type: str,
     role: str,
     active_slug: str,
+    **kwargs: Any,
 ) -> None:
     """Update the active-provider pointer row for ``role``.
 
@@ -491,7 +501,7 @@ async def _set_active_provider(
     stores only ``{"active": active_slug}`` in ``config_json``.  All actual
     credentials live in the per-slug row.
     """
-    row = await _get_provider_row(db, provider_type, role)
+    row = await _get_provider_row(db, provider_type, role, **kwargs)
     if row:
         row.config_json = {"active": active_slug}
     else:
@@ -510,18 +520,18 @@ async def _get_all_credentials(
     db: AsyncSession,
     provider_type: str,
     provider_slugs: list[str],
+    **kwargs: Any,
 ) -> dict[str, bool]:
     """Return a map of provider slug → has_api_key for callers that care.
 
     Only checks slugs that are known provider values so arbitrary DB rows
     are not surfaced.
     """
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == provider_type,
-            ProviderConfig.provider_name.in_(provider_slugs),
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == provider_type,
+        ProviderConfig.provider_name.in_(provider_slugs),
     )
+    result = await db.execute(query)
     rows = result.scalars().all()
     out: dict[str, bool] = {}
     for row in rows:
@@ -539,18 +549,18 @@ async def _get_all_provider_configs(
     db: AsyncSession,
     provider_type: str,
     provider_slugs: list[str],
+    **kwargs: Any,
 ) -> dict[str, dict[str, str]]:
     """Return non-secret config (model, voice_id, base_url …) per provider slug.
 
     Used by the frontend to pre-populate form fields when the user switches
     back to a previously-saved provider without having to save first.
     """
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == provider_type,
-            ProviderConfig.provider_name.in_(provider_slugs),
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == provider_type,
+        ProviderConfig.provider_name.in_(provider_slugs),
     )
+    result = await db.execute(query)
     rows = result.scalars().all()
     out: dict[str, dict[str, str]] = {}
     for row in rows:
@@ -612,9 +622,10 @@ async def _get_llm_creds_row(
     db: AsyncSession,
     role: str,
     provider_slug: str,
+    **kwargs: Any,
 ) -> ProviderConfig | None:
     """Get the scoped LLM credential row for *role* + *provider_slug*."""
-    return await _get_provider_row(db, "llm", _llm_scoped_name(role, provider_slug))
+    return await _get_provider_row(db, "llm", _llm_scoped_name(role, provider_slug), **kwargs)
 
 
 async def _upsert_llm_creds_row(
@@ -622,10 +633,11 @@ async def _upsert_llm_creds_row(
     role: str,
     provider_slug: str,
     config_json: dict[str, Any],
+    **kwargs: Any,
 ) -> ProviderConfig:
     """Upsert a role-scoped LLM credential row, e.g. ``builder::openai``."""
     scoped = _llm_scoped_name(role, provider_slug)
-    row = await _get_provider_row(db, "llm", scoped)
+    row = await _get_provider_row(db, "llm", scoped, **kwargs)
     if row:
         row.config_json = config_json
         row.display_name = f"LLM creds: {scoped}"
@@ -646,21 +658,20 @@ async def _get_all_llm_credentials(
     db: AsyncSession,
     role: str,
     provider_slugs: list[str],
+    **kwargs: Any,
 ) -> dict[str, bool]:
     """Like ``_get_all_credentials`` but queries role-scoped LLM rows.
 
     Returns ``{provider_slug: has_api_key}`` with the prefix stripped.
     """
     scoped_names = [_llm_scoped_name(role, s) for s in provider_slugs]
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == "llm",
-            ProviderConfig.provider_name.in_(scoped_names),
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == "llm",
+        ProviderConfig.provider_name.in_(scoped_names),
     )
     prefix = _LLM_ROLE_PREFIX[role] + "::"
     out: dict[str, bool] = {}
-    for row in result.scalars().all():
+    for row in (await db.execute(query)).scalars().all():
         cfg = row.config_json or {}
         slug = row.provider_name.removeprefix(prefix)
         out[slug] = bool(cfg.get("api_key_encrypted") or cfg.get("api_key"))
@@ -671,21 +682,20 @@ async def _get_all_llm_provider_configs(
     db: AsyncSession,
     role: str,
     provider_slugs: list[str],
+    **kwargs: Any,
 ) -> dict[str, dict[str, str]]:
     """Like ``_get_all_provider_configs`` but queries role-scoped LLM rows.
 
     Returns ``{provider_slug: {model, base_url, …}}`` with the prefix stripped.
     """
     scoped_names = [_llm_scoped_name(role, s) for s in provider_slugs]
-    result = await db.execute(
-        select(ProviderConfig).where(
-            ProviderConfig.provider_type == "llm",
-            ProviderConfig.provider_name.in_(scoped_names),
-        )
+    query = select(ProviderConfig).where(
+        ProviderConfig.provider_type == "llm",
+        ProviderConfig.provider_name.in_(scoped_names),
     )
     prefix = _LLM_ROLE_PREFIX[role] + "::"
     out: dict[str, dict[str, str]] = {}
-    for row in result.scalars().all():
+    for row in (await db.execute(query)).scalars().all():
         cfg = row.config_json or {}
         slug = row.provider_name.removeprefix(prefix)
         out[slug] = {
@@ -737,12 +747,14 @@ _LLM_PROVIDER_SLUGS = [
 @router.get("/llm", response_model=LLMSettingsResponse)
 async def get_llm_settings(
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Return the current builder LLM configuration from the DB."""
-    cfg = await get_llm_config(db, "__builder__")
-    all_creds = await _get_all_llm_credentials(db, "__builder__", _LLM_PROVIDER_SLUGS)
+    _org_kwargs: dict[str, Any] = {}
+    cfg = await get_llm_config(db, "__builder__", **_org_kwargs)
+    all_creds = await _get_all_llm_credentials(db, "__builder__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
     all_cfgs = await _get_all_llm_provider_configs(
-        db, "__builder__", _LLM_PROVIDER_SLUGS
+        db, "__builder__", _LLM_PROVIDER_SLUGS, **_org_kwargs
     )
     return _llm_response(cfg, all_creds, all_cfgs)
 
@@ -751,6 +763,7 @@ async def get_llm_settings(
 async def update_llm_settings(
     body: LLMSettingsUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Update the LLM provider used by the builder.
 
@@ -758,6 +771,7 @@ async def update_llm_settings(
     Switching providers preserves previously saved API keys.
     Hot-swaps the builder's model in memory.
     """
+    _org_kwargs: dict[str, Any] = {}
     config_json: dict[str, Any] = {
         "provider": body.provider,
         "model": body.model,
@@ -766,7 +780,7 @@ async def update_llm_settings(
         "max_tokens": body.max_tokens,
     }
     api_key = _normalize_api_key(body.api_key)
-    existing_creds = await _get_llm_creds_row(db, "__builder__", body.provider)
+    existing_creds = await _get_llm_creds_row(db, "__builder__", body.provider, **_org_kwargs)
     if api_key:
         engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
         _ct, _iv = engine.encrypt({"value": api_key})
@@ -781,30 +795,20 @@ async def update_llm_settings(
                 config_json[key] = existing_creds.config_json[key]
 
     creds_row = await _upsert_llm_creds_row(
-        db, "__builder__", body.provider, config_json
+        db, "__builder__", body.provider, config_json, **_org_kwargs
     )
-    await _set_active_provider(db, "llm", "__builder__", body.provider)
+    await _set_active_provider(db, "llm", "__builder__", body.provider, **_org_kwargs)
 
     llm_config = llm_config_from_row(creds_row)
-    try:
-        builder_service.reconfigure(llm_config)
-    except PydanticAIUserError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    all_creds = await _get_all_llm_credentials(db, "__builder__", _LLM_PROVIDER_SLUGS)
+    all_creds = await _get_all_llm_credentials(db, "__builder__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
     all_cfgs = await _get_all_llm_provider_configs(
-        db, "__builder__", _LLM_PROVIDER_SLUGS
+        db, "__builder__", _LLM_PROVIDER_SLUGS, **_org_kwargs
     )
     return _llm_response(llm_config, all_creds, all_cfgs)
 
 
-async def get_builder_llm_config(db: AsyncSession) -> LLMConfig:
-    """Load the configured builder LLM from the DB.
 
-    Exported so other modules (e.g. agents.py) can resolve the correct LLM
-    without importing private helper functions from this module.
-    """
-    return await get_llm_config(db, "__builder__")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -815,11 +819,13 @@ async def get_builder_llm_config(db: AsyncSession) -> LLMConfig:
 @router.get("/voice-llm", response_model=LLMSettingsResponse)
 async def get_voice_llm_settings(
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Return the current voice agent LLM configuration from the DB."""
-    cfg = await get_llm_config(db, "__voice__")
-    all_creds = await _get_all_llm_credentials(db, "__voice__", _LLM_PROVIDER_SLUGS)
-    all_cfgs = await _get_all_llm_provider_configs(db, "__voice__", _LLM_PROVIDER_SLUGS)
+    _org_kwargs: dict[str, Any] = {}
+    cfg = await get_llm_config(db, "__voice__", **_org_kwargs)
+    all_creds = await _get_all_llm_credentials(db, "__voice__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
+    all_cfgs = await _get_all_llm_provider_configs(db, "__voice__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
     return _llm_response(cfg, all_creds, all_cfgs)
 
 
@@ -827,12 +833,14 @@ async def get_voice_llm_settings(
 async def update_voice_llm_settings(
     body: LLMSettingsUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Update the LLM provider used by the voice pipeline.
 
     Credentials are stored in role-scoped rows (``voice::<slug>``).
     Switching providers preserves previously saved API keys.
     """
+    _org_kwargs: dict[str, Any] = {}
     config_json: dict[str, Any] = {
         "provider": body.provider,
         "model": body.model,
@@ -841,7 +849,7 @@ async def update_voice_llm_settings(
         "max_tokens": body.max_tokens,
     }
     api_key = _normalize_api_key(body.api_key)
-    existing_creds = await _get_llm_creds_row(db, "__voice__", body.provider)
+    existing_creds = await _get_llm_creds_row(db, "__voice__", body.provider, **_org_kwargs)
     if api_key:
         engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
         _ct, _iv = engine.encrypt({"value": api_key})
@@ -855,16 +863,16 @@ async def update_voice_llm_settings(
             if key in (existing_creds.config_json or {}):
                 config_json[key] = existing_creds.config_json[key]
 
-    creds_row = await _upsert_llm_creds_row(db, "__voice__", body.provider, config_json)
-    await _set_active_provider(db, "llm", "__voice__", body.provider)
+    creds_row = await _upsert_llm_creds_row(db, "__voice__", body.provider, config_json, **_org_kwargs)
+    await _set_active_provider(db, "llm", "__voice__", body.provider, **_org_kwargs)
 
     llm_config = llm_config_from_row(creds_row)
     logger.info(
         "Voice LLM settings updated: provider={}, model={}", body.provider, body.model
     )
 
-    all_creds = await _get_all_llm_credentials(db, "__voice__", _LLM_PROVIDER_SLUGS)
-    all_cfgs = await _get_all_llm_provider_configs(db, "__voice__", _LLM_PROVIDER_SLUGS)
+    all_creds = await _get_all_llm_credentials(db, "__voice__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
+    all_cfgs = await _get_all_llm_provider_configs(db, "__voice__", _LLM_PROVIDER_SLUGS, **_org_kwargs)
     return _llm_response(llm_config, all_creds, all_cfgs)
 
 
@@ -882,15 +890,17 @@ _NATIVE_MULTIMODAL_PROVIDER_SLUGS = [
 @router.get("/native-multimodal", response_model=LLMSettingsResponse)
 async def get_native_multimodal_settings(
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Return the current native multimodal configuration from the DB."""
-    cfg = await get_llm_config(db, "__native_multimodal__")
+    _org_kwargs: dict[str, Any] = {}
+    cfg = await get_llm_config(db, "__native_multimodal__", **_org_kwargs)
 
     all_creds = await _get_all_llm_credentials(
-        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS, **_org_kwargs
     )
     all_cfgs = await _get_all_llm_provider_configs(
-        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS, **_org_kwargs
     )
 
     res = _llm_response(cfg, all_creds, all_cfgs)
@@ -908,8 +918,10 @@ async def get_native_multimodal_settings(
 async def update_native_multimodal_settings(
     body: LLMSettingsUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> LLMSettingsResponse:
     """Update the provider used by native multimodal mode."""
+    _org_kwargs: dict[str, Any] = {}
     config_json: dict[str, Any] = {
         "provider": body.provider,
         "model": body.model,
@@ -919,7 +931,7 @@ async def update_native_multimodal_settings(
     }
     api_key = _normalize_api_key(body.api_key)
     existing_creds = await _get_llm_creds_row(
-        db, "__native_multimodal__", body.provider
+        db, "__native_multimodal__", body.provider, **_org_kwargs
     )
     if api_key:
         engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
@@ -935,9 +947,9 @@ async def update_native_multimodal_settings(
                 config_json[key] = existing_creds.config_json[key]
 
     creds_row = await _upsert_llm_creds_row(
-        db, "__native_multimodal__", body.provider, config_json
+        db, "__native_multimodal__", body.provider, config_json, **_org_kwargs
     )
-    await _set_active_provider(db, "llm", "__native_multimodal__", body.provider)
+    await _set_active_provider(db, "llm", "__native_multimodal__", body.provider, **_org_kwargs)
 
     llm_config = llm_config_from_row(creds_row)
     logger.info(
@@ -947,10 +959,10 @@ async def update_native_multimodal_settings(
     )
 
     all_creds = await _get_all_llm_credentials(
-        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS, **_org_kwargs
     )
     all_cfgs = await _get_all_llm_provider_configs(
-        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS
+        db, "__native_multimodal__", _NATIVE_MULTIMODAL_PROVIDER_SLUGS, **_org_kwargs
     )
 
     res = _llm_response(llm_config, all_creds, all_cfgs)
@@ -1006,9 +1018,11 @@ def _stt_to_voice_settings(
 @router.get("/stt", response_model=VoiceProviderSettings)
 async def get_stt_settings(
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> VoiceProviderSettings:
     """Return the current STT configuration from the DB."""
-    pointer_row = await _get_provider_row(db, "stt", "__voice__")
+    _org_kwargs: dict[str, Any] = {}
+    pointer_row = await _get_provider_row(db, "stt", "__voice__", **_org_kwargs)
     # Resolve the active provider slug
     if pointer_row:
         active_slug = pointer_row.config_json.get(
@@ -1017,14 +1031,14 @@ async def get_stt_settings(
     else:
         active_slug = STTConfig().provider
     creds_row = (
-        await _get_provider_creds_row(db, "stt", active_slug) if active_slug else None
+        await _get_provider_creds_row(db, "stt", active_slug, **_org_kwargs) if active_slug else None
     )
     merged_row = _resolve_active_config(pointer_row, creds_row)
     cfg = stt_config_from_row(merged_row) if merged_row else STTConfig()
 
     known_slugs = [p.value for p in STT_PROVIDERS]
-    all_creds = await _get_all_credentials(db, "stt", known_slugs)
-    all_cfgs = await _get_all_provider_configs(db, "stt", known_slugs)
+    all_creds = await _get_all_credentials(db, "stt", known_slugs, **_org_kwargs)
+    all_cfgs = await _get_all_provider_configs(db, "stt", known_slugs, **_org_kwargs)
     return _stt_to_voice_settings(cfg, merged_row, all_creds, all_cfgs)
 
 
@@ -1032,6 +1046,7 @@ async def get_stt_settings(
 async def update_stt_settings(
     body: VoiceProviderUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> VoiceProviderSettings:
     """Update the STT provider for the voice pipeline.
 
@@ -1039,6 +1054,7 @@ async def update_stt_settings(
     previously saved keys.  Only the active-selection pointer is changed when
     the user switches between already-configured providers.
     """
+    _org_kwargs: dict[str, Any] = {}
     api_key = (
         _normalize_api_key(body.config.pop("api_key", ""))
         if "api_key" in body.config
@@ -1052,7 +1068,7 @@ async def update_stt_settings(
     }
 
     # Preserve existing API key if none was supplied
-    existing_creds = await _get_provider_creds_row(db, "stt", body.provider)
+    existing_creds = await _get_provider_creds_row(db, "stt", body.provider, **_org_kwargs)
     if api_key:
         engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
         _ct, _iv = engine.encrypt({"value": api_key})
@@ -1066,8 +1082,8 @@ async def update_stt_settings(
             if key in (existing_creds.config_json or {}):
                 config_json[key] = existing_creds.config_json[key]
 
-    creds_row = await _upsert_provider_creds_row(db, "stt", body.provider, config_json)
-    await _set_active_provider(db, "stt", "__voice__", body.provider)
+    creds_row = await _upsert_provider_creds_row(db, "stt", body.provider, config_json, **_org_kwargs)
+    await _set_active_provider(db, "stt", "__voice__", body.provider, **_org_kwargs)
 
     stt_config = stt_config_from_row(creds_row)
     logger.info(
@@ -1075,8 +1091,8 @@ async def update_stt_settings(
     )
 
     known_slugs = [p.value for p in STT_PROVIDERS]
-    all_creds = await _get_all_credentials(db, "stt", known_slugs)
-    all_cfgs = await _get_all_provider_configs(db, "stt", known_slugs)
+    all_creds = await _get_all_credentials(db, "stt", known_slugs, **_org_kwargs)
+    all_cfgs = await _get_all_provider_configs(db, "stt", known_slugs, **_org_kwargs)
     return _stt_to_voice_settings(stt_config, creds_row, all_creds, all_cfgs)
 
 
@@ -1125,9 +1141,11 @@ def _tts_to_voice_settings(
 @router.get("/tts", response_model=VoiceProviderSettings)
 async def get_tts_settings(
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> VoiceProviderSettings:
     """Return the current TTS configuration from the DB."""
-    pointer_row = await _get_provider_row(db, "tts", "__voice__")
+    _org_kwargs: dict[str, Any] = {}
+    pointer_row = await _get_provider_row(db, "tts", "__voice__", **_org_kwargs)
     if pointer_row:
         active_slug = pointer_row.config_json.get(
             "active"
@@ -1135,14 +1153,14 @@ async def get_tts_settings(
     else:
         active_slug = TTSConfig().provider
     creds_row = (
-        await _get_provider_creds_row(db, "tts", active_slug) if active_slug else None
+        await _get_provider_creds_row(db, "tts", active_slug, **_org_kwargs) if active_slug else None
     )
     merged_row = _resolve_active_config(pointer_row, creds_row)
     cfg = tts_config_from_row(merged_row) if merged_row else TTSConfig()
 
     known_slugs = [p.value for p in TTS_PROVIDERS]
-    all_creds = await _get_all_credentials(db, "tts", known_slugs)
-    all_cfgs = await _get_all_provider_configs(db, "tts", known_slugs)
+    all_creds = await _get_all_credentials(db, "tts", known_slugs, **_org_kwargs)
+    all_cfgs = await _get_all_provider_configs(db, "tts", known_slugs, **_org_kwargs)
     return _tts_to_voice_settings(cfg, merged_row, all_creds, all_cfgs)
 
 
@@ -1150,6 +1168,7 @@ async def get_tts_settings(
 async def update_tts_settings(
     body: VoiceProviderUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> VoiceProviderSettings:
     """Update the TTS provider for the voice pipeline.
 
@@ -1157,6 +1176,7 @@ async def update_tts_settings(
     previously saved keys.  Only the active-selection pointer is changed when
     the user switches between already-configured providers.
     """
+    _org_kwargs: dict[str, Any] = {}
     api_key = (
         _normalize_api_key(body.config.pop("api_key", ""))
         if "api_key" in body.config
@@ -1170,7 +1190,7 @@ async def update_tts_settings(
     }
 
     # Preserve the existing key for this specific provider slug
-    existing_creds = await _get_provider_creds_row(db, "tts", body.provider)
+    existing_creds = await _get_provider_creds_row(db, "tts", body.provider, **_org_kwargs)
     if api_key:
         engine = integrations.EncryptionEngine(get_settings().auth.secret_key)
         _ct, _iv = engine.encrypt({"value": api_key})
@@ -1184,8 +1204,8 @@ async def update_tts_settings(
             if key in (existing_creds.config_json or {}):
                 config_json[key] = existing_creds.config_json[key]
 
-    creds_row = await _upsert_provider_creds_row(db, "tts", body.provider, config_json)
-    await _set_active_provider(db, "tts", "__voice__", body.provider)
+    creds_row = await _upsert_provider_creds_row(db, "tts", body.provider, config_json, **_org_kwargs)
+    await _set_active_provider(db, "tts", "__voice__", body.provider, **_org_kwargs)
 
     tts_config = tts_config_from_row(creds_row)
     logger.info(
@@ -1193,8 +1213,9 @@ async def update_tts_settings(
     )
 
     known_slugs = [p.value for p in TTS_PROVIDERS]
-    all_creds = await _get_all_credentials(db, "tts", known_slugs)
-    return _tts_to_voice_settings(tts_config, creds_row, all_creds)
+    all_creds = await _get_all_credentials(db, "tts", known_slugs, **_org_kwargs)
+    all_cfgs = await _get_all_provider_configs(db, "tts", known_slugs, **_org_kwargs)
+    return _tts_to_voice_settings(tts_config, creds_row, all_creds, all_cfgs)
 
 
 # ── Voice catalog proxy ────────────────────────────────────────────

@@ -22,10 +22,11 @@ async def find_credential(
 
     Resolution order:
       1. **Agent-specific** credential (``agent_id`` matches)
-      2. **Workspace-specific default** credential (``agent_id IS NULL`` and ``workspace_id`` matches)
-      3. **Platform default** credential (``agent_id IS NULL`` and ``workspace_id IS NULL``)
+      2. **Workspace-specific default** credential (``agent_id IS NULL`` and
+         ``workspace_id`` matches — internal builds scope this to the org)
 
-    Either or both may be ``None``.
+    Either or both may be ``None``. No platform-global fallback (``workspace_id IS NULL``)
+    is applied — credentials must be explicitly associated with an agent or workspace.
     """
     agent_cred: Credential | None = None
     default_cred: Credential | None = None

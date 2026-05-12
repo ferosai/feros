@@ -15,8 +15,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.settings import get_builder_llm_config
-from app.lib.config import LLMConfig
+from app.lib.config import LLMConfig, get_llm_config
 from app.lib.config_utils import extract_secret_keys
 from app.lib.auth import TenantContext, require_tenant
 from app.lib.database import get_db
@@ -266,10 +265,12 @@ async def export_agent_full_config(
 @router.post("/import/validate", response_model=ImportValidationResponse)
 async def validate_import(
     body: ImportValidationRequest,
+    ctx: TenantContext | None = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ) -> ImportValidationResponse:
     """Validate a raw imported agent config and return structured issues."""
-    return await validate_import_config(db, body.config)
+    _org_kwargs: dict[str, Any] = {}
+    return await validate_import_config(db, body.config, **_org_kwargs)
 
 
 @router.post("/import", response_model=AgentResponse, status_code=201)
@@ -279,7 +280,8 @@ async def import_agent(
     db: AsyncSession = Depends(get_db),
 ) -> AgentResponse:
     """Create an agent from imported config with strict or map-defaults strategy."""
-    initial_result = await validate_import_config(db, body.full_config.config)
+    _org_kwargs: dict[str, Any] = {}
+    initial_result = await validate_import_config(db, body.full_config.config, **_org_kwargs)
 
     mapping_input = {
         path: value
@@ -304,7 +306,7 @@ async def import_agent(
     elif mapping_input:
         effective_config = apply_import_mappings(effective_config, mapping_input)
 
-    final_result = await validate_import_config(db, effective_config)
+    final_result = await validate_import_config(db, effective_config, **_org_kwargs)
     blocking_issues = unresolved_blocking_issues(final_result)
     if blocking_issues:
         raise HTTPException(
@@ -535,6 +537,7 @@ async def update_agent(
     agent_id: uuid.UUID,
     body: AgentUpdate,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> AgentResponse:
     """Update agent metadata (name, description, status, phone number)."""
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
@@ -613,6 +616,7 @@ async def patch_agent_config(
     agent_id: uuid.UUID,
     body: AgentConfigPatch,
     db: AsyncSession = Depends(get_db),
+    ctx: TenantContext | None = Depends(require_tenant),
 ) -> AgentResponse:
     """Patch fields on the agent's active config (v3_graph entry node)."""
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
@@ -727,7 +731,8 @@ async def patch_agent_config(
         regen_lang = new_language or effective_language
         lang_label = _LANGUAGE_MAP.get(regen_lang, {}).get("label") or regen_lang
         try:
-            builder_llm_cfg = await get_builder_llm_config(db)
+            _org_kwargs: dict[str, Any] = {}
+            builder_llm_cfg = await get_llm_config(db, "__builder__", **_org_kwargs)
             new_greeting = await _regenerate_greeting(
                 agent_name=agent.name,
                 config=config,

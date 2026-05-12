@@ -43,12 +43,16 @@ fn primary_secret_value(data: &HashMap<String, String>) -> Option<&String> {
 
 /// Resolve decrypted secrets for a voice session.
 ///
-/// Loads credentials for the given agent **and** platform-wide defaults
-/// (`agent_id IS NULL`). Agent-specific credentials take precedence over
-/// defaults when both exist for the same provider.
+/// Loads credentials for the given agent and any credentials belonging to a
+/// workspace within the **same organization** as the agent. No platform-wide
+/// global credentials are ever returned — isolation is strict per-organization.
+///
+/// Precedence (most → least specific):
+///   1. Agent-specific (`agent_id = $1`)
+///   2. Workspace-scoped within the agent's organization (`workspace_id` in same org)
 ///
 /// Returns a flat map following the convention:
-///   - `"<provider>"` → primary field value (first field)
+///   - `"<provider>"` → primary field value (preferred auth field)
 ///   - `"<provider>.<field_key>"` → individual field value
 ///
 /// Wraps the result in `Arc` for cheap sharing across the session.
@@ -67,27 +71,23 @@ pub async fn resolve_secrets(
     // required for PgBouncer in transaction-pooling mode (e.g. Supabase)
     // where prepared statements leak across connections.
     //
-    // Fetch both agent-specific, workspace-wide, and platform-wide default credentials.
-    // ORDER BY specificity ensures we see the most specific credential first:
-    // 1. Agent-specific (agent_id IS NOT NULL)
-    // 2. Workspace-specific (workspace_id IS NOT NULL)
-    // 3. Global (workspace_id IS NULL)
-    let rows = sqlx::query_as::<_, CredentialRow>(
-        "SELECT c.provider, c.encrypted_data, c.encryption_iv, c.encryption_version,
+    #[allow(unused_assignments)]
+    let mut query = "SELECT c.provider, c.encrypted_data, c.encryption_iv, c.encryption_version,
                 CASE WHEN c.agent_id IS NOT NULL THEN true ELSE false END AS is_agent_specific
          FROM credentials c
-         LEFT JOIN agents a ON a.id = $1
-         WHERE c.agent_id = $1 
-            OR (c.agent_id IS NULL AND (c.workspace_id = a.workspace_id OR c.workspace_id IS NULL))
-         ORDER BY 
+         JOIN agents a ON a.id = $1
+         WHERE c.agent_id = $1
+            OR (c.agent_id IS NULL AND c.workspace_id = a.workspace_id)
+         ORDER BY
             c.agent_id NULLS LAST,
             c.workspace_id NULLS LAST,
-            c.created_at DESC",
-    )
-    .bind(agent_id)
-    .persistent(false)
-    .fetch_all(pool)
-    .await?;
+            c.created_at DESC";
+
+    let rows = sqlx::query_as::<_, CredentialRow>(query)
+        .bind(agent_id)
+        .persistent(false)
+        .fetch_all(pool)
+        .await?;
 
     // Track which providers we have already processed so we keep only the
     // most specific credential for each.

@@ -16,13 +16,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.exceptions import UserError as PydanticAIUserError
 from sqlalchemy import Select, and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.agent_builder.service import builder_service
-from app.lib.config import get_llm_config
+from app.lib.config import get_llm_config, LLMConfig
 from app.lib.database import async_session, get_db
 from app.lib.llm_factory import build_model
 from app.models.agent import Agent as AgentModel
@@ -232,6 +230,7 @@ async def _generate_test_agent_utterance(
     turn_id: int,
     payload: dict[str, Any],
     conversation: list[dict[str, Any]],
+    llm_cfg: LLMConfig,
 ) -> str | None:
     goals = payload.get("goals", [])
     if turn_id == 1:
@@ -241,7 +240,6 @@ async def _generate_test_agent_utterance(
                 return f"Hi, I need help with: {first['title']}."
         return "Hi, I need help with my request."
 
-    llm_cfg = builder_service.current_llm_config()
     model, model_settings = build_model(llm_cfg)
     try:
         system_prompt = (
@@ -385,7 +383,10 @@ async def _run_execution_task(run_id: uuid.UUID) -> None:
                 )
             )
             target_prompt, graph_json = _extract_target_prompt_and_graph(version)
-            voice_llm = await get_llm_config(db, "__voice__")
+
+            _org_kwargs: dict[str, Any] = {}
+            voice_llm = await get_llm_config(db, "__voice__", **_org_kwargs)
+            llm_cfg = await get_llm_config(db, "__builder__", **_org_kwargs)
             hook_toggle = os.getenv("EVAL_TOOL_HOOK_ENABLED", "").strip().lower()
             hook_enabled = hook_toggle not in {"0", "false", "no", "off"}
 
@@ -460,6 +461,7 @@ async def _run_execution_task(run_id: uuid.UUID) -> None:
                     turn_id=turn,
                     payload=config_payload.model_dump(mode="json"),
                     conversation=conversation_for_test_agent,
+                    llm_cfg=llm_cfg,
                 )
                 if not caller_text:
                     break
@@ -622,7 +624,8 @@ async def _run_execution_task(run_id: uuid.UUID) -> None:
                     transcript=[e.model_dump(mode="json") for e in event_models],
                     tool_timeline=tool_timeline,
                     hard_check_results=checks,
-                )
+                ),
+                llm_cfg=llm_cfg,
             )
             await store_judgment_result(
                 db,
@@ -678,24 +681,7 @@ async def _run_execution_task(run_id: uuid.UUID) -> None:
 def _run_execution_subprocess_main(run_id_text: str) -> None:
     """Isolate evaluation execution from API server event loop/GIL."""
 
-    async def _bootstrap() -> None:
-        # Spawned subprocess does not run FastAPI lifespan hooks, so we must
-        # reload persisted provider overrides explicitly.
-        async with async_session() as db:
-            builder_llm_cfg = await get_llm_config(db, "__builder__")
-            try:
-                builder_service.reconfigure(builder_llm_cfg)
-            except PydanticAIUserError as exc:
-                logger.warning(
-                    "Builder LLM config invalid for evaluation subprocess; "
-                    "keeping default builder model. provider={}, model={}, error={}",
-                    builder_llm_cfg.provider,
-                    builder_llm_cfg.model,
-                    exc,
-                )
-        await _run_execution_task(uuid.UUID(run_id_text))
-
-    asyncio.run(_bootstrap())
+    asyncio.run(_run_execution_task(uuid.UUID(run_id_text)))
 
 
 @router.post("/configs", response_model=EvaluationConfigResponse, status_code=201)
