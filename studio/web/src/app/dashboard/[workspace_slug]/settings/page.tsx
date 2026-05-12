@@ -59,6 +59,10 @@ import {
 } from "@/lib/api/client";
 import { toast } from "sonner";
 
+
+
+
+
 // ── Provider metadata ──────────────────────────────────────────
 
 const PROVIDER_HELP: Record<string, { models: string[]; docs: string; placeholder: string }> = {
@@ -1456,7 +1460,7 @@ function SettingsPageContent({ params }: { params: Promise<{ workspace_slug: str
       <div ref={headerRef} className="flex items-center justify-between">
         <PageHeader
           icon={Settings01Icon}
-          title="Settings"
+          title="Platform Settings"
           description="Configure your workspace, LLM providers, and voice pipeline"
         />
         <div className="flex items-center gap-2">
