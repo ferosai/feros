@@ -152,13 +152,13 @@ async def text_test_socket(
 ) -> None:
     await websocket.accept()
 
-    llm_cfg = await get_llm_config(db, "__voice__")
     system_prompt = (
         "You are a helpful voice assistant. Keep responses concise and conversational."
     )
     greeting = "Hello! How can I help you today?"
     graph_json: str | None = None
     escalation_destinations_json: str | None = None
+    _org_kwargs: dict[str, Any] = {}
 
     try:
         agent_uuid = uuid.UUID(agent_id)
@@ -204,6 +204,8 @@ async def text_test_socket(
         logger.warning(
             "Text test: failed to resolve secrets for {} — {}", agent_id, exc
         )
+
+    llm_cfg = await get_llm_config(db, "__voice__", **_org_kwargs)
 
     def _build_runner() -> AgentRunner:
         return AgentRunner(

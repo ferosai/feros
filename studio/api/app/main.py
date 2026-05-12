@@ -12,9 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from pydantic_ai.exceptions import UserError as PydanticAIUserError
 
-from app.agent_builder import builder_service
 from app.api.agents import router as agents_router
 from app.api.builder import router as builder_router
 from app.api.calls import router as calls_router
@@ -26,12 +24,10 @@ from app.api.oauth_apps import router as oauth_apps_router
 
 from app.api.phone_numbers import router as phone_numbers_router
 
-from app.api.settings import get_builder_llm_config
 from app.api.settings import router as settings_router
 from app.api.voice_session import router as voice_router
 from app.lib import get_settings
 from app.lib.auth import require_api_key
-from app.lib.database import async_session
 
 
 class _HealthCheckFilter(logging.Filter):
@@ -59,21 +55,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "Set AUTH__SECRET_KEY in your environment."
         )
 
-    # Load persisted builder LLM config from DB and reconfigure the builder
-    # Uses the two-layer pointer→creds resolution so the active provider
-    # (e.g. gemini) is correctly loaded instead of falling back to defaults.
-    async with async_session() as db:
-        builder_llm_cfg = await get_builder_llm_config(db)
-        try:
-            builder_service.reconfigure(builder_llm_cfg)
-        except PydanticAIUserError as exc:
-            logger.warning(
-                "Builder LLM config invalid during startup; keeping default "
-                "builder model. provider={}, model={}, error={}",
-                builder_llm_cfg.provider,
-                builder_llm_cfg.model,
-                exc,
-            )
 
     # NOTE: The voice-server binary runs as a separate process and owns
     # port 8300. Python no longer starts or stops the embedded Rust server.

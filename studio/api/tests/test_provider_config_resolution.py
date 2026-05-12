@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import uuid
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -12,7 +14,7 @@ from app.lib import config as config_lib
 def _fake_get_provider_row(rows: dict[tuple[str, str], SimpleNamespace]):
     """Return an async fake for ``_get_provider_row`` backed by *rows*."""
 
-    async def _fake(db, provider_type: str, provider_name: str):
+    async def _fake(db, provider_type: str, provider_name: str, **kwargs: Any):
         del db
         return rows.get((provider_type, provider_name))
 
@@ -173,3 +175,5 @@ async def test_legacy_shared_row_is_not_read(monkeypatch: pytest.MonkeyPatch) ->
     default = config_lib.LLMConfig()
     assert llm.provider == default.provider
     assert llm.api_key != "sk-legacy"
+
+

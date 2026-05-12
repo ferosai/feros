@@ -10,7 +10,6 @@ from typing import Any
 from pydantic_ai import Agent
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent_builder.service import builder_service
 from app.lib.config import LLMConfig
 from app.lib.llm_factory import build_model
 from app.models.evaluation import EvaluationJudgment
@@ -56,7 +55,9 @@ class BaselineEvaluationJudge(EvaluationJudge):
     this implementation without changing call sites.
     """
 
-    async def judge(self, payload: EvaluationJudgeRequest) -> EvaluationJudgeResponse:
+    async def judge(
+        self, payload: EvaluationJudgeRequest, llm_cfg: LLMConfig | None = None
+    ) -> EvaluationJudgeResponse:
         hard = payload.hard_check_results
         passed = sum(1 for ok in hard.values() if ok)
         total = max(len(hard), 1)
@@ -173,8 +174,12 @@ class BuilderLLMEvaluationJudge(EvaluationJudge):
 
     fallback: EvaluationJudge = field(default_factory=BaselineEvaluationJudge)
 
-    async def judge(self, payload: EvaluationJudgeRequest) -> EvaluationJudgeResponse:
-        llm_cfg = builder_service.current_llm_config()
+    async def judge(
+        self, payload: EvaluationJudgeRequest, llm_cfg: LLMConfig | None = None
+    ) -> EvaluationJudgeResponse:
+        if not llm_cfg:
+            return await self.fallback.judge(payload, llm_cfg=None)
+
         preset = resolve_rubric_preset(payload.config.judge.rubric_version)
         dimensions = [{"key": d.key, "label": d.label} for d in preset.dimensions]
 

@@ -19,9 +19,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.agent_builder import builder_service
+from app.agent_builder.service import BuilderService
 from app.agent_builder.deps import BuilderResult
 from app.lib.auth import TenantContext, require_tenant
+from app.lib.config import get_llm_config
 from app.lib.database import async_session, get_db
 from app.lib.file_store import extract_text, file_store
 from app.models.agent import Agent, AgentVersion
@@ -305,7 +306,12 @@ async def stream_message(
         final_result: BuilderResult | None = None
         accumulated_parts: list[dict[str, Any]] = []
         try:
-            async for item in builder_service.process_message_stream(
+            _org_kwargs: dict[str, Any] = {}
+            async with async_session() as db_session:
+                builder_llm_cfg = await get_llm_config(db_session, "__builder__", **_org_kwargs)
+
+            service = BuilderService(builder_llm_cfg)
+            async for item in service.process_message_stream(
                 user_message=llm_content,
                 current_config=current_config,
                 agent_name=_agent_name,

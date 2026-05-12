@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from typing import Any
 
 from app.lib.config import TTSConfig
 from app.models.provider import ProviderConfig
@@ -80,7 +81,7 @@ def tts_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def import_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _fake_get_tts_config(_db: object) -> TTSConfig:
+    async def _fake_get_tts_config(_db: object, **kwargs: Any) -> TTSConfig:
         return TTSConfig(
             provider="cartesia-ws",
             model="sonic-2",
@@ -89,7 +90,7 @@ def import_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
             api_key="",
         )
 
-    async def _fake_rows(_db: object) -> dict[str, ProviderConfig]:
+    async def _fake_rows(_db: object, **kwargs: Any) -> dict[str, ProviderConfig]:
         return {
             "cartesia-ws": ProviderConfig(
                 provider_type="tts",
@@ -270,7 +271,7 @@ async def test_provider_remap_recomputes_model_for_target_provider(
     monkeypatch: pytest.MonkeyPatch,
     tts_catalog: None,
 ) -> None:
-    async def _fake_get_tts_config(_db: object) -> TTSConfig:
+    async def _fake_get_tts_config(_db: object, **kwargs: Any) -> TTSConfig:
         return TTSConfig(
             provider="deepgram",
             model="aura-2-thalia-en",
@@ -279,7 +280,7 @@ async def test_provider_remap_recomputes_model_for_target_provider(
             api_key="",
         )
 
-    async def _fake_rows(_db: object) -> dict[str, ProviderConfig]:
+    async def _fake_rows(_db: object, **kwargs: Any) -> dict[str, ProviderConfig]:
         return {
             "cartesia-ws": ProviderConfig(
                 provider_type="tts",
@@ -326,7 +327,7 @@ async def test_invalid_voice_suggests_provider_compatible_voice_not_default(
     monkeypatch: pytest.MonkeyPatch,
     tts_catalog: None,
 ) -> None:
-    async def _fake_get_tts_config(_db: object) -> TTSConfig:
+    async def _fake_get_tts_config(_db: object, **kwargs: Any) -> TTSConfig:
         return TTSConfig(
             provider="deepgram",
             model="aura-2-thalia-en",
@@ -335,7 +336,7 @@ async def test_invalid_voice_suggests_provider_compatible_voice_not_default(
             api_key="",
         )
 
-    async def _fake_rows(_db: object) -> dict[str, ProviderConfig]:
+    async def _fake_rows(_db: object, **kwargs: Any) -> dict[str, ProviderConfig]:
         return {
             "deepgram": ProviderConfig(
                 provider_type="tts",

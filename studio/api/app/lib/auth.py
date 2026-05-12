@@ -67,6 +67,10 @@ if "require_tenant" not in globals():
     async def require_tenant() -> Any:  # type: ignore[misc, unused-ignore]
         return None
 
+if "get_agent_organization_id" not in globals():
+    async def get_agent_organization_id(db: Any, agent_id: Any) -> Any | None:  # type: ignore[misc, unused-ignore]
+        return None
+
 
 # Re-usable dependency
 RequireAuth = Depends(require_api_key)
