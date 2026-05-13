@@ -671,7 +671,10 @@ export const api = {
     ) => {
       let res: Response;
       try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        const headers: Record<string, string> = { 
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream"
+        };
         res = await fetch(`${API_BASE}/api/agents/${agentId}/builder/stream`, {
           method: "POST",
           headers,
@@ -707,13 +710,17 @@ export const api = {
 
           for (const part of parts) {
             if (signal?.aborted) break;
-            const lines = part.split("\n");
+            const lines = part.split(/\r?\n/);
             let eventType = "message";
             let data = "";
 
             for (const line of lines) {
-              if (line.startsWith("event:")) eventType = line.slice(7).trim();
-              else if (line.startsWith("data:")) data = line.slice(6).trim();
+              if (line.startsWith("event:")) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith("data:")) {
+                const content = line.slice(5).trim();
+                data = data ? data + "\n" + content : content;
+              }
             }
 
             if (!data) continue;
