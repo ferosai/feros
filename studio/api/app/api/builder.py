@@ -411,14 +411,11 @@ async def stream_message(
 
                     # Use voice_id from default TTS provider settings
                     if "voice_id" not in config or not config["voice_id"]:
-                        tts_row = (
-                            await session.execute(
-                                select(ProviderConfig.config_json).where(
-                                    ProviderConfig.provider_type == "tts",
-                                    ProviderConfig.is_default.is_(True),
-                                )
-                            )
-                        ).scalar_one_or_none()
+                        tts_query = select(ProviderConfig.config_json).where(
+                            ProviderConfig.provider_type == "tts",
+                            ProviderConfig.is_default.is_(True),
+                        )
+                        tts_row = (await session.execute(tts_query)).scalar_one_or_none()
                         config["voice_id"] = (
                             tts_row.get("voice_id", "") if tts_row else ""
                         )
