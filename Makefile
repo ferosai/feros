@@ -1,5 +1,6 @@
 # Voice Agent OS — top-level build commands
 # ─────────────────────────────────
+SHELL := /bin/bash
 
 PROTO_DIR   := proto
 ML_DIR      := inference
@@ -69,7 +70,28 @@ lint-server:
 lint-integrations:
 	cd integrations && cargo clippy -- -D warnings
 
-lint-oss: lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
+	@echo "── Checking INTERNAL guard balance ──"
+	@FAILED=0; \
+	while IFS= read -r file; do \
+		if [ "$$begins" != "$$ends" ]; then \
+			FAILED=1; \
+		fi; \
+	done < <(find . \
+		-not -path '*/.git/*' \
+		-not -path '*/node_modules/*' \
+		-not -path '*/target/*' \
+		-not -path '*/.venv/*' \
+		-not -path '*/deploy-scripts/*' \
+		-not -name 'check_leakage.py' \
+		\( -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.rs' \)); \
+	if [ "$$FAILED" -eq 1 ]; then \
+		exit 1; \
+	else \
+		echo "All guards balanced."; \
+	fi
+
+lint-oss: check-guards lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
+
 
 lint-oss-api: ## Lint the Studio API as it appears in the OSS build
 	@echo "── [OSS] Studio API ──"
