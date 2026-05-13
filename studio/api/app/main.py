@@ -40,6 +40,14 @@ class _HealthCheckFilter(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 
+# Apply runtime patch for pydantic-ai OpenRouter validation to allow "standard" service_tier
+try:
+    from pydantic_ai.models.openrouter import _OpenRouterChatCompletionChunk
+    _OpenRouterChatCompletionChunk.model_fields['service_tier'].annotation = str | None  # type: ignore[assignment]
+    _OpenRouterChatCompletionChunk.model_rebuild(force=True)
+except ImportError:
+    pass
+
 VERSION = "0.2.0"
 
 
