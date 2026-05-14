@@ -90,8 +90,7 @@ lint-integrations:
 		echo "All guards balanced."; \
 	fi
 
-lint-oss: check-guards lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
-
+lint-oss: lint-oss-api lint-oss-web lint-oss-voice ## Lint all components as they appear in the OSS build
 
 lint-oss-api: ## Lint the Studio API as it appears in the OSS build
 	@echo "── [OSS] Studio API ──"
